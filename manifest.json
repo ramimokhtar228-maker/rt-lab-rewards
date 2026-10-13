@@ -1,0 +1,22 @@
+{
+  "id": "rt-lab-rewards-app",
+  "name": "معامل رامي مختار - RT Labs",
+  "short_name": "RT Labs",
+  "description": "منصة مسابقات ومكافآت المرضى التفاعلية - التشخيص الصحيح يبدأ معنا",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#8B1E2D",
+  "background_color": "#0F2B5C",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "./src/assets/images/rt_lab_logo_1791920408886.jpg",
+      "sizes": "192x192 512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}
