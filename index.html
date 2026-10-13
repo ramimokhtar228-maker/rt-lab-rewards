@@ -3,12 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>معامل رامي مختار RT Labs - التشخيص الصحيح يبدأ معنا</title>
+    <title>منصة مكافآت وجوائز معامل رامي مختار RT Labs</title>
     <meta name="description" content="منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs - التشخيص الصحيح يبدأ معنا" />
-    <meta property="og:title" content="معامل رامي مختار RT Labs - التشخيص الصحيح يبدأ معنا" />
-    <meta property="og:description" content="منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs" />
+    <meta property="og:title" content="منصة مكافآت وجوائز معامل رامي مختار RT Labs" />
+    <meta property="og:description" content="منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs - التشخيص الصحيح يبدأ معنا" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Anti-cache meta headers so patients always receive the newest update -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
 
     <!-- PWA & Mobile Web App Meta Tags -->
     <link rel="manifest" href="./manifest.json" />
@@ -17,22 +22,27 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="RT Labs" />
+    <link rel="icon" type="image/jpeg" href="./assets/rt_lab_logo_1791920408886-DZ-RDR6r.jpg" />
     <link rel="apple-touch-icon" href="./assets/rt_lab_logo_1791920408886-DZ-RDR6r.jpg" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="./assets/index-DEldK2UI.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-B_DNKnh1.css">
+    <script type="module" crossorigin src="./assets/index-B_xt9NNy.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-B14KAw3B.css">
   </head>
   <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-rose-900 selection:text-white">
     <div id="root"></div>
     <script>
+      // Service worker registration with update checking
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch(() => {});
+          navigator.serviceWorker.register('./sw.js?v=' + Date.now()).then((reg) => {
+            reg.update().catch(() => {});
+          }).catch(() => {});
         });
       }
     </script>
   </body>
 </html>
+
