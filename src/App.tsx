@@ -21,7 +21,7 @@ import {
   Users,
 } from 'lucide-react';
 import { GameType, LabSettings, PatientClaim, Prize, QuizQuestion } from './types';
-import { labLogo } from './assets/images';
+import { labLogo, labReception, medicalTeam } from './assets/images';
 import {
   check24HourRestriction,
   getClaims,
@@ -337,6 +337,110 @@ export default function App() {
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 font-medium">
                 كروت خصم يومية لتشجيع الفحص المبكر
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Visual Lab Environment & Medical Expertise Gallery */}
+        <section className="bg-slate-100/80 py-12 sm:py-16 border-t border-slate-200">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-10">
+              <span className="text-xs font-bold text-[#8B1E2D] bg-rose-50 border border-rose-200 px-3 py-1 rounded-full">
+                {settings.sloganAr}
+              </span>
+              <h2 className="text-xl sm:text-3xl font-black text-slate-900 mt-2">
+                بيئة العمل والتجهيزات الطبية في معامل رامي مختار
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-xl mx-auto">
+                نحرص على توفير أرقى صالات الاستقبال الفندقية المريحة، وأحدث أنظمة التحاليل الرقمية الآلية تحت إشراف نخبة من الأطباء.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Photo 1: Reception */}
+              <div className="rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm flex flex-col group hover:shadow-md transition">
+                <div className="relative h-52 overflow-hidden bg-slate-900">
+                  <img
+                    src={labReception}
+                    alt="صالة استقبال معامل رامي مختار"
+                    className="h-full w-full object-cover group-hover:scale-105 transition duration-500"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-lg">
+                    صالة الاستقبال
+                  </div>
+                </div>
+                <div className="p-5 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm sm:text-base">استقبال فندقي وخدمة متميزة</h3>
+                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                      صالات استقبال مجهزة ومكيفة تضمن الخصوصية والراحة التامة للمريض مع سرعة في سحب العينات دون انتظار.
+                    </p>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-[#8B1E2D] font-bold flex items-center justify-between">
+                    <span>جميع فروع المعمل</span>
+                    <button onClick={() => setShowBranches(true)} className="hover:underline cursor-pointer">عرض الفروع ←</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Photo 2: Medical Specialists */}
+              <div className="rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm flex flex-col group hover:shadow-md transition">
+                <div className="relative h-52 overflow-hidden bg-slate-900">
+                  <img
+                    src={medicalTeam}
+                    alt="فريق أطباء واستشاريي التحاليل"
+                    className="h-full w-full object-cover group-hover:scale-105 transition duration-500"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-lg">
+                    فريق الأطباء والمختبر
+                  </div>
+                </div>
+                <div className="p-5 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm sm:text-base">نخبة من الاستشاريين والأخصائيين</h3>
+                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                      إشراف طبي دقيق من استشاريي الباثولوجيا الإكلينيكية لمراجعة وتدقيق كافة النتائج لضمان أقصى درجات المصداقية.
+                    </p>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-[#0F2B5C] font-bold flex items-center justify-between">
+                    <span>دقة تشخيصية معتمدة</span>
+                    <span>100% موثوقية</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Photo 3: Official Brand Identity Card */}
+              <div className="rounded-3xl overflow-hidden bg-gradient-to-br from-[#0F2B5C] via-[#162A4D] to-[#8B1E2D] text-white p-6 shadow-sm flex flex-col justify-between md:col-span-2 lg:col-span-1">
+                <div>
+                  <div className="h-16 w-16 rounded-2xl overflow-hidden border border-white/20 bg-white p-1.5 shadow mb-4">
+                    <img
+                      src={labLogo}
+                      alt="لوجو معامل رامي مختار"
+                      className="h-full w-full object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider">
+                    RT Labs Accreditation
+                  </span>
+                  <h3 className="text-lg font-black mt-1">معامل د. رامي مختار للتحاليل الطبية</h3>
+                  <p className="text-xs text-slate-200 mt-2 leading-relaxed">
+                    «{settings.sloganAr}» شعارنا الذي نلتزم به في كل تحليل. جوائز وكروت خصم دورية تشجيعاً للفحص والوقاية المستمرة.
+                  </p>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-white/15 flex items-center justify-between">
+                  <span className="text-xs text-amber-300 font-bold">الخط الساخن: {settings.hotline}</span>
+                  <button
+                    onClick={scrollToGames}
+                    className="px-3.5 py-1.5 rounded-xl bg-white text-slate-900 text-xs font-bold hover:bg-slate-100 transition shadow cursor-pointer"
+                  >
+                    العب واكسب الآن
+                  </button>
+                </div>
               </div>
             </div>
           </div>

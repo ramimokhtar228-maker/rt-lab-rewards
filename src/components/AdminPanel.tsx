@@ -10,6 +10,8 @@ import {
   Download,
   Edit2,
   ExternalLink,
+  Eye,
+  EyeOff,
   Gift,
   Home,
   Key,
@@ -29,6 +31,7 @@ import {
   X,
 } from 'lucide-react';
 import { Branch, DiscountType, LabSettings, PatientClaim, Prize, PrizeIdea } from '../types';
+import { labLogo, labReception, medicalTeam } from '../assets/images';
 import { deleteClaim, getPrizeIdeas, resetPlaySessionAdmin, updateClaimStatus } from '../services/storageService';
 
 interface AdminPanelProps {
@@ -55,7 +58,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [pinError, setPinError] = useState(false);
 
   // Active sub-tab
-  const [activeTab, setActiveTab] = useState<'prizes' | 'branches' | 'ideas' | 'claims' | 'settings'>('prizes');
+  const [activeTab, setActiveTab] = useState<'prizes' | 'branches' | 'ideas' | 'claims' | 'settings' | 'security' | 'media'>('prizes');
 
   // Prize editing / creation state
   const [editingPrize, setEditingPrize] = useState<Prize | null>(null);
@@ -97,15 +100,56 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Prize ideas vault
   const prizeIdeas = getPrizeIdeas();
 
-  // Authentication check
+  // PIN Change State & Visibility (Hidden & Confidential)
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showCurrentPin, setShowCurrentPin] = useState(false);
+  const [showNewPin, setShowNewPin] = useState(false);
+  const [showConfirmPin, setShowConfirmPin] = useState(false);
+  const [currentPinInput, setCurrentPinInput] = useState('');
+  const [newPinInput, setNewPinInput] = useState('');
+  const [confirmPinInput, setConfirmPinInput] = useState('');
+  const [pinChangeError, setPinChangeError] = useState('');
+  const [pinChangeSuccess, setPinChangeSuccess] = useState(false);
+
+  // Authentication check - Confidential Admin Login
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === settings.adminPin || pinInput === '1234') {
+    const validPin = settings.adminPin || '1234';
+    if (pinInput.trim() === validPin) {
       setIsAuthenticated(true);
       setPinError(false);
     } else {
       setPinError(true);
     }
+  };
+
+  const handleChangePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinChangeError('');
+    setPinChangeSuccess(false);
+
+    const validPin = settings.adminPin || '1234';
+    if (currentPinInput.trim() !== validPin) {
+      setPinChangeError('رمز المرور الحالي غير صحيح.');
+      return;
+    }
+    if (!newPinInput.trim() || newPinInput.trim().length < 4) {
+      setPinChangeError('يجب ألا يقل رمز المرور الجديد عن 4 خانات.');
+      return;
+    }
+    if (newPinInput.trim() !== confirmPinInput.trim()) {
+      setPinChangeError('رمز المرور الجديد وتأكيده غير متطابقين.');
+      return;
+    }
+
+    const updatedSettings = { ...settings, adminPin: newPinInput.trim() };
+    setSettingsForm(updatedSettings);
+    onUpdateSettings(updatedSettings);
+    setCurrentPinInput('');
+    setNewPinInput('');
+    setConfirmPinInput('');
+    setPinChangeSuccess(true);
+    setTimeout(() => setPinChangeSuccess(false), 3500);
   };
 
   // --- PRIZE CRUD HANDLERS ---
@@ -275,8 +319,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         {/* Top Header Bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-900 text-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#8B1E2D] flex items-center justify-center font-black text-white shadow">
-              RT
+            <div className="h-11 w-11 rounded-xl overflow-hidden border border-rose-300/40 bg-white p-0.5 shadow shrink-0">
+              <img
+                src={labLogo}
+                alt="لوجو معامل رامي مختار"
+                className="h-full w-full object-contain"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
               <h3 className="font-bold text-sm sm:text-base">لوحة تحكم إدارة معامل رامي مختار</h3>
@@ -294,33 +343,46 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
 
         {!isAuthenticated ? (
-          /* Authentication Screen */
+          /* Authentication Screen - Strictly Confidential */
           <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center max-w-md mx-auto my-auto">
-            <div className="h-16 w-16 rounded-2xl bg-rose-50 text-[#8B1E2D] flex items-center justify-center mb-4 border border-rose-200">
-              <Lock className="h-8 w-8" />
+            <div className="h-20 w-20 rounded-2xl overflow-hidden border border-rose-200 bg-white p-1 shadow-md mb-4">
+              <img
+                src={labLogo}
+                alt="معامل رامي مختار"
+                className="h-full w-full object-contain"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <h4 className="text-xl font-bold text-slate-900">تسجيل الدخول لإدارة المعمل</h4>
-            <p className="text-xs text-slate-600 mt-1 mb-6">
-              أدخل رمز المرور السري (PIN) لإدارة الفروع والمكافآت وسجل المرضى (الرمز الافتراضي: 1234)
+            <p className="text-xs text-slate-600 mt-1 mb-6 leading-relaxed">
+              هذه المنطقة مخصصة حصرياً لإدارة معمل د. رامي مختار. يرجى إدخال رمز المرور السري للمتابعة.
             </p>
 
             <form onSubmit={handleLogin} className="w-full space-y-4">
               <div className="relative">
                 <input
-                  type="password"
-                  maxLength={8}
+                  type={showLoginPassword ? 'text' : 'password'}
+                  maxLength={16}
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}
-                  placeholder="رمز المرور (1234)"
-                  className="w-full text-center text-xl font-mono tracking-widest py-3 px-4 rounded-xl border border-slate-300 focus:border-[#8B1E2D] focus:ring-2 focus:ring-rose-500/20 outline-none transition"
+                  placeholder="رمز المرور السري..."
+                  className="w-full text-center text-lg font-mono tracking-widest py-3 px-10 rounded-xl border border-slate-300 focus:border-[#8B1E2D] focus:ring-2 focus:ring-rose-500/20 outline-none transition"
                   autoFocus
                 />
-                <Key className="absolute right-4 top-3.5 h-5 w-5 text-slate-400" />
+                <Key className="absolute right-3.5 top-3.5 h-5 w-5 text-slate-400" />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  className="absolute left-3.5 top-3.5 text-slate-400 hover:text-slate-600 transition"
+                  aria-label={showLoginPassword ? 'إخفاء الرمز' : 'إظهار الرمز'}
+                >
+                  {showLoginPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
 
               {pinError && (
-                <div className="text-xs text-red-600 font-semibold">
-                  رمز المرور غير صحيح. برجاء التجربة مرة أخرى (الافتراضي 1234).
+                <div className="text-xs text-red-600 font-semibold bg-red-50 p-2.5 rounded-lg border border-red-200">
+                  رمز المرور غير صحيح. يرجى التأكد وإعادة المحاولة.
                 </div>
               )}
 
@@ -395,6 +457,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               >
                 <Settings className="h-4 w-4" />
                 <span>إعدادات المعمل والشعار</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('security')}
+                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'security'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Lock className="h-4 w-4" />
+                <span>الأمان وتغيير كلمة المرور</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('media')}
+                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'media'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Layers className="h-4 w-4" />
+                <span>اللوجو والخلفيات المعتمدة</span>
               </button>
             </div>
 
@@ -1167,17 +1253,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                         <div>
                           <label className="block font-semibold text-slate-700 mb-1">
-                            رمز PIN لدخول الإدارة
+                            حالة أمان رمز مرور الإدارة
                           </label>
-                          <input
-                            type="password"
-                            maxLength={8}
-                            value={settingsForm.adminPin}
-                            onChange={(e) =>
-                              setSettingsForm({ ...settingsForm, adminPin: e.target.value })
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
+                          <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-300 bg-slate-50">
+                            <span className="font-mono text-slate-500 font-bold tracking-widest text-xs">
+                              •••••••• (سري ومحمي)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('security')}
+                              className="text-xs text-[#8B1E2D] hover:underline font-bold"
+                            >
+                              تغيير الرمز السري
+                            </button>
+                          </div>
                         </div>
 
                         <div>
@@ -1223,6 +1312,232 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </button>
                       </div>
                     </form>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 6: SECURITY & CONFIDENTIAL PASSWORD CHANGE */}
+              {activeTab === 'security' && (
+                <div className="space-y-6 max-w-2xl mx-auto">
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-[#8B1E2D] text-white flex items-center justify-center shrink-0 shadow">
+                        <Lock className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">سرية وأمان لوحة تحكم الإدارة</h4>
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                          رمز المرور السري محمي وخاص فقط بإدارة معامل رامي مختار، ولا يظهر لأي مريض أو زائر للمنصة.
+                          يمكنك تغيير كلمة المرور في أي وقت لحماية صلاحيات تعديل الخصومات والفروع والجوائز.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h4 className="font-bold text-slate-900 text-sm mb-4 flex items-center gap-2">
+                      <Key className="h-4 w-4 text-[#8B1E2D]" />
+                      <span>نموذج تغيير رمز المرور السري للإدارة</span>
+                    </h4>
+
+                    {pinChangeSuccess && (
+                      <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span>تم تحديث وحفظ رمز المرور السري الجديد بنجاح!</span>
+                      </div>
+                    )}
+
+                    {pinChangeError && (
+                      <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-700 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                        <span>{pinChangeError}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleChangePin} className="space-y-4 text-xs">
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          رمز المرور الحالي *
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showCurrentPin ? 'text' : 'password'}
+                            required
+                            value={currentPinInput}
+                            onChange={(e) => setCurrentPinInput(e.target.value)}
+                            placeholder="أدخل رمز المرور الحالي..."
+                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 px-9 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
+                          />
+                          <Lock className="absolute right-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                          <button
+                            type="button"
+                            onClick={() => setShowCurrentPin(!showCurrentPin)}
+                            className="absolute left-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                            aria-label="إظهار/إخفاء"
+                          >
+                            {showCurrentPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">
+                            رمز المرور الجديد (4 خانات فأكثر) *
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showNewPin ? 'text' : 'password'}
+                              required
+                              value={newPinInput}
+                              onChange={(e) => setNewPinInput(e.target.value)}
+                              placeholder="أدخل الرمز الجديد..."
+                              className="w-full rounded-lg border border-slate-300 bg-white p-2.5 px-9 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
+                            />
+                            <Key className="absolute right-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPin(!showNewPin)}
+                              className="absolute left-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                              aria-label="إظهار/إخفاء"
+                            >
+                              {showNewPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">
+                            تأكيد رمز المرور الجديد *
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showConfirmPin ? 'text' : 'password'}
+                              required
+                              value={confirmPinInput}
+                              onChange={(e) => setConfirmPinInput(e.target.value)}
+                              placeholder="أعد إدخال الرمز الجديد..."
+                              className="w-full rounded-lg border border-slate-300 bg-white p-2.5 px-9 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
+                            />
+                            <Key className="absolute right-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPin(!showConfirmPin)}
+                              className="absolute left-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                              aria-label="إظهار/إخفاء"
+                            >
+                              {showConfirmPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-3">
+                        <button
+                          type="submit"
+                          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow transition flex items-center justify-center gap-2"
+                        >
+                          <Lock className="h-4 w-4" />
+                          <span>تحديث رمز المرور وحفظ التغيير</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 7: OFFICIAL MEDIA & VISUAL ASSETS */}
+              {activeTab === 'media' && (
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-[#0F2B5C] text-white flex items-center justify-center shrink-0 shadow">
+                        <Layers className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">الهوية البصرية والوسائط الرسمية لمعامل رامي مختار</h4>
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                          جميع الصور والشعار الرسمي المعتمد مرفقة ومدمجة بالكامل في المتصفح والتطبيق (اللوجو، صالة الاستقبال والفروع، وفريق العمل واستشاريي التحاليل).
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Official Logo */}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between">
+                      <div>
+                        <div className="h-44 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center p-3 mb-4">
+                          <img
+                            src={labLogo}
+                            alt="الشعار الرسمي لمعامل رامي مختار"
+                            className="max-h-full max-w-full object-contain"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <span className="inline-block text-[10px] font-bold text-[#8B1E2D] bg-rose-50 px-2.5 py-0.5 rounded border border-rose-200 mb-2">
+                          الشعار الرسمي المعتمد
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-sm">لوجو معامل د. رامي مختار RT Labs</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                          مدمج في أعلى الصفحة الرئيسية، وبطاقات الكوبونات الرسمية، وشريط الفروع، ورسائل الواتساب.
+                        </p>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>الحالة: نشط بالمتصفح</span>
+                        <span className="text-emerald-600 font-bold">✓ معتمد</span>
+                      </div>
+                    </div>
+
+                    {/* Reception / Clinic Interior */}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between">
+                      <div>
+                        <div className="h-44 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-900 mb-4">
+                          <img
+                            src={labReception}
+                            alt="صالة استقبال معامل رامي مختار"
+                            className="h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <span className="inline-block text-[10px] font-bold text-[#0F2B5C] bg-blue-50 px-2.5 py-0.5 rounded border border-blue-200 mb-2">
+                          صالة الاستقبال والفروع
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-sm">خلفية الاستقبال والتجهيزات الفندقية</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                          مدمجة في واجهة الاستقبال والواجهة الرئيسية وشريط الفروع لتعزيز ثقة وراحة المرضى.
+                        </p>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>الحالة: نشط بالمتصفح</span>
+                        <span className="text-emerald-600 font-bold">✓ معتمد</span>
+                      </div>
+                    </div>
+
+                    {/* Medical Team & Lab Instruments */}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between">
+                      <div>
+                        <div className="h-44 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-900 mb-4">
+                          <img
+                            src={medicalTeam}
+                            alt="الفريق الطبي والأجهزة المعملية"
+                            className="h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <span className="inline-block text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200 mb-2">
+                          الفريق الطبي والأجهزة
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-sm">استشاريو التحاليل والأجهزة المؤتمتة</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                          تعكس الكفاءة الطبية المتطورة ودقة النتائج في معامل د. رامي مختار وفق المواصفات الدولية.
+                        </p>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>الحالة: نشط بالمتصفح</span>
+                        <span className="text-emerald-600 font-bold">✓ معتمد</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

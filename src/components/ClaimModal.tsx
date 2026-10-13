@@ -21,6 +21,7 @@ import {
 import { GameType, LabSettings, PatientClaim, Prize } from '../types';
 import { buildWhatsAppUrl, generateCouponCode, recordPlaySession, saveClaim } from '../services/storageService';
 import { VoucherCard } from './VoucherCard';
+import { labLogo } from '../assets/images';
 
 interface ClaimModalProps {
   prize: Prize;
@@ -156,17 +157,27 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
             <div>
               {/* Header */}
               <div className="text-center mb-6">
-                <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-rose-50 text-[#8B1E2D] border border-rose-200 shadow-sm mb-3">
-                  <Gift className="h-8 w-8 text-[#8B1E2D]" />
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  <div className="h-14 w-14 rounded-2xl overflow-hidden border border-rose-200 bg-white p-1 shadow-sm shrink-0">
+                    <img
+                      src={labLogo}
+                      alt="معامل رامي مختار RT Labs"
+                      className="h-full w-full object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="h-14 w-14 rounded-2xl bg-rose-50 text-[#8B1E2D] border border-rose-200 shadow-sm flex items-center justify-center shrink-0">
+                    <Gift className="h-8 w-8 text-[#8B1E2D]" />
+                  </div>
                 </div>
-                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-[#8B1E2D]">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-[#8B1E2D]">
                   <Sparkles className="h-4 w-4" />
                   <span>مبروك! لقد ربحت هدية معتمدة من معامل رامي مختار</span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
                   {prize.title}
                 </h3>
-                <p className="text-xs text-rose-800 font-bold mt-1">
+                <p className="text-xs text-[#8B1E2D] font-bold mt-1">
                   {settings.sloganAr}
                 </p>
               </div>

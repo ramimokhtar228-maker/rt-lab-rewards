@@ -1,6 +1,7 @@
 import React from 'react';
 import { Clock, Home, MapPin, MessageCircle, Phone, X } from 'lucide-react';
 import { LabSettings } from '../types';
+import { labLogo, labReception } from '../assets/images';
 
 interface BranchesModalProps {
   settings: LabSettings;
@@ -11,30 +12,52 @@ export const BranchesModal: React.FC<BranchesModalProps> = ({ settings, onClose 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 overflow-y-auto backdrop-blur-sm">
       <div className="relative w-full max-w-2xl rounded-3xl bg-white shadow-2xl overflow-hidden my-6 border border-slate-200">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-900 text-white">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-slate-900 text-white">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#8B1E2D] flex items-center justify-center font-bold text-white shadow">
-              RT
+            <div className="h-11 w-11 rounded-xl overflow-hidden border border-rose-300/40 bg-white p-0.5 shadow shrink-0">
+              <img
+                src={labLogo}
+                alt="لوجو معامل رامي مختار"
+                className="h-full w-full object-contain"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
-              <h3 className="font-bold text-base">فروع معامل رامي مختار وخدمة السحب المنزلي</h3>
+              <h3 className="font-bold text-sm sm:text-base">فروع معامل رامي مختار وخدمة السحب المنزلي</h3>
               <p className="text-xs text-rose-300 font-medium">{settings.sloganAr}</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="rounded-full p-1 text-slate-300 hover:text-white transition"
+            className="rounded-full p-1.5 text-slate-300 hover:bg-white/10 hover:text-white transition"
+            aria-label="إغلاق"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        {/* Visual Lab Reception Header Banner */}
+        <div className="relative h-28 sm:h-36 w-full overflow-hidden bg-slate-900">
+          <img
+            src={labReception}
+            alt="صالة استقبال معامل رامي مختار"
+            className="h-full w-full object-cover opacity-60"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/40 to-transparent flex items-end p-4">
+            <div className="text-white text-xs sm:text-sm">
+              <span className="font-bold">مرحباً بكم في جميع فروعنا المجهزة</span> · راحة المريض وسلامته غايتنا الأولى
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           {settings.branches.map((b) => (
             <div
               key={b.id}
-              className={`p-4.5 rounded-2xl border transition ${
+              className={`p-4 rounded-2xl border transition ${
                 b.isHomeVisit
                   ? 'border-emerald-300 bg-emerald-50/70'
                   : 'border-slate-200 bg-white hover:border-slate-300 shadow-sm'

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Award, CheckCircle2, Clock, FileText, ShieldAlert, ShieldCheck, X } from 'lucide-react';
 import { LabSettings } from '../types';
+import { labLogo } from '../assets/images';
 
 interface PolicyModalProps {
   settings: LabSettings;
@@ -14,8 +15,13 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({ settings, onClose }) =
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-900 text-white">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#8B1E2D] flex items-center justify-center font-bold text-white shadow">
-              RT
+            <div className="h-11 w-11 rounded-xl overflow-hidden border border-rose-300/40 bg-white p-0.5 shadow shrink-0">
+              <img
+                src={labLogo}
+                alt="لوجو معامل رامي مختار"
+                className="h-full w-full object-contain"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
               <h3 className="font-bold text-base">سياسة المكافآت والجوائز الرسمية</h3>
