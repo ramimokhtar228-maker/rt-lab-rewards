@@ -24,6 +24,7 @@ import { GameType, LabSettings, PatientClaim, Prize, QuizQuestion } from './type
 import { labLogo, labReception, medicalTeam } from './assets/images';
 import {
   check24HourRestriction,
+  fetchRemoteConfig,
   getClaims,
   getPrizes,
   getQuizQuestions,
@@ -64,6 +65,15 @@ export default function App() {
   const [copiedAppUrl, setCopiedAppUrl] = useState(false);
 
   const gameSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-sync configuration from remote source so any patient browser reflects updates
+  useEffect(() => {
+    fetchRemoteConfig().then((remote) => {
+      if (remote) {
+        setSettings(remote.settings);
+      }
+    }).catch(() => {});
+  }, []);
 
   // Periodic check of 24h timer
   useEffect(() => {

@@ -12,7 +12,7 @@ interface VoucherCardProps {
 export const VoucherCard: React.FC<VoucherCardProps> = ({
   claim,
   labName = 'معامل د. رامي مختار للتحاليل الطبية (RT Labs)',
-  hotline = '16900',
+  hotline = '01100046841',
 }) => {
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F2B5C] via-[#162A4D] to-[#8B1E2D] p-1 text-white shadow-xl">

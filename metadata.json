@@ -1,7 +1,6 @@
 {
-  "name": "RT Lab Rewards - معامل رامي مختار",
-  "description": "منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs",
+  "name": "منصة مكافآت وجوائز معامل رامي مختار RT Labs",
+  "description": "منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs - التشخيص الصحيح يبدأ معنا",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
-

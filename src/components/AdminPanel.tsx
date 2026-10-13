@@ -27,12 +27,22 @@ import {
   Share2,
   Sparkles,
   Trash2,
+  Globe,
+  UploadCloud,
+  CheckCircle,
   Users,
   X,
 } from 'lucide-react';
 import { Branch, DiscountType, LabSettings, PatientClaim, Prize, PrizeIdea } from '../types';
 import { labLogo, labReception, medicalTeam } from '../assets/images';
-import { deleteClaim, getPrizeIdeas, resetPlaySessionAdmin, updateClaimStatus } from '../services/storageService';
+import {
+  deleteClaim,
+  getPrizeIdeas,
+  GITHUB_SYNC_CONFIG,
+  resetPlaySessionAdmin,
+  syncConfigToGitHub,
+  updateClaimStatus,
+} from '../services/storageService';
 
 interface AdminPanelProps {
   prizes: Prize[];
@@ -90,6 +100,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<LabSettings>({ ...settings });
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [isSyncingGitHub, setIsSyncingGitHub] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [githubToken, setGithubToken] = useState<string>(() => localStorage.getItem('rt_github_token') || '');
 
   // Claims search & filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -257,6 +270,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     onUpdateSettings(settingsForm);
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2500);
+  };
+
+  // Sync and publish config to GitHub so all patients and browsers receive it live
+  const handleSyncToGitHub = async () => {
+    setIsSyncingGitHub(true);
+    setSyncResult(null);
+    try {
+      onUpdateSettings(settingsForm);
+      const res = await syncConfigToGitHub(settingsForm, githubToken);
+      setSyncResult(res);
+    } catch (err: any) {
+      setSyncResult({ success: false, message: err?.message || 'تعذر الاتصال بـ GitHub' });
+    } finally {
+      setIsSyncingGitHub(false);
+    }
   };
 
   // Unlock 24h lockout for current device (helpful for lab admin testing)
@@ -1226,7 +1254,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <input
                             type="text"
                             required
-                            placeholder="مثال: 201099887766"
+                            placeholder="مثال: 01100874444 أو 201100874444"
                             value={settingsForm.whatsappNumber}
                             onChange={(e) =>
                               setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })
@@ -1242,7 +1270,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <input
                             type="text"
                             required
-                            placeholder="مثال: 16900"
+                            placeholder="مثال: 01100046841 أو 01013242777"
                             value={settingsForm.hotline}
                             onChange={(e) =>
                               setSettingsForm({ ...settingsForm, hotline: e.target.value })
@@ -1292,7 +1320,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                       </div>
 
-                      <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+                      <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
                         {/* Admin Testing tool: Reset 24h lockout for tester */}
                         <button
                           type="button"
@@ -1304,14 +1332,121 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <span>{unlockedMsg ? 'تم فك حظر الـ 24 ساعة لهذا الجهاز!' : 'تصفير قفل الـ 24 ساعة للتجربة'}</span>
                         </button>
 
-                        <button
-                          type="submit"
-                          className="px-6 py-2.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow transition"
-                        >
-                          حفظ كافة الإعدادات
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="submit"
+                            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow transition"
+                          >
+                            حفظ محلياً في هذا الجهاز
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSyncToGitHub}
+                            disabled={isSyncingGitHub}
+                            className="px-5 py-2.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow transition flex items-center gap-2 disabled:opacity-50"
+                          >
+                            <UploadCloud className={`h-4 w-4 ${isSyncingGitHub ? 'animate-bounce' : ''}`} />
+                            <span>{isSyncingGitHub ? 'جارِ النشر والتحديث السحابي...' : 'نشر وتحديث لجميع المرضى فوراً 🚀'}</span>
+                          </button>
+                        </div>
                       </div>
                     </form>
+                  </div>
+
+                  {/* GitHub Cloud Sync Status Card */}
+                  <div className="rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 to-amber-50 p-6 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-[#8B1E2D] text-white flex items-center justify-center shrink-0 shadow">
+                          <Globe className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <span>النشر السحابي المباشر لجميع هواتف ومتصفحات المرضى</span>
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-mono">LIVE SYNC</span>
+                          </h4>
+                          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                            عند الضغط على "نشر وتحديث لجميع المرضى"، يتم إرسال أحدث أرقام الهواتف، الفروع، العناوين، ورقم الواتساب
+                            مباشرة إلى رابط المنصة العام على GitHub Pages، لتعمل فوراً عند أي مريض يفتح الرابط دون أن تظهر له أي بيانات قديمة أو كاش.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSyncToGitHub}
+                        disabled={isSyncingGitHub}
+                        className="px-4 py-2 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow flex items-center gap-1.5 shrink-0 transition"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isSyncingGitHub ? 'animate-spin' : ''}`} />
+                        <span>{isSyncingGitHub ? 'جارِ النشر...' : 'مزامنة سحابية الآن'}</span>
+                      </button>
+                    </div>
+
+                    {syncResult && (
+                      <div className={`mt-4 p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                        syncResult.success ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'
+                      }`}>
+                        {syncResult.success ? <CheckCircle className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+                        <div className="flex-1">
+                          <p className="font-bold">{syncResult.success ? 'تم نشر التحديث السحابي بنجاح تام!' : 'تنبيه المزامنة:'}</p>
+                          <p className="text-[11px] mt-0.5 opacity-90">{syncResult.message}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Optional Token Config Box */}
+                    <div className="mt-4 pt-3 border-t border-rose-200/50">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="text-[11px] font-semibold text-slate-700">
+                          رمز GitHub Access Token (المستخدم للمزامنة السحابية الفورية):
+                        </label>
+                        <span className="text-[10px] text-slate-500">محفوظ بأمان في جهاز الإدارة فقط</span>
+                      </div>
+                      <div className="mt-1.5 flex gap-2">
+                        <input
+                          type="password"
+                          value={githubToken}
+                          onChange={(e) => {
+                            setGithubToken(e.target.value);
+                            localStorage.setItem('rt_github_token', e.target.value);
+                          }}
+                          placeholder="ألصق رمز ghp_... هنا لتفعيل النشر الفوري"
+                          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            localStorage.setItem('rt_github_token', githubToken);
+                            alert('تم حفظ الرمز السري بنجاح في جهاز الإدارة!');
+                          }}
+                          className="px-3 py-2 rounded-lg bg-slate-800 text-white text-xs font-bold hover:bg-slate-900 transition"
+                        >
+                          حفظ الرمز
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-rose-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] text-slate-700">
+                      <div className="bg-white/80 p-3 rounded-xl border border-rose-100">
+                        <span className="font-semibold text-slate-500 block">رابط المعمل المعتمد للمرضى:</span>
+                        <a
+                          href="https://ramimokhtar228-maker.github.io/rt-lab-rewards/"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#8B1E2D] hover:underline font-mono font-bold break-all flex items-center gap-1 mt-0.5"
+                        >
+                          <span>https://ramimokhtar228-maker.github.io/rt-lab-rewards/</span>
+                          <ExternalLink className="h-3 w-3 inline shrink-0" />
+                        </a>
+                      </div>
+                      <div className="bg-white/80 p-3 rounded-xl border border-rose-100">
+                        <span className="font-semibold text-slate-500 block">رقم الواتساب المفعل لاستلام الكوبونات:</span>
+                        <span className="text-emerald-700 font-mono font-bold text-xs mt-0.5 block" dir="ltr">
+                          +{settingsForm.whatsappNumber.replace(/\D/g, '')}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
