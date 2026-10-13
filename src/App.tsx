@@ -19,6 +19,7 @@ import {
   Users,
 } from 'lucide-react';
 import { GameType, LabSettings, PatientClaim, Prize, QuizQuestion } from './types';
+import { labLogo } from './assets/images';
 import {
   getClaims,
   getPrizes,
@@ -276,7 +277,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-lg overflow-hidden border border-slate-200 bg-white">
               <img
-                src="/src/assets/images/rt_lab_logo_1791920408886.jpg"
+                src={labLogo}
                 alt="RT Lab"
                 className="h-full w-full object-contain"
                 referrerPolicy="no-referrer"

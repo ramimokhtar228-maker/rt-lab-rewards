@@ -1,6 +1,7 @@
 import React from 'react';
 import { Award, Calendar, CheckCircle2, MapPin, Phone, ShieldCheck } from 'lucide-react';
 import { PatientClaim } from '../types';
+import { labLogo } from '../assets/images';
 
 interface VoucherCardProps {
   claim: PatientClaim;
@@ -25,7 +26,7 @@ export const VoucherCard: React.FC<VoucherCardProps> = ({
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-rose-300/30 bg-white p-0.5 shadow">
               <img
-                src="/src/assets/images/rt_lab_logo_1791920408886.jpg"
+                src={labLogo}
                 alt="RT Labs Logo"
                 className="h-full w-full object-contain"
                 referrerPolicy="no-referrer"

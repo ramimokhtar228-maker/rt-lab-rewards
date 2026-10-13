@@ -1,6 +1,7 @@
 import React from 'react';
 import { Lock, Phone, ShieldCheck } from 'lucide-react';
 import { LabSettings } from '../types';
+import { labLogo } from '../assets/images';
 
 interface HeaderProps {
   settings: LabSettings;
@@ -24,7 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-3 shrink-0">
           <div className="h-10 w-10 overflow-hidden rounded-xl border border-rose-200 shadow-sm bg-white shrink-0">
             <img
-              src="/src/assets/images/rt_lab_logo_1791920408886.jpg"
+              src={labLogo}
               alt="RT Labs Logo"
               className="h-full w-full object-contain"
               referrerPolicy="no-referrer"

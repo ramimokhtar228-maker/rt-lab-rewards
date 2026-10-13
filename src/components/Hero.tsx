@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowDown, CheckCircle2, Gift, ShieldCheck, Sparkles } from 'lucide-react';
+import { labHero } from '../assets/images';
 
 interface HeroProps {
   onScrollToGame: () => void;
@@ -12,7 +13,7 @@ export const Hero: React.FC<HeroProps> = ({ onScrollToGame, onOpenBranches }) =>
       {/* Background with lab image and dark contrast scrim */}
       <div className="absolute inset-0 z-0">
         <img
-          src="/src/assets/images/rt_lab_hero_1791920408252.jpg"
+          src={labHero}
           alt="معامل رامي مختار للتحاليل الطبية"
           className="h-full w-full object-cover opacity-25"
           referrerPolicy="no-referrer"
