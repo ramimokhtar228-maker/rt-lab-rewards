@@ -2,17 +2,22 @@ import React, { useState } from 'react';
 import {
   AlertCircle,
   Award,
+  Building2,
   Check,
   CheckCircle2,
+  Clock,
   Copy,
   Download,
   Edit2,
   ExternalLink,
   Gift,
+  Home,
   Key,
   Layers,
   Lock,
+  MapPin,
   MessageCircle,
+  Phone,
   Plus,
   RefreshCw,
   Search,
@@ -23,8 +28,8 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { DiscountType, LabSettings, PatientClaim, Prize, PrizeIdea } from '../types';
-import { deleteClaim, getPrizeIdeas, updateClaimStatus } from '../services/storageService';
+import { Branch, DiscountType, LabSettings, PatientClaim, Prize, PrizeIdea } from '../types';
+import { deleteClaim, getPrizeIdeas, resetPlaySessionAdmin, updateClaimStatus } from '../services/storageService';
 
 interface AdminPanelProps {
   prizes: Prize[];
@@ -50,7 +55,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [pinError, setPinError] = useState(false);
 
   // Active sub-tab
-  const [activeTab, setActiveTab] = useState<'prizes' | 'ideas' | 'claims' | 'settings'>('prizes');
+  const [activeTab, setActiveTab] = useState<'prizes' | 'branches' | 'ideas' | 'claims' | 'settings'>('prizes');
 
   // Prize editing / creation state
   const [editingPrize, setEditingPrize] = useState<Prize | null>(null);
@@ -68,6 +73,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     terms: '',
   });
 
+  // Branch editing / creation state (Requested: CRUD for all fields in branches!)
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [isAddingBranch, setIsAddingBranch] = useState(false);
+  const [branchForm, setBranchForm] = useState<Partial<Branch>>({
+    name: '',
+    address: '',
+    hours: 'يومياً من 8:00 صباحاً حتى 11:00 مساءً',
+    phone: '',
+    isHomeVisit: false,
+  });
+
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<LabSettings>({ ...settings });
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -76,6 +92,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [unlockedMsg, setUnlockedMsg] = useState(false);
 
   // Prize ideas vault
   const prizeIdeas = getPrizeIdeas();
@@ -91,7 +108,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Add or Edit Prize Handler
+  // --- PRIZE CRUD HANDLERS ---
   const handleSavePrize = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prizeForm.title || !prizeForm.discountValue) return;
@@ -113,7 +130,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         textColor: '#FFFFFF',
         weight: Number(prizeForm.weight) || 15,
         active: prizeForm.active ?? true,
-        terms: prizeForm.terms || 'تطبق الشروط والأحكام الخاصة بمعامل رامي مختار',
+        terms: prizeForm.terms || 'صالح لمدة 24 ساعة فقط من تاريخ المكسب',
       };
       onUpdatePrizes([...prizes, newPrize]);
     }
@@ -123,7 +140,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleDeletePrize = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذه الجائزة من القائمة؟')) {
+    if (confirm('هل أنت متأكد من حذف هذه الجائزة نهائياً من القائمة؟')) {
       onUpdatePrizes(prizes.filter((p) => p.id !== id));
     }
   };
@@ -131,6 +148,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleTogglePrizeActive = (id: string) => {
     const updated = prizes.map((p) => (p.id === id ? { ...p, active: !p.active } : p));
     onUpdatePrizes(updated);
+  };
+
+  // --- BRANCH CRUD HANDLERS (Requested explicitly by user!) ---
+  const handleSaveBranch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!branchForm.name) return;
+
+    let updatedBranches: Branch[];
+    if (editingBranch) {
+      updatedBranches = settings.branches.map((b) =>
+        b.id === editingBranch.id ? ({ ...b, ...branchForm } as Branch) : b
+      );
+    } else {
+      const newBranch: Branch = {
+        id: 'branch_' + Date.now(),
+        name: branchForm.name.trim(),
+        address: branchForm.address?.trim() || '',
+        hours: branchForm.hours?.trim() || 'يومياً من 8:00 صباحاً حتى 11:00 مساءً',
+        phone: branchForm.phone?.trim() || settings.hotline,
+        isHomeVisit: !!branchForm.isHomeVisit,
+      };
+      updatedBranches = [...settings.branches, newBranch];
+    }
+
+    const newSettings = { ...settings, branches: updatedBranches };
+    setSettingsForm(newSettings);
+    onUpdateSettings(newSettings);
+    setEditingBranch(null);
+    setIsAddingBranch(false);
+  };
+
+  const handleDeleteBranch = (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذا الفرع؟')) {
+      const updatedBranches = settings.branches.filter((b) => b.id !== id);
+      const newSettings = { ...settings, branches: updatedBranches };
+      setSettingsForm(newSettings);
+      onUpdateSettings(newSettings);
+    }
   };
 
   // Add idea directly to prizes
@@ -146,7 +201,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       textColor: '#FFFFFF',
       weight: 15,
       active: true,
-      terms: 'عرض خاص معتمد من إدارة معامل رامي مختار',
+      terms: 'صالح لمدة 24 ساعة فقط من وقت الحصول عليه',
     };
     onUpdatePrizes([...prizes, newPrize]);
     setActiveTab('prizes');
@@ -160,6 +215,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setTimeout(() => setSettingsSaved(false), 2500);
   };
 
+  // Unlock 24h lockout for current device (helpful for lab admin testing)
+  const handleResetLockout = () => {
+    resetPlaySessionAdmin();
+    setUnlockedMsg(true);
+    setTimeout(() => setUnlockedMsg(false), 3000);
+  };
+
   // Export claims to CSV
   const handleExportCSV = () => {
     if (claims.length === 0) {
@@ -167,7 +229,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       return;
     }
 
-    const headers = ['كود الكوبون', 'اسم المريض', 'رقم الهاتف', 'الفرع', 'الجائزة', 'قيمة الخصم', 'تاريخ التسجيل', 'تاريخ الانتهاء', 'الحالة'];
+    const headers = ['كود الكوبون', 'المريض', 'الهاتف', 'الفرع', 'الجائزة', 'قيمة الخصم', 'تاريخ المكسب', 'انتهاء الصلاحية (24س)', 'الحالة'];
     const rows = claims.map((c) => [
       c.couponCode,
       `"${c.patientName}"`,
@@ -200,7 +262,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return matchesSearch && matchesStatus;
   });
 
-  // Copy shareable patient link
   const copyPatientLink = () => {
     const url = window.location.origin + window.location.pathname;
     navigator.clipboard.writeText(url);
@@ -209,17 +270,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4 overflow-y-auto backdrop-blur-md">
-      <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl overflow-hidden my-4 border border-slate-200 flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 overflow-y-auto backdrop-blur-md">
+      <div className="relative w-full max-w-4xl rounded-3xl bg-white shadow-2xl overflow-hidden my-4 border border-slate-200 flex flex-col max-h-[92vh]">
         {/* Top Header Bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-900 text-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-[#8B1E2D] flex items-center justify-center font-bold text-white shadow">
+            <div className="h-10 w-10 rounded-xl bg-[#8B1E2D] flex items-center justify-center font-black text-white shadow">
               RT
             </div>
             <div>
               <h3 className="font-bold text-sm sm:text-base">لوحة تحكم إدارة معامل رامي مختار</h3>
-              <p className="text-[11px] text-slate-300">إدارة الجوائز والخصومات وسجل المرضى والواتساب</p>
+              <p className="text-[11px] text-rose-300 font-medium">{settings.sloganAr}</p>
             </div>
           </div>
 
@@ -240,7 +301,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
             <h4 className="text-xl font-bold text-slate-900">تسجيل الدخول لإدارة المعمل</h4>
             <p className="text-xs text-slate-600 mt-1 mb-6">
-              أدخل رمز المرور السري (PIN) للوصول لإدارة العروض والهدايا وسجل الكوبونات (الرمز الافتراضي: 1234)
+              أدخل رمز المرور السري (PIN) لإدارة الفروع والمكافآت وسجل المرضى (الرمز الافتراضي: 1234)
             </p>
 
             <form onSubmit={handleLogin} className="w-full space-y-4">
@@ -285,7 +346,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 }`}
               >
                 <Gift className="h-4 w-4" />
-                <span>إدارة الجوائز والخصومات ({prizes.length})</span>
+                <span>إدارة المكافآت والخصومات ({prizes.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('branches')}
+                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'branches'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Building2 className="h-4 w-4" />
+                <span>إدارة الفروع والسحب المنزلي ({settings.branches.length})</span>
               </button>
 
               <button
@@ -297,7 +370,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 }`}
               >
                 <Sparkles className="h-4 w-4" />
-                <span>بنك الأفكار التسويقية المقترحة</span>
+                <span>أفكار وباقات ترويجية ({prizeIdeas.length})</span>
               </button>
 
               <button
@@ -309,7 +382,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 }`}
               >
                 <Users className="h-4 w-4" />
-                <span>سجل الفائزين والكوبونات ({claims.length})</span>
+                <span>سجل الكوبونات ({claims.length})</span>
               </button>
 
               <button
@@ -321,21 +394,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 }`}
               >
                 <Settings className="h-4 w-4" />
-                <span>إعدادات المعمل والواتساب</span>
+                <span>إعدادات المعمل والشعار</span>
               </button>
             </div>
 
             {/* Tab Contents */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50">
-              {/* TAB 1: PRIZES MANAGEMENT */}
+              {/* TAB 1: PRIZES MANAGEMENT (Full CRUD) */}
               {activeTab === 'prizes' && (
                 <div className="space-y-6">
-                  {/* Top Bar with Add Prize Button */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
                     <div>
-                      <h4 className="font-bold text-slate-900 text-sm">قائمة هدايا وخصومات المسابقات</h4>
+                      <h4 className="font-bold text-slate-900 text-sm">قائمة المكافآت والخصومات النشطة</h4>
                       <p className="text-xs text-slate-500">
-                        تحكم في نسب الخصم ونوع الهدايا التي تظهر في عجلة الحظ وكارت الخدش وتحدي المعلومات
+                        تحكم في نسبة الخصم ونوع الجائزة واحتمالية الفوز وصلاحية الـ 24 ساعة
                       </p>
                     </div>
 
@@ -352,23 +424,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           textColor: '#FFFFFF',
                           weight: 15,
                           active: true,
-                          terms: '',
+                          terms: 'صالح لمدة 24 ساعة فقط من وقت الحصول عليه',
                         });
                         setIsAddingPrize(true);
                       }}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white py-2 px-4 text-xs font-bold shadow transition"
                     >
                       <Plus className="h-4 w-4" />
-                      <span>إضافة هدية / خصم جديد</span>
+                      <span>إضافة مكافأة جديدة</span>
                     </button>
                   </div>
 
-                  {/* Add / Edit Form Modal / Accordion */}
+                  {/* Add / Edit Form */}
                   {isAddingPrize && (
-                    <div className="rounded-xl border border-rose-300 bg-rose-50/50 p-5 shadow-sm animate-fade-in">
+                    <div className="rounded-2xl border border-rose-300 bg-rose-50/60 p-5 shadow-sm animate-fade-in">
                       <div className="flex items-center justify-between mb-4">
                         <h5 className="font-bold text-slate-900 text-sm">
-                          {editingPrize ? 'تعديل الهدية / الخصم' : 'إضافة هدية جديدة للمسابقات'}
+                          {editingPrize ? 'تعديل بيانات الجائزة' : 'إضافة مكافأة جديدة للمسابقات'}
                         </h5>
                         <button
                           onClick={() => {
@@ -395,7 +467,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-slate-700 mb-1">الاسم المختصر (للعجلة) *</label>
+                          <label className="block font-semibold text-slate-700 mb-1">الاسم المختصر *</label>
                           <input
                             type="text"
                             required
@@ -419,8 +491,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
                           >
                             <option value="percentage">نسبة خصم مئوية (%)</option>
-                            <option value="free_test">فحص مجاني بالكامل</option>
-                            <option value="fixed">قسيمة بمبلغ نقدي محدد (ج.م)</option>
+                            <option value="free_test">فحص مجاني بالكامل (100%)</option>
+                            <option value="fixed">مبلغ نقدي مباشر (ج.م)</option>
                             <option value="gift">هدية أو خدمة إضافية</option>
                           </select>
                         </div>
@@ -438,7 +510,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-slate-700 mb-1">نسبة ظهور الجائزة (الوزن النسبي)</label>
+                          <label className="block font-semibold text-slate-700 mb-1">احتمالية الفوز (الوزن النسبي)</label>
                           <input
                             type="number"
                             min="1"
@@ -447,7 +519,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             onChange={(e) => setPrizeForm({ ...prizeForm, weight: Number(e.target.value) })}
                             className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
                           />
-                          <span className="text-[10px] text-slate-500">كلما زاد الرقم زادت فرصة فوز المريض بها</span>
                         </div>
 
                         <div>
@@ -464,10 +535,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
 
                         <div className="sm:col-span-2">
-                          <label className="block font-semibold text-slate-700 mb-1">شرح الجائزة وشروطها للمريض</label>
+                          <label className="block font-semibold text-slate-700 mb-1">وصف الجائزة والشروط</label>
                           <input
                             type="text"
-                            placeholder="مثال: يشمل باقة الاطمئنان الشاملة ويطبق في كافة فروع معامل رامي مختار"
+                            placeholder="مثال: صالح لمدة 24 ساعة فقط في كافة فروع معامل رامي مختار"
                             value={prizeForm.description}
                             onChange={(e) => setPrizeForm({ ...prizeForm, description: e.target.value })}
                             className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
@@ -489,7 +560,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             type="submit"
                             className="px-5 py-2 rounded-lg bg-[#8B1E2D] text-white font-bold shadow hover:bg-[#731925]"
                           >
-                            {editingPrize ? 'تحديث الجائزة' : 'حفظ ونشر الجائزة'}
+                            {editingPrize ? 'تحديث المكافأة' : 'حفظ ونشر المكافأة'}
                           </button>
                         </div>
                       </form>
@@ -501,14 +572,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     {prizes.map((p) => (
                       <div
                         key={p.id}
-                        className={`rounded-xl border p-4 transition bg-white flex flex-col justify-between ${
+                        className={`rounded-2xl border p-4 transition bg-white flex flex-col justify-between ${
                           p.active ? 'border-slate-200 shadow-sm' : 'border-slate-200 opacity-60 bg-slate-50'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-2.5">
                             <div
-                              className="h-8 w-8 rounded-lg shrink-0 flex items-center justify-center text-white font-black text-xs shadow-sm"
+                              className="h-9 w-9 rounded-xl shrink-0 flex items-center justify-center text-white font-black text-xs shadow-sm"
                               style={{ backgroundColor: p.color || '#8B1E2D' }}
                             >
                               %
@@ -532,11 +603,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
 
                         <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                          <div className="flex items-center gap-2">
-                            <span>الاحتمالية: {p.weight}</span>
-                            <span>·</span>
-                            <span className="text-[11px] text-slate-400 truncate max-w-[150px]">{p.shortTitle}</span>
-                          </div>
+                          <span className="text-[11px] text-slate-400">احتمالية: {p.weight}</span>
 
                           <div className="flex items-center gap-1.5">
                             <button
@@ -577,19 +644,224 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
 
-              {/* TAB 2: MARKETING IDEAS VAULT */}
+              {/* TAB 2: BRANCHES CRUD (Explicitly requested: اضافه خاصيه التعديل والحذف لجميع الحقول خاصه الفروع) */}
+              {activeTab === 'branches' && (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">إدارة الفروع وخدمة السحب المنزلي</h4>
+                      <p className="text-xs text-slate-500">
+                        يمكنك إضافة أو تعديل أو حذف أي فرع، ومواعيد العمل وأرقام الهواتف، وخدمة السحب المنزلي
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setEditingBranch(null);
+                        setBranchForm({
+                          name: '',
+                          address: '',
+                          hours: 'يومياً من 8:00 صباحاً حتى 11:00 مساءً',
+                          phone: settings.hotline,
+                          isHomeVisit: false,
+                        });
+                        setIsAddingBranch(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white py-2 px-4 text-xs font-bold shadow transition"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>إضافة فرع جديد</span>
+                    </button>
+                  </div>
+
+                  {/* Add / Edit Branch Form */}
+                  {isAddingBranch && (
+                    <div className="rounded-2xl border border-blue-300 bg-blue-50/60 p-5 shadow-sm animate-fade-in">
+                      <div className="flex items-center justify-between mb-4">
+                        <h5 className="font-bold text-slate-900 text-sm">
+                          {editingBranch ? 'تعديل بيانات الفرع' : 'إضافة فرع جديد للمعمل'}
+                        </h5>
+                        <button
+                          onClick={() => {
+                            setIsAddingBranch(false);
+                            setEditingBranch(null);
+                          }}
+                          className="text-xs text-slate-500 hover:text-slate-800"
+                        >
+                          إلغاء
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleSaveBranch} className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">اسم الفرع *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="مثال: فرع الزمالك أو فرع المعادي"
+                            value={branchForm.name}
+                            onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">رقم الهاتف / الواتساب للتواصل</label>
+                          <input
+                            type="text"
+                            placeholder="مثال: 01012345678"
+                            value={branchForm.phone}
+                            onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="block font-semibold text-slate-700 mb-1">العنوان التفصيلي للفرع</label>
+                          <input
+                            type="text"
+                            placeholder="مثال: شارع جامعة الدول العربية، أمام نادي الصيد"
+                            value={branchForm.address}
+                            onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">مواعيد العمل الرسمية</label>
+                          <input
+                            type="text"
+                            placeholder="مثال: يومياً من 8:00 صباحاً حتى 11:00 مساءً"
+                            value={branchForm.hours}
+                            onChange={(e) => setBranchForm({ ...branchForm, hours: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">نوع الفرع</label>
+                          <div className="flex items-center gap-2 pt-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={branchForm.isHomeVisit}
+                                onChange={(e) => setBranchForm({ ...branchForm, isHomeVisit: e.target.checked })}
+                                className="h-4 w-4 rounded text-[#8B1E2D]"
+                              />
+                              <span className="font-semibold text-slate-800">هذا الفرع مخصص لخدمة السحب المنزلي</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="sm:col-span-2 flex items-center justify-end gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddingBranch(false);
+                              setEditingBranch(null);
+                            }}
+                            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 font-semibold"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-5 py-2 rounded-lg bg-[#8B1E2D] text-white font-bold shadow hover:bg-[#731925]"
+                          >
+                            {editingBranch ? 'تحديث بيانات الفرع' : 'حفظ وإضافة الفرع'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Branches List */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {settings.branches.map((b) => (
+                      <div
+                        key={b.id}
+                        className={`rounded-2xl border p-5 transition bg-white flex flex-col justify-between shadow-sm ${
+                          b.isHomeVisit ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                  b.isHomeVisit ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-[#8B1E2D]'
+                                }`}
+                              >
+                                {b.isHomeVisit ? <Home className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
+                              </div>
+                              <div>
+                                <h5 className="font-bold text-slate-900 text-sm">{b.name}</h5>
+                                <p className="text-xs text-slate-600 mt-1 flex items-start gap-1">
+                                  <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                                  <span>{b.address || 'القاهرة والجيزة'}</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {b.isHomeVisit && (
+                              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                سحب منزلي
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-3 text-xs text-slate-500 space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-slate-400" />
+                              <span>{b.hours}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 font-mono">
+                              <Phone className="h-3.5 w-3.5 text-slate-400" />
+                              <span>{b.phone}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingBranch(b);
+                              setBranchForm({ ...b });
+                              setIsAddingBranch(true);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                            <span>تعديل</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteBranch(b.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>حذف</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: MARKETING IDEAS VAULT */}
               {activeTab === 'ideas' && (
                 <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-blue-900 to-[#8B1E2D] p-5 rounded-xl text-white shadow">
+                  <div className="bg-gradient-to-r from-blue-900 to-[#8B1E2D] p-5 rounded-2xl text-white shadow">
                     <div className="flex items-center gap-2 text-xs font-semibold text-rose-200 mb-1">
                       <Sparkles className="h-4 w-4" />
-                      <span>أفكار تسويقية مبتكرة لزيادة تردد المرضى على معامل رامي مختار</span>
+                      <span>أفكار وباقات تسويقية ذكية لزيادة التردد والمبيعات</span>
                     </div>
                     <h4 className="text-base sm:text-lg font-bold">
-                      بنك مقترحات الهدايا وباقات الفحص الطبي
+                      بنك مقترحات الهدايا والخصومات الطبية المعتمدة
                     </h4>
                     <p className="text-xs text-slate-200 mt-1 max-w-2xl leading-relaxed">
-                      اختر أي فكرة تسويقية تناسب الحملة الحالية واضغط على زر الإضافة لتضمينها فوراً في ألعاب
+                      اختر أي فكرة تسويقية تناسب حملتك الحالية واضغط على زر الإضافة لتضمينها فوراً في ألعاب
                       المسابقات للمرضى!
                     </p>
                   </div>
@@ -598,7 +870,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     {prizeIdeas.map((idea) => (
                       <div
                         key={idea.id}
-                        className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between hover:border-rose-300 transition"
+                        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between hover:border-rose-300 transition"
                       >
                         <div>
                           <div className="flex items-center justify-between gap-2 mb-2">
@@ -613,7 +885,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <h5 className="font-bold text-slate-900 text-sm">{idea.title}</h5>
                           <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">{idea.description}</p>
 
-                          <div className="mt-3 rounded-lg bg-emerald-50/70 p-2 border border-emerald-200 text-[11px] text-emerald-800">
+                          <div className="mt-3 rounded-xl bg-emerald-50/70 p-2.5 border border-emerald-200 text-[11px] text-emerald-800">
                             <strong>الأثر التسويقي للمعمل:</strong> {idea.benefitToLab}
                           </div>
                         </div>
@@ -624,7 +896,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             className="inline-flex items-center gap-1.5 rounded-lg bg-[#8B1E2D] hover:bg-[#731925] text-white py-2 px-3 text-xs font-bold shadow-sm transition"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            <span>إضافة الفكرة إلى جوائز المسابقة</span>
+                            <span>إضافة الفكرة إلى جوائز المسابقة فوراً</span>
                           </button>
                         </div>
                       </div>
@@ -633,15 +905,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
 
-              {/* TAB 3: PATIENT CLAIMS & LOGS */}
+              {/* TAB 4: CLAIMS LOG */}
               {activeTab === 'claims' && (
                 <div className="space-y-4">
-                  {/* Search and Filters Bar */}
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
                     <div className="relative flex-1">
                       <input
                         type="text"
-                        placeholder="ابحث بالاسم أو رقم الهاتف أو كود الكوبون..."
+                        placeholder="ابحث باسم المريض أو الهاتف أو كود الكوبون..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 bg-slate-50 pr-9 pl-3 py-2 text-xs text-slate-900 outline-none focus:border-[#8B1E2D] focus:bg-white"
@@ -657,7 +928,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       >
                         <option value="all">كافة الحالات</option>
                         <option value="pending">قيد الانتظار</option>
-                        <option value="verified">تم التأكيد</option>
                         <option value="redeemed">تم الاستخدام والخصم</option>
                       </select>
 
@@ -672,7 +942,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
 
                   {/* Claims Table */}
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     {filteredClaims.length === 0 ? (
                       <div className="p-8 text-center text-slate-500 text-xs">
                         لا توجد طلبات أو كوبونات مطابقة للبحث حالياً.
@@ -686,8 +956,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               <th className="p-3">المريض</th>
                               <th className="p-3">الهاتف</th>
                               <th className="p-3">الفرع</th>
-                              <th className="p-3">الجائزة والخصم</th>
-                              <th className="p-3">تاريخ الاستحقاق</th>
+                              <th className="p-3">الجائزة</th>
+                              <th className="p-3">الانتهاء (24 ساعة)</th>
                               <th className="p-3">الحالة</th>
                               <th className="p-3 text-center">إجراءات</th>
                             </tr>
@@ -715,21 +985,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   <div className="text-[10px] text-rose-800 font-bold">{claim.discountValue}</div>
                                 </td>
                                 <td className="p-3 text-slate-500 whitespace-nowrap">
-                                  <div>{claim.createdAt}</div>
-                                  <div className="text-[10px] text-amber-700">ينتهي: {claim.expiresAt}</div>
+                                  <div className="text-amber-700 font-medium">{claim.expiresAt}</div>
                                 </td>
                                 <td className="p-3 whitespace-nowrap">
                                   {claim.status === 'redeemed' ? (
                                     <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
                                       <CheckCircle2 className="h-3 w-3" /> تم الاستخدام
                                     </span>
-                                  ) : claim.status === 'verified' ? (
-                                    <span className="inline-flex items-center gap-1 rounded bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-800">
-                                      مؤكد بالحجز
-                                    </span>
                                   ) : (
                                     <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                                      قيد الانتظار
+                                      قيد الانتظار (صالح 24س)
                                     </span>
                                   )}
                                 </td>
@@ -742,7 +1007,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                           onRefreshClaims();
                                         }}
                                         className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold transition"
-                                        title="تأكيد الخصم والاستخدام بالمعمل"
                                       >
                                         تفعيل وخصم
                                       </button>
@@ -750,12 +1014,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                                     <a
                                       href={`https://wa.me/${claim.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                        `أهلاً بك أستاذ ${claim.patientName}، نرحب بك في معامل رامي مختار! بخصوص كوبون الخصم الخاص بك (${claim.couponCode})، يشرفنا استقبالك لتأكيد الفحص والاستفادة من العرض.`
+                                        `أهلاً بك أستاذ ${claim.patientName}، نرحب بك في معامل رامي مختار! بخصوص كوبون الخصم الخاص بك (${claim.couponCode})، يشرفنا تأكيد حجزك قبل انتهاء مهلة الـ 24 ساعة للاستفادة من العرض.`
                                       )}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                                      title="مراسلة المريض عبر واتساب"
+                                      title="مراسلة عبر واتساب"
                                     >
                                       <MessageCircle className="h-4 w-4" />
                                     </a>
@@ -784,11 +1048,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
 
-              {/* TAB 4: SETTINGS & WHATSAPP CONFIGURATION */}
+              {/* TAB 5: LAB SETTINGS & SLOGAN */}
               {activeTab === 'settings' && (
                 <div className="space-y-6">
-                  {/* Patient Shareable Link Box */}
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-5">
+                  {/* Share Link */}
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <div className="flex items-center gap-2">
                         <Share2 className="h-5 w-5 text-emerald-700" />
@@ -797,13 +1061,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </h4>
                       </div>
                       <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-0.5 rounded border border-emerald-300">
-                        مباشر وسهل الدخول
+                        مباشر ومحمي بقاعدة 24 ساعة
                       </span>
                     </div>
-                    <p className="text-xs text-slate-700 mb-3 leading-relaxed">
-                      انسخ هذا الرابط وأرسله للمرضى عبر رسائل الواتساب أو الرسائل النصية القصيرة SMS أو صفحة
-                      الفيسبوك لجذبهم للمعمل:
-                    </p>
 
                     <div className="flex items-center gap-2">
                       <input
@@ -823,10 +1083,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
 
                   {/* Settings Form */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <div className="flex items-center justify-between mb-5">
                       <div>
-                        <h4 className="font-bold text-slate-900 text-sm">إعدادات المعمل ورقم الواتساب المسجل</h4>
+                        <h4 className="font-bold text-slate-900 text-sm">إعدادات المعمل والشعار والواتساب</h4>
                         <p className="text-xs text-slate-500">
                           الرقم المسجل هنا هو الذي سيتلقى رسائل تأكيد بيانات المرضى والجوائز مباشرة.
                         </p>
@@ -844,21 +1104,49 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block font-semibold text-slate-700 mb-1">
+                            اسم المعمل بالعربية *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={settingsForm.labNameAr}
+                            onChange={(e) =>
+                              setSettingsForm({ ...settingsForm, labNameAr: e.target.value })
+                            }
+                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">
+                            الشعار المعتمد للمعمل (Slogan) *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={settingsForm.sloganAr}
+                            onChange={(e) =>
+                              setSettingsForm({ ...settingsForm, sloganAr: e.target.value })
+                            }
+                            placeholder="التشخيص الصحيح يبدأ معنا"
+                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 font-bold outline-none focus:border-[#8B1E2D]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">
                             رقم واتساب المعمل المسجل (WhatsApp) *
                           </label>
                           <input
                             type="text"
                             required
-                            placeholder="مثال: 201012345678"
+                            placeholder="مثال: 201099887766"
                             value={settingsForm.whatsappNumber}
                             onChange={(e) =>
                               setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })
                             }
                             className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
                           />
-                          <span className="text-[10px] text-slate-500 mt-1 block">
-                            تُرسل بيانات الفائزين وكوبوناتهم مباشرة إلى هذا الرقم لتفعيلها.
-                          </span>
                         </div>
 
                         <div>
@@ -879,40 +1167,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                         <div>
                           <label className="block font-semibold text-slate-700 mb-1">
-                            اسم المعمل بالعربية
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={settingsForm.labNameAr}
-                            onChange={(e) =>
-                              setSettingsForm({ ...settingsForm, labNameAr: e.target.value })
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
-                            مدة صلاحية الكوبون (بالأيام)
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="90"
-                            value={settingsForm.couponValidityDays}
-                            onChange={(e) =>
-                              setSettingsForm({
-                                ...settingsForm,
-                                couponValidityDays: Number(e.target.value),
-                              })
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
                             رمز PIN لدخول الإدارة
                           </label>
                           <input
@@ -928,7 +1182,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                         <div>
                           <label className="block font-semibold text-slate-700 mb-1">
-                            توجيه المريض تلقائياً لواتساب بعد التسجيل
+                            فتح الواتساب تلقائياً فور تسجيل المريض
                           </label>
                           <div className="flex items-center gap-3 pt-2">
                             <label className="flex items-center gap-2 cursor-pointer">
@@ -943,18 +1197,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 }
                                 className="h-4 w-4 rounded text-[#8B1E2D]"
                               />
-                              <span className="text-slate-800">فتح تطبيق الواتساب فور التسجيل</span>
+                              <span className="text-slate-800">توجيه المريض تلقائياً لتطبيق الواتساب</span>
                             </label>
                           </div>
                         </div>
                       </div>
 
-                      <div className="pt-4 border-t border-slate-200 flex justify-end">
+                      <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+                        {/* Admin Testing tool: Reset 24h lockout for tester */}
+                        <button
+                          type="button"
+                          onClick={handleResetLockout}
+                          className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 underline"
+                          title="إعادة تعيين عداد الـ 24 ساعة لجهاز الإدارة للتجربة"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          <span>{unlockedMsg ? 'تم فك حظر الـ 24 ساعة لهذا الجهاز!' : 'تصفير قفل الـ 24 ساعة للتجربة'}</span>
+                        </button>
+
                         <button
                           type="submit"
                           className="px-6 py-2.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow transition"
                         >
-                          حفظ كافة التعديلات
+                          حفظ كافة الإعدادات
                         </button>
                       </div>
                     </form>

@@ -10,10 +10,12 @@ import {
   Lock,
   MapPin,
   MessageCircle,
+  Package,
   Phone,
   QrCode,
   Share2,
   Shield,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Users,
@@ -21,10 +23,12 @@ import {
 import { GameType, LabSettings, PatientClaim, Prize, QuizQuestion } from './types';
 import { labLogo } from './assets/images';
 import {
+  check24HourRestriction,
   getClaims,
   getPrizes,
   getQuizQuestions,
   getSettings,
+  PlayRestrictionStatus,
   savePrizes,
   saveSettings,
 } from './services/storageService';
@@ -34,9 +38,13 @@ import { GameSelector } from './components/GameSelector';
 import { SpinWheel } from './components/SpinWheel';
 import { ScratchCard } from './components/ScratchCard';
 import { HealthQuiz } from './components/HealthQuiz';
+import { MysteryBox } from './components/MysteryBox';
 import { ClaimModal } from './components/ClaimModal';
 import { AdminPanel } from './components/AdminPanel';
 import { BranchesModal } from './components/BranchesModal';
+import { PolicyModal } from './components/PolicyModal';
+import { LockoutBanner } from './components/LockoutBanner';
+import { PWAInstallButton } from './components/PWAInstallButton';
 
 export default function App() {
   const [prizes, setPrizes] = useState<Prize[]>(() => getPrizes());
@@ -44,21 +52,27 @@ export default function App() {
   const [claims, setClaims] = useState<PatientClaim[]>(() => getClaims());
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(() => getQuizQuestions());
 
+  // 24-Hour Restriction State
+  const [restriction, setRestriction] = useState<PlayRestrictionStatus>(() => check24HourRestriction());
+
   // UI Navigation states
   const [activeGame, setActiveGame] = useState<GameType>('wheel');
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showBranches, setShowBranches] = useState(false);
+  const [showPolicy, setShowPolicy] = useState(false);
   const [copiedAppUrl, setCopiedAppUrl] = useState(false);
 
   const gameSectionRef = useRef<HTMLDivElement | null>(null);
 
-  // Load initial data
+  // Periodic check of 24h timer
   useEffect(() => {
-    setPrizes(getPrizes());
-    setSettings(getSettings());
-    setClaims(getClaims());
-    setQuizQuestions(getQuizQuestions());
+    const updateRestriction = () => {
+      setRestriction(check24HourRestriction());
+    };
+    updateRestriction();
+    const interval = setInterval(updateRestriction, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleUpdatePrizes = (newPrizes: Prize[]) => {
@@ -76,11 +90,13 @@ export default function App() {
   };
 
   const handleWin = (prize: Prize) => {
+    if (!restriction.canPlay) return;
     setWonPrize(prize);
   };
 
   const handleClaimSuccess = (newClaim: PatientClaim) => {
     setClaims((prev) => [newClaim, ...prev]);
+    setRestriction(check24HourRestriction());
   };
 
   const scrollToGames = () => {
@@ -91,7 +107,7 @@ export default function App() {
 
   const handleShareApp = () => {
     const url = window.location.origin + window.location.pathname;
-    const shareText = `جرّب حظك اليومي مع معامل د. رامي مختار RT Labs واكسب خصومات فورية وكروت فحص مجانية! 🎁🩺\n${url}`;
+    const shareText = `جرّب حظك اليومي مع معامل د. رامي مختار RT Labs (${settings.sloganAr}) واكسب كروت خصم وفحوصات مجانية! 🎁🩺\n${url}`;
     if (navigator.share) {
       navigator.share({
         title: 'جوائز وخصومات معامل رامي مختار',
@@ -112,51 +128,107 @@ export default function App() {
         settings={settings}
         activeGame={activeGame}
         onSelectGame={(g) => {
-          setActiveGame(g);
+          if (restriction.canPlay) {
+            setActiveGame(g);
+          }
           scrollToGames();
         }}
         onOpenAdmin={() => setShowAdmin(true)}
         onOpenBranches={() => setShowBranches(true)}
+        onOpenPolicy={() => setShowPolicy(true)}
       />
 
       {/* Main Content Area */}
       <main className="flex-1">
         {/* Hero Section */}
         <Hero
+          slogan={settings.sloganAr}
           onScrollToGame={scrollToGames}
           onOpenBranches={() => setShowBranches(true)}
+          onOpenPolicy={() => setShowPolicy(true)}
         />
+
+        {/* 24-Hour Active Lockout Banner (Rendered when patient has already played today) */}
+        {!restriction.canPlay && (
+          <section className="px-4 sm:px-6 pt-6">
+            <LockoutBanner
+              remainingHours={restriction.remainingHours}
+              remainingMinutes={restriction.remainingMinutes}
+              remainingSeconds={restriction.remainingSeconds}
+              activeCoupon={restriction.activeCoupon}
+              settings={settings}
+              onRefresh={() => setRestriction(check24HourRestriction())}
+            />
+          </section>
+        )}
 
         {/* Game Arena Section */}
         <section
           ref={gameSectionRef}
-          className="max-w-5xl mx-auto px-4 sm:px-6 py-12 sm:py-16"
+          className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14"
         >
           {/* Game Switcher Tabs */}
-          <GameSelector selectedGame={activeGame} onSelectGame={setActiveGame} />
+          <GameSelector
+            selectedGame={activeGame}
+            onSelectGame={setActiveGame}
+            disabled={!restriction.canPlay}
+          />
 
           {/* Active Game Container */}
-          <div className="mt-8 rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-8 shadow-xl">
-            {activeGame === 'wheel' && (
-              <SpinWheel
-                prizes={prizes}
-                onWin={handleWin}
-              />
-            )}
+          <div className="mt-8 rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-8 shadow-xl relative">
+            {!restriction.canPlay ? (
+              <div className="py-12 px-4 text-center max-w-md mx-auto">
+                <div className="h-16 w-16 rounded-2xl bg-amber-50 text-amber-700 mx-auto flex items-center justify-center mb-4 border border-amber-200">
+                  <Clock className="h-8 w-8 text-amber-700" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  تم قفل الألعاب مؤقتاً لحسابك لمدة 24 ساعة
+                </h3>
+                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                  للمصداقية وتكافؤ الفرص بين كافة المرضى، لا يجوز اختيار أكثر من وسيلة ترفيهية واحدة كل 24
+                  ساعة. يمكنك استغلال كوبونك النشط بالتوجه للفرع أو حجز الزيارة المنزلية قبل انتهاء مهلة
+                  الـ 24 ساعة.
+                </p>
+                <div className="mt-5 flex justify-center gap-3">
+                  <button
+                    onClick={() => setShowPolicy(true)}
+                    className="text-xs text-[#8B1E2D] font-bold underline underline-offset-4"
+                  >
+                    عرض شروط وسياسة الـ 24 ساعة
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {activeGame === 'wheel' && (
+                  <SpinWheel
+                    prizes={prizes}
+                    onWin={handleWin}
+                  />
+                )}
 
-            {activeGame === 'scratch' && (
-              <ScratchCard
-                prizes={prizes}
-                onWin={handleWin}
-              />
-            )}
+                {activeGame === 'scratch' && (
+                  <ScratchCard
+                    prizes={prizes}
+                    onWin={handleWin}
+                  />
+                )}
 
-            {activeGame === 'quiz' && (
-              <HealthQuiz
-                questions={quizQuestions}
-                prizes={prizes}
-                onWin={handleWin}
-              />
+                {activeGame === 'quiz' && (
+                  <HealthQuiz
+                    questions={quizQuestions}
+                    prizes={prizes}
+                    onWin={handleWin}
+                  />
+                )}
+
+                {activeGame === 'box' && (
+                  <MysteryBox
+                    prizes={prizes}
+                    onWin={handleWin}
+                  />
+                )}
+              </>
             )}
           </div>
         </section>
@@ -167,14 +239,14 @@ export default function App() {
             <div className="space-y-1 text-center md:text-right">
               <span className="text-xs text-rose-300 font-semibold flex items-center justify-center md:justify-start gap-1">
                 <Sparkles className="h-4 w-4" />
-                رابط مشاركة مباشر بدون تعقيد
+                {settings.sloganAr}
               </span>
               <h3 className="text-xl sm:text-2xl font-bold">
                 شارك رابط المسابقة مع أسرتك واكسبوا الخصومات سوياً
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
-                بمجرد الدخول، يستطيع كل فرد في العائلة خوض التجربة وتوليد كارت الخصم وإرساله فوراً لواتساب
-                المعمل لتثبيته في سجل الحجوزات.
+                بمجرد الدخول، يستطيع كل فرد تجربة حظه في إحدى الوسائل الترفيهية وتوليد كارت الخصم الصالح
+                لمدة 24 ساعة لتأكيده مع واتساب المعمل فوراً.
               </p>
             </div>
 
@@ -189,7 +261,7 @@ export default function App() {
 
               <a
                 href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(
-                  'مرحباً معامل د. رامي مختار، أود الاستفسار عن كروت الخصم اليومية وباقات الفحص الطبي.'
+                  `مرحباً معامل د. رامي مختار (${settings.sloganAr})، أود الاستفسار عن كروت الخصم اليومية وباقات الفحص الطبي.`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -208,7 +280,7 @@ export default function App() {
             <div className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-500 mb-1">
               <span>الجودة والاعتماد الدولي</span>
               <span aria-hidden="true">·</span>
-              <span>معايير الأمان الحيوي</span>
+              <span>{settings.sloganAr}</span>
             </div>
             <h2 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">
               لماذا يثق الآلاف في معامل د. رامي مختار؟
@@ -275,7 +347,7 @@ export default function App() {
       <footer className="border-t border-slate-200 bg-white text-slate-600 text-xs py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg overflow-hidden border border-slate-200 bg-white">
+            <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-200 bg-white">
               <img
                 src={labLogo}
                 alt="RT Lab"
@@ -287,13 +359,17 @@ export default function App() {
               <div className="font-bold text-slate-900">
                 {settings.labNameAr} · <span className="text-[#8B1E2D]">RT Labs</span>
               </div>
-              <div className="text-[11px] text-slate-500">{settings.labSubtitleAr}</div>
+              <div className="text-[11px] text-[#8B1E2D] font-bold">{settings.sloganAr}</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-medium">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-medium">
+            <button onClick={() => setShowPolicy(true)} className="hover:text-slate-900 transition text-amber-800 font-bold">
+              سياسة المكافآت والـ 24 ساعة
+            </button>
+            <span aria-hidden="true" className="text-slate-300">·</span>
             <button onClick={() => setShowBranches(true)} className="hover:text-slate-900 transition">
-              الفروع ومواعيد العمل
+              الفروع ({settings.branches.length})
             </button>
             <span aria-hidden="true" className="text-slate-300">·</span>
             <a href={`tel:${settings.hotline}`} className="hover:text-slate-900 transition">
@@ -344,6 +420,14 @@ export default function App() {
         <BranchesModal
           settings={settings}
           onClose={() => setShowBranches(false)}
+        />
+      )}
+
+      {/* Rewards Policy Modal */}
+      {showPolicy && (
+        <PolicyModal
+          settings={settings}
+          onClose={() => setShowPolicy(false)}
         />
       )}
     </div>

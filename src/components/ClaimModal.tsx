@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import {
+  AlertTriangle,
   Check,
   CheckCircle2,
+  Clock,
   Copy,
   ExternalLink,
   Gift,
@@ -11,12 +13,13 @@ import {
   Phone,
   Printer,
   Share2,
+  ShieldAlert,
   Sparkles,
   User,
   X,
 } from 'lucide-react';
 import { GameType, LabSettings, PatientClaim, Prize } from '../types';
-import { buildWhatsAppUrl, generateCouponCode, saveClaim } from '../services/storageService';
+import { buildWhatsAppUrl, generateCouponCode, recordPlaySession, saveClaim } from '../services/storageService';
 import { VoucherCard } from './VoucherCard';
 
 interface ClaimModalProps {
@@ -36,19 +39,18 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
 }) => {
   const [patientName, setPatientName] = useState('');
   const [phone, setPhone] = useState('');
-  const [branch, setBranch] = useState(settings.branches[0] || 'فرع المهندسين');
+  const [branch, setBranch] = useState(settings.branches[0]?.name || 'فرع المهندسين');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [claim, setClaim] = useState<PatientClaim | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
-  // Trigger celebration confetti on mount
   useEffect(() => {
     try {
       confetti({
-        particleCount: 80,
-        spread: 70,
+        particleCount: 90,
+        spread: 80,
         origin: { y: 0.6 },
         colors: ['#8B1E2D', '#0F2B5C', '#D97706', '#10B981'],
       });
@@ -73,8 +75,9 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
     setIsSubmitting(true);
 
     const now = new Date();
-    const expiry = new Date();
-    expiry.setDate(now.getDate() + (settings.couponValidityDays || 14));
+    const nowMs = now.getTime();
+    const expiryMs = nowMs + 24 * 60 * 60 * 1000; // Strictly 24 hours!
+    const expiryDate = new Date(expiryMs);
 
     const newClaim: PatientClaim = {
       id: 'claim_' + Date.now(),
@@ -86,20 +89,22 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
       prizeTitle: prize.title,
       discountValue: prize.discountValue,
       gameType,
-      createdAt: now.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }),
-      expiresAt: expiry.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }),
+      createdAt: now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) + ' - ' + now.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }),
+      createdAtTimestamp: nowMs,
+      expiresAt: expiryDate.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) + ' - ' + expiryDate.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }),
+      expiresAtTimestamp: expiryMs,
       status: 'pending',
       notes: notes.trim(),
     };
 
     saveClaim(newClaim);
+    recordPlaySession(newClaim); // Activates the 24h lockout immediately
     setClaim(newClaim);
     setIsSubmitting(false);
     onSuccess(newClaim);
 
-    // If autoOpenWhatsApp is set, prepare the WhatsApp URL
     if (settings.autoOpenWhatsApp) {
-      const waUrl = buildWhatsAppUrl(settings.whatsappNumber, newClaim, settings.labNameAr);
+      const waUrl = buildWhatsAppUrl(settings.whatsappNumber, newClaim, settings.labNameAr, settings.sloganAr);
       window.open(waUrl, '_blank', 'noopener,noreferrer');
     }
   };
@@ -117,22 +122,22 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
 
   const handleShareApp = () => {
     const url = window.location.origin + window.location.pathname;
-    const shareText = `جرّب حظك في مسابقة معامل رامي مختار للتحاليل الطبية واحصل على خصومات فورية وكروت فحص مجانية! 🎁🩺\n${url}`;
+    const shareText = `جرّب حظك في مسابقات معامل رامي مختار (${settings.sloganAr}) واكسب كروت خصم وفحوصات مجانية! 🎁🩺\n${url}`;
     if (navigator.share) {
       navigator.share({
-        title: 'جوائز وخصومات معامل رامي مختار',
+        title: 'جوائز معامل رامي مختار',
         text: shareText,
         url,
       }).catch(() => {});
     } else {
       navigator.clipboard.writeText(shareText);
-      alert('تم نسخ رابط المسابقة بنجاح! يمكنك إرساله لأصدقائك عبر واتساب.');
+      alert('تم نسخ رابط المسابقة بنجاح! يمكنك إرساله لأصدقائك عبر الواتساب.');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-2xl overflow-hidden my-6 border border-slate-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 overflow-y-auto backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-xl rounded-3xl bg-white shadow-2xl overflow-hidden my-6 border border-slate-200">
         {/* Top Accent Gradient */}
         <div className="h-3 bg-gradient-to-r from-[#8B1E2D] via-[#D97706] to-[#0F2B5C]" />
 
@@ -156,30 +161,27 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
                 </div>
                 <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-[#8B1E2D]">
                   <Sparkles className="h-4 w-4" />
-                  <span>مبروك! لقد فزت بهدية قيّمة</span>
+                  <span>مبروك! لقد ربحت هدية معتمدة من معامل رامي مختار</span>
                 </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
                   {prize.title}
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                  سجل بياناتك البسيطة أدناه لتوليد كود الخصم وإرساله فوراً إلى رقم المعمل المسجل لتفعيله.
+                <p className="text-xs text-rose-800 font-bold mt-1">
+                  {settings.sloganAr}
                 </p>
               </div>
 
-              {/* Prize Summary Box */}
-              <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50/70 p-4 flex items-center justify-between">
+              {/* 24-Hour Expiry Rule Notice */}
+              <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50/80 p-3.5 flex items-start gap-2.5 text-xs text-amber-950">
+                <Clock className="h-4 w-4 text-amber-800 shrink-0 mt-0.5" />
                 <div>
-                  <span className="text-xs text-rose-800 font-medium">نوع المكافأة المكتسبة:</span>
-                  <div className="font-bold text-slate-900 text-sm sm:text-base">{prize.shortTitle}</div>
-                  <div className="text-xs text-slate-600 mt-0.5">{prize.description}</div>
-                </div>
-                <div className="rounded-lg bg-[#8B1E2D] px-3.5 py-2 text-white font-black text-sm shadow">
-                  {prize.discountValue}
+                  <strong>قاعدة الـ 24 ساعة الإلزامية:</strong> يسري هذا الكوبون لمدة <strong>24 ساعة فقط</strong>.
+                  في حال عدم تفعيل الجائزة وحجز موعد الفحص خلال 24 ساعة يتم إلغاؤها تلقائياً.
                 </div>
               </div>
 
               {error && (
-                <div className="mb-4 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200">
+                <div className="mb-4 rounded-xl bg-red-50 p-3 text-xs text-red-700 border border-red-200">
                   {error}
                 </div>
               )}
@@ -234,8 +236,8 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
                       className="w-full rounded-xl border border-slate-300 bg-white pr-10 pl-4 py-2.5 text-sm text-slate-900 focus:border-[#8B1E2D] focus:ring-2 focus:ring-rose-500/20 outline-none transition"
                     >
                       {settings.branches.map((b) => (
-                        <option key={b} value={b}>
-                          {b}
+                        <option key={b.id} value={b.name}>
+                          {b.name}
                         </option>
                       ))}
                     </select>
@@ -251,7 +253,7 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
                     type="text"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="مثال: أود إجراء الفحص يوم السبت القادم"
+                    placeholder="مثال: موعد الحجز المفضل غداً صباحاً"
                     className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 focus:border-[#8B1E2D] focus:ring-2 focus:ring-rose-500/20 outline-none transition"
                   />
                 </div>
@@ -260,10 +262,10 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B1E2D] to-[#B91C1C] py-3 px-6 text-sm font-bold text-white shadow-md hover:from-[#731925] hover:to-[#991B1B] active:scale-[0.99] transition"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8B1E2D] to-[#B91C1C] py-3.5 px-6 text-sm font-bold text-white shadow-md hover:from-[#731925] hover:to-[#991B1B] active:scale-[0.99] transition"
                   >
                     <CheckCircle2 className="h-5 w-5" />
-                    <span>تأكيد البيانات والحصول على الكوبون الرسمي</span>
+                    <span>تأكيد البيانات وتوليد كود الخصم الفوري</span>
                   </button>
                 </div>
               </form>
@@ -276,29 +278,38 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
                   <Check className="h-6 w-6 stroke-[3]" />
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
-                  تم تسجيل جائزتك بنجاح!
+                  تم تسجيل كود الكوبون بنجاح!
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                  احفظ الكارت أو أرسل الرسالة فوراً لواتساب المعمل المسجل لتأكيد تفعيل الخصم.
+                <p className="text-xs text-rose-800 font-bold mt-1">
+                  {settings.sloganAr}
                 </p>
               </div>
 
               {/* Render the medical voucher card */}
               <VoucherCard claim={claim} labName={settings.labNameAr} hotline={settings.hotline} />
 
-              {/* WhatsApp Call to Action (Primary requested feature!) */}
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-center">
+              {/* 24-hour Expiry Warning Box */}
+              <div className="rounded-2xl border border-rose-300 bg-rose-50 p-3.5 flex items-start gap-2.5 text-xs text-rose-950">
+                <ShieldAlert className="h-4 w-4 text-[#8B1E2D] shrink-0 mt-0.5" />
+                <div>
+                  <strong>تنبيه الصلاحية:</strong> ينتهي هذا الكوبون بعد <strong>24 ساعة</strong> من الآن.
+                  يرجى الضغط على الزر الأخضر أدناه لإرسال الرسالة إلى واتساب المعمل لتثبيت الخصم في ملفك.
+                </div>
+              </div>
+
+              {/* WhatsApp Call to Action */}
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-center">
                 <div className="text-xs font-semibold text-emerald-800 mb-1">
                   الخطوة الأخيرة: تفعيل الجائزة مع المعمل
                 </div>
                 <p className="text-xs text-slate-600 mb-3">
-                  اضغط أدناه لفتح محادثة واتساب الرسمية مع معامل رامي مختار وإرسال بيانات الكوبون لتفعيله فوراً:
+                  اضغط أدناه لفتح محادثة واتساب الرسمية مع معامل رامي مختار وإرسال بيانات الكوبون لتثبيتها:
                 </p>
                 <a
-                  href={buildWhatsAppUrl(settings.whatsappNumber, claim, settings.labNameAr)}
+                  href={buildWhatsAppUrl(settings.whatsappNumber, claim, settings.labNameAr, settings.sloganAr)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 py-3 px-5 text-sm font-bold text-white shadow-md transition active:scale-[0.99]"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 py-3.5 px-5 text-sm font-bold text-white shadow-md transition active:scale-[0.99]"
                 >
                   <MessageCircle className="h-5 w-5" />
                   <span>إرسال بيانات الكوبون إلى واتساب المعمل الآن</span>

@@ -1,14 +1,16 @@
-import { initialPrizes, initialQuizQuestions, initialSettings, prizeIdeasVault } from '../data/initialData';
-import { LabSettings, PatientClaim, Prize, PrizeIdea, QuizQuestion } from '../types';
+import { initialBranches, initialPrizes, initialQuizQuestions, initialSettings, prizeIdeasVault } from '../data/initialData';
+import { Branch, LabSettings, PatientClaim, Prize, PrizeIdea, QuizQuestion } from '../types';
 
 const STORAGE_KEYS = {
-  PRIZES: 'rt_lab_prizes_v1',
-  SETTINGS: 'rt_lab_settings_v1',
-  CLAIMS: 'rt_lab_claims_v1',
-  QUIZ: 'rt_lab_quiz_v1',
-  IDEAS: 'rt_lab_ideas_v1',
-  DAILY_ATTEMPT: 'rt_lab_daily_attempt_v1',
+  PRIZES: 'rt_lab_prizes_v2',
+  SETTINGS: 'rt_lab_settings_v2',
+  CLAIMS: 'rt_lab_claims_v2',
+  QUIZ: 'rt_lab_quiz_v2',
+  LAST_PLAY_TIME: 'rt_lab_last_play_time_v2',
+  ACTIVE_COUPON: 'rt_lab_active_coupon_v2',
 };
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 export const getPrizes = (): Prize[] => {
   try {
@@ -39,7 +41,13 @@ export const getSettings = (): LabSettings => {
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(initialSettings));
       return initialSettings;
     }
-    return { ...initialSettings, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    // Ensure branches is an array of Branch objects
+    let branches = parsed.branches;
+    if (!Array.isArray(branches) || branches.length === 0 || typeof branches[0] === 'string') {
+      branches = initialBranches;
+    }
+    return { ...initialSettings, ...parsed, branches };
   } catch {
     return initialSettings;
   }
@@ -125,51 +133,115 @@ export const generateCouponCode = (): string => {
   return `RT-${year}-${rand}`;
 };
 
-// Check if user played today (to promote daily retention)
-export const checkCanPlayToday = (): { canPlay: boolean; lastPlayedDate?: string } => {
+// 24-Hour Restriction Engine
+export interface PlayRestrictionStatus {
+  canPlay: boolean;
+  remainingMs: number;
+  remainingHours: number;
+  remainingMinutes: number;
+  remainingSeconds: number;
+  activeCoupon: PatientClaim | null;
+}
+
+export const check24HourRestriction = (): PlayRestrictionStatus => {
   try {
-    const lastPlayed = localStorage.getItem(STORAGE_KEYS.DAILY_ATTEMPT);
-    const today = new Date().toISOString().split('T')[0];
-    if (lastPlayed === today) {
-      return { canPlay: false, lastPlayedDate: lastPlayed };
+    const lastPlayRaw = localStorage.getItem(STORAGE_KEYS.LAST_PLAY_TIME);
+    if (!lastPlayRaw) {
+      return {
+        canPlay: true,
+        remainingMs: 0,
+        remainingHours: 0,
+        remainingMinutes: 0,
+        remainingSeconds: 0,
+        activeCoupon: null,
+      };
     }
-    return { canPlay: true };
+
+    const lastPlayTime = parseInt(lastPlayRaw, 10);
+    const now = Date.now();
+    const elapsed = now - lastPlayTime;
+
+    if (elapsed >= TWENTY_FOUR_HOURS_MS) {
+      // 24 hours have passed! Expire old coupon and permit new play
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_COUPON);
+      return {
+        canPlay: true,
+        remainingMs: 0,
+        remainingHours: 0,
+        remainingMinutes: 0,
+        remainingSeconds: 0,
+        activeCoupon: null,
+      };
+    }
+
+    // Inside 24-hour lockout window
+    const remainingMs = TWENTY_FOUR_HOURS_MS - elapsed;
+    const remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
+    const remainingMinutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    const remainingSeconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+
+    let activeCoupon: PatientClaim | null = null;
+    const activeRaw = localStorage.getItem(STORAGE_KEYS.ACTIVE_COUPON);
+    if (activeRaw) {
+      try {
+        activeCoupon = JSON.parse(activeRaw);
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      canPlay: false,
+      remainingMs,
+      remainingHours,
+      remainingMinutes,
+      remainingSeconds,
+      activeCoupon,
+    };
   } catch {
-    return { canPlay: true };
+    return {
+      canPlay: true,
+      remainingMs: 0,
+      remainingHours: 0,
+      remainingMinutes: 0,
+      remainingSeconds: 0,
+      activeCoupon: null,
+    };
   }
 };
 
-export const recordPlayToday = () => {
+export const recordPlaySession = (claim: PatientClaim) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    localStorage.setItem(STORAGE_KEYS.DAILY_ATTEMPT, today);
+    const now = Date.now();
+    localStorage.setItem(STORAGE_KEYS.LAST_PLAY_TIME, now.toString());
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_COUPON, JSON.stringify(claim));
   } catch (err) {
-    console.error('Failed to record attempt', err);
+    console.error('Failed to record play session', err);
   }
 };
 
-export const resetPlayToday = () => {
+export const resetPlaySessionAdmin = () => {
   try {
-    localStorage.removeItem(STORAGE_KEYS.DAILY_ATTEMPT);
+    localStorage.removeItem(STORAGE_KEYS.LAST_PLAY_TIME);
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_COUPON);
   } catch (err) {
-    console.error('Failed to reset attempt', err);
+    console.error('Failed to reset session', err);
   }
 };
 
-// Build WhatsApp activation URL
+// Build WhatsApp activation URL with explicit 24h validity notice
 export const buildWhatsAppUrl = (
   whatsappNumber: string,
   claim: PatientClaim,
-  labName: string
+  labName: string,
+  slogan: string = 'التشخيص الصحيح يبدأ معنا'
 ): string => {
-  // Clean phone number (remove +, spaces, leading 0 if starting with international code)
   let cleanNumber = whatsappNumber.replace(/[^0-9]/g, '');
   if (cleanNumber.startsWith('0')) {
-    // assume Egypt (20) if starts with 01
     cleanNumber = '20' + cleanNumber.substring(1);
   }
 
-  const messageText = `مرحباً ${labName}،
+  const messageText = `مرحباً ${labName} (${slogan})،
 أود تفعيل كود الخصم والمكافأة الخاصة بي التي حصلت عليها من مسابقات معامل RT:
 
 📋 *بيانات المريض:*
@@ -180,10 +252,10 @@ export const buildWhatsAppUrl = (
 🎁 *تفاصيل الجائزة:*
 • الجائزة: ${claim.prizeTitle} (${claim.discountValue})
 • كود الكوبون: *${claim.couponCode}*
-• تاريخ الاستحقاق: ${claim.createdAt}
-• ينتهي في: ${claim.expiresAt}
+• تاريخ المكسب: ${claim.createdAt}
+• ينتهي الكوبون في: ${claim.expiresAt} (صلاحية 24 ساعة فقط)
 
-برجاء تأكيد الحجز وتفعيل الكوبون في ملف المريض. شكراً لكم!`;
+⚠️ *ملاحظة:* يرجى تأكيد الحجز خلال 24 ساعة قبل انتهاء صلاحية الكوبون. شكراً لكم!`;
 
   return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(messageText)}`;
 };

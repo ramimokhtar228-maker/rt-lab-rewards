@@ -3,12 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RT Lab Rewards - معامل رامي مختار</title>
-    <meta name="description" content="منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs" />
-    <meta property="og:title" content="RT Lab Rewards - معامل رامي مختار" />
+    <title>معامل رامي مختار RT Labs - التشخيص الصحيح يبدأ معنا</title>
+    <meta name="description" content="منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs - التشخيص الصحيح يبدأ معنا" />
+    <meta property="og:title" content="معامل رامي مختار RT Labs - التشخيص الصحيح يبدأ معنا" />
     <meta property="og:description" content="منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="theme-color" content="#8B1E2D" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="RT Labs" />
+    <link rel="apple-touch-icon" href="./src/assets/images/rt_lab_logo_1791920408886.jpg" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,7 +26,12 @@
   <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-rose-900 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>
-
-
