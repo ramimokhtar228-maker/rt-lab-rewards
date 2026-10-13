@@ -39,10 +39,10 @@ import { AdminPanel } from './components/AdminPanel';
 import { BranchesModal } from './components/BranchesModal';
 
 export default function App() {
-  const [prizes, setPrizes] = useState<Prize[]>([]);
-  const [settings, setSettings] = useState<LabSettings>(getSettings());
-  const [claims, setClaims] = useState<PatientClaim[]>([]);
-  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [prizes, setPrizes] = useState<Prize[]>(() => getPrizes());
+  const [settings, setSettings] = useState<LabSettings>(() => getSettings());
+  const [claims, setClaims] = useState<PatientClaim[]>(() => getClaims());
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(() => getQuizQuestions());
 
   // UI Navigation states
   const [activeGame, setActiveGame] = useState<GameType>('wheel');

@@ -41,6 +41,10 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onWin, disabled = 
 
     ctx.clearRect(0, 0, width, height);
 
+    if (activePrizes.length === 0) {
+      return;
+    }
+
     // Save context for rotation
     ctx.save();
     ctx.translate(centerX, centerY);
@@ -49,6 +53,7 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({ prizes, onWin, disabled = 
     // Draw slices
     for (let i = 0; i < count; i++) {
       const prize = activePrizes[i];
+      if (!prize) continue;
       const startAngle = i * arc;
       const endAngle = startAngle + arc;
 
