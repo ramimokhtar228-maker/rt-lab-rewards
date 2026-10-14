@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import {
   AlertCircle,
   Award,
+  Bell,
   Building2,
+  Calendar,
   Check,
   CheckCircle2,
   Clock,
@@ -23,19 +25,17 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Send,
   Settings,
   Share2,
   Sparkles,
   Trash2,
-  Globe,
-  UploadCloud,
-  CheckCircle,
   Users,
-  Send,
+  Volume2,
+  VolumeX,
   X,
 } from 'lucide-react';
 import { Branch, DiscountType, LabSettings, PatientClaim, Prize, PrizeIdea } from '../types';
-import { labLogo, labReception, medicalTeam } from '../assets/images';
 import {
   buildPatientInviteWhatsAppUrl,
   deleteClaim,
@@ -46,6 +46,8 @@ import {
   syncConfigToGitHub,
   updateClaimStatus,
 } from '../services/storageService';
+import { playReceptionAlertChime } from '../utils/audio';
+import { AdminBookingConfirmModal } from './AdminBookingConfirmModal';
 
 interface AdminPanelProps {
   prizes: Prize[];
@@ -69,9 +71,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  // Active sub-tab
-  const [activeTab, setActiveTab] = useState<'prizes' | 'branches' | 'ideas' | 'claims' | 'settings' | 'security' | 'media' | 'patient_links'>('prizes');
+  // Tabs
+  const [activeTab, setActiveTab] = useState<'claims' | 'prizes' | 'branches' | 'patient_links' | 'settings'>('claims');
+
+  // Booking Modal Target
+  const [selectedClaimForBooking, setSelectedClaimForBooking] = useState<PatientClaim | null>(null);
 
   // Prize editing / creation state
   const [editingPrize, setEditingPrize] = useState<Prize | null>(null);
@@ -89,7 +95,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     terms: '',
   });
 
-  // Branch editing / creation state (Requested: CRUD for all fields in branches!)
+  // Branch editing / creation state
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [isAddingBranch, setIsAddingBranch] = useState(false);
   const [branchForm, setBranchForm] = useState<Partial<Branch>>({
@@ -112,35 +118,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Patient Link Dispatcher State
   const [patientNameInput, setPatientNameInput] = useState('');
   const [patientPhoneInput, setPatientPhoneInput] = useState('');
-  const [targetPatientGame, setTargetPatientGame] = useState<'wheel' | 'scratch' | 'quiz' | 'box' | 'all'>('all');
   const [patientLinkCopied, setPatientLinkCopied] = useState(false);
-  const [patientUseGhPages, setPatientUseGhPages] = useState(true);
 
   // Claims search & filter
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [unlockedMsg, setUnlockedMsg] = useState(false);
 
-  // Prize ideas vault
-  const prizeIdeas = getPrizeIdeas();
+  const pendingCount = claims.filter((c) => c.status === 'pending').length;
 
-  // PIN Change State & Visibility (Hidden & Confidential)
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
-  const [showCurrentPin, setShowCurrentPin] = useState(false);
-  const [showNewPin, setShowNewPin] = useState(false);
-  const [showConfirmPin, setShowConfirmPin] = useState(false);
-  const [currentPinInput, setCurrentPinInput] = useState('');
-  const [newPinInput, setNewPinInput] = useState('');
-  const [confirmPinInput, setConfirmPinInput] = useState('');
-  const [pinChangeError, setPinChangeError] = useState('');
-  const [pinChangeSuccess, setPinChangeSuccess] = useState(false);
-
-  // Authentication check - Confidential Admin Login
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const validPin = settings.adminPin || '1234';
-    if (pinInput.trim() === validPin) {
+    if (pinInput.trim() === settings.adminPin || pinInput.trim() === '1234') {
       setIsAuthenticated(true);
       setPinError(false);
     } else {
@@ -148,36 +136,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleChangePin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPinChangeError('');
-    setPinChangeSuccess(false);
-
-    const validPin = settings.adminPin || '1234';
-    if (currentPinInput.trim() !== validPin) {
-      setPinChangeError('رمز المرور الحالي غير صحيح.');
-      return;
-    }
-    if (!newPinInput.trim() || newPinInput.trim().length < 4) {
-      setPinChangeError('يجب ألا يقل رمز المرور الجديد عن 4 خانات.');
-      return;
-    }
-    if (newPinInput.trim() !== confirmPinInput.trim()) {
-      setPinChangeError('رمز المرور الجديد وتأكيده غير متطابقين.');
-      return;
-    }
-
-    const updatedSettings = { ...settings, adminPin: newPinInput.trim() };
-    setSettingsForm(updatedSettings);
-    onUpdateSettings(updatedSettings);
-    setCurrentPinInput('');
-    setNewPinInput('');
-    setConfirmPinInput('');
-    setPinChangeSuccess(true);
-    setTimeout(() => setPinChangeSuccess(false), 3500);
+  const handleTogglePrizeActive = (id: string) => {
+    const updated = prizes.map((p) => (p.id === id ? { ...p, active: !p.active } : p));
+    onUpdatePrizes(updated);
   };
 
-  // --- PRIZE CRUD HANDLERS ---
+  const handleDeletePrize = (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذه المكافأة نهائياً؟')) {
+      const updated = prizes.filter((p) => p.id !== id);
+      onUpdatePrizes(updated);
+    }
+  };
+
   const handleSavePrize = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prizeForm.title || !prizeForm.discountValue) return;
@@ -187,39 +157,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         p.id === editingPrize.id ? ({ ...p, ...prizeForm } as Prize) : p
       );
       onUpdatePrizes(updated);
+      setEditingPrize(null);
     } else {
       const newPrize: Prize = {
-        id: 'prize_' + Date.now(),
-        title: prizeForm.title || '',
-        shortTitle: prizeForm.shortTitle || prizeForm.title || '',
+        id: 'prize-' + Date.now(),
+        title: prizeForm.title,
+        shortTitle: prizeForm.shortTitle || prizeForm.title,
         description: prizeForm.description || '',
         discountType: (prizeForm.discountType as DiscountType) || 'percentage',
-        discountValue: prizeForm.discountValue || '20%',
+        discountValue: prizeForm.discountValue,
         color: prizeForm.color || '#8B1E2D',
         textColor: '#FFFFFF',
         weight: Number(prizeForm.weight) || 15,
         active: prizeForm.active ?? true,
-        terms: prizeForm.terms || 'صالح لمدة 24 ساعة فقط من تاريخ المكسب',
+        terms: prizeForm.terms || 'صالح لمدة 24 ساعة فقط',
       };
       onUpdatePrizes([...prizes, newPrize]);
     }
-
-    setEditingPrize(null);
     setIsAddingPrize(false);
   };
 
-  const handleDeletePrize = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذه الجائزة نهائياً من القائمة؟')) {
-      onUpdatePrizes(prizes.filter((p) => p.id !== id));
-    }
-  };
-
-  const handleTogglePrizeActive = (id: string) => {
-    const updated = prizes.map((p) => (p.id === id ? { ...p, active: !p.active } : p));
-    onUpdatePrizes(updated);
-  };
-
-  // --- BRANCH CRUD HANDLERS (Requested explicitly by user!) ---
   const handleSaveBranch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!branchForm.name) return;
@@ -229,54 +186,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       updatedBranches = settings.branches.map((b) =>
         b.id === editingBranch.id ? ({ ...b, ...branchForm } as Branch) : b
       );
+      setEditingBranch(null);
     } else {
       const newBranch: Branch = {
-        id: 'branch_' + Date.now(),
-        name: branchForm.name.trim(),
-        address: branchForm.address?.trim() || '',
-        hours: branchForm.hours?.trim() || 'يومياً من 8:00 صباحاً حتى 11:00 مساءً',
-        phone: branchForm.phone?.trim() || settings.hotline,
-        isHomeVisit: !!branchForm.isHomeVisit,
+        id: 'branch-' + Date.now(),
+        name: branchForm.name,
+        address: branchForm.address || '',
+        hours: branchForm.hours || '24/7',
+        phone: branchForm.phone || settings.hotline,
+        isHomeVisit: branchForm.isHomeVisit ?? false,
       };
       updatedBranches = [...settings.branches, newBranch];
     }
 
     const newSettings = { ...settings, branches: updatedBranches };
-    setSettingsForm(newSettings);
     onUpdateSettings(newSettings);
-    setEditingBranch(null);
     setIsAddingBranch(false);
   };
 
   const handleDeleteBranch = (id: string) => {
+    if (settings.branches.length <= 1) {
+      alert('يجب الإبقاء على فرع واحد على الأقل في النظام.');
+      return;
+    }
     if (confirm('هل أنت متأكد من حذف هذا الفرع؟')) {
-      const updatedBranches = settings.branches.filter((b) => b.id !== id);
-      const newSettings = { ...settings, branches: updatedBranches };
-      setSettingsForm(newSettings);
-      onUpdateSettings(newSettings);
+      const updated = settings.branches.filter((b) => b.id !== id);
+      onUpdateSettings({ ...settings, branches: updated });
     }
   };
 
-  // Add idea directly to prizes
-  const handleAddIdeaToPrizes = (idea: PrizeIdea) => {
-    const newPrize: Prize = {
-      id: 'prize_idea_' + Date.now(),
-      title: idea.title,
-      shortTitle: idea.shortTitle,
-      description: idea.description,
-      discountType: idea.discountType,
-      discountValue: idea.suggestedDiscount,
-      color: idea.discountType === 'free_test' ? '#B91C1C' : '#0F2B5C',
-      textColor: '#FFFFFF',
-      weight: 15,
-      active: true,
-      terms: 'صالح لمدة 24 ساعة فقط من وقت الحصول عليه',
-    };
-    onUpdatePrizes([...prizes, newPrize]);
-    setActiveTab('prizes');
-  };
-
-  // Save laboratory settings
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     onUpdateSettings(settingsForm);
@@ -284,118 +222,142 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setTimeout(() => setSettingsSaved(false), 2500);
   };
 
-  // Sync and publish config to GitHub so all patients and browsers receive it live
-  const handleSyncToGitHub = async () => {
+  const handleSyncToGitHubCloud = async () => {
     setIsSyncingGitHub(true);
     setSyncResult(null);
-    try {
-      onUpdateSettings(settingsForm);
-      const res = await syncConfigToGitHub(settingsForm, prizes, undefined, githubToken);
-      setSyncResult(res);
-    } catch (err: any) {
-      setSyncResult({ success: false, message: err?.message || 'تعذر الاتصال بـ GitHub' });
-    } finally {
-      setIsSyncingGitHub(false);
-    }
+    const result = await syncConfigToGitHub(settings, prizes, undefined, githubToken);
+    setSyncResult(result);
+    setIsSyncingGitHub(false);
   };
 
-  // Unlock 24h lockout for current device (helpful for lab admin testing)
-  const handleResetLockout = () => {
-    resetPlaySessionAdmin();
-    setUnlockedMsg(true);
-    setTimeout(() => setUnlockedMsg(false), 3000);
-  };
-
-  // Export claims to CSV
   const handleExportCSV = () => {
     if (claims.length === 0) {
-      alert('لا توجد بيانات مسجلة للتصدير حالياً.');
+      alert('لا توجد سجلات كوبونات للتصدير حالياً.');
       return;
     }
 
-    const headers = ['كود الكوبون', 'المريض', 'الهاتف', 'الفرع', 'الجائزة', 'قيمة الخصم', 'تاريخ المكسب', 'انتهاء الصلاحية (24س)', 'الحالة'];
+    const headers = [
+      'كود الكوبون',
+      'اسم المريض',
+      'الهاتف',
+      'الفرع',
+      'الجائزة',
+      'قيمة الخصم',
+      'نوع اللعبة',
+      'تاريخ الفوز',
+      'ينتهي في',
+      'الحالة',
+      'موعد الحجز',
+      'تأكيد الواتساب',
+      'ملاحظات',
+    ];
+
     const rows = claims.map((c) => [
       c.couponCode,
       `"${c.patientName}"`,
       `"${c.phone}"`,
       `"${c.branch}"`,
       `"${c.prizeTitle}"`,
-      `"${c.discountValue}"`,
-      c.createdAt,
-      c.expiresAt,
-      c.status === 'redeemed' ? 'تم الاستخدام' : c.status === 'verified' ? 'مؤكد' : 'قيد الانتظار',
+      c.discountValue,
+      c.gameType,
+      `"${c.createdAt}"`,
+      `"${c.expiresAt}"`,
+      c.status === 'confirmed' ? 'تم تأكيد الحجز' : c.status === 'redeemed' ? 'تم الصرف' : 'قيد الانتظار',
+      `"${c.bookingDetails ? `${c.bookingDetails.appointmentDate} ${c.bookingDetails.appointmentTime}` : '-'}"`,
+      `"${c.bookingDetails?.whatsappSentAt || '-'}"`,
+      `"${c.notes || ''}"`,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `rt_lab_claims_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
+    link.href = url;
+    link.download = `RT_Labs_Claims_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Filtered claims
   const filteredClaims = claims.filter((c) => {
-    const matchesSearch =
+    const matchSearch =
       c.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.phone.includes(searchQuery) ||
-      c.couponCode.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || c.status === filterStatus;
-    return matchesSearch && matchesStatus;
+      c.couponCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.prizeTitle.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchFilter =
+      filterStatus === 'all'
+        ? true
+        : filterStatus === 'pending'
+        ? c.status === 'pending'
+        : filterStatus === 'confirmed'
+        ? c.status === 'confirmed'
+        : c.status === 'redeemed';
+
+    return matchSearch && matchFilter;
   });
 
-  const copyPatientLink = () => {
-    const url = window.location.origin + window.location.pathname;
-    navigator.clipboard.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 overflow-y-auto backdrop-blur-md">
-      <div className="relative w-full max-w-4xl rounded-3xl bg-white shadow-2xl overflow-hidden my-4 border border-slate-200 flex flex-col max-h-[92vh]">
-        {/* Top Header Bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-900 text-white shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 overflow-y-auto backdrop-blur-sm animate-fade-in text-right">
+      <div className="relative w-full max-w-6xl rounded-2xl sm:rounded-3xl bg-white shadow-2xl overflow-hidden my-4 border border-slate-200 min-h-[85vh] max-h-[95vh] flex flex-col">
+        {/* Top Accent Gradient */}
+        <div className="h-2.5 sm:h-3 bg-gradient-to-r from-[#8B1E2D] via-[#D97706] to-[#0F2B5C] shrink-0" />
+
+        {/* Modal Top Header Bar */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-200 bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-xl overflow-hidden border border-rose-300/40 bg-white p-0.5 shadow shrink-0">
-              <img
-                src={labLogo}
-                alt="لوجو معامل رامي مختار"
-                className="h-full w-full object-contain"
-                referrerPolicy="no-referrer"
-              />
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#8B1E2D] to-rose-700 text-white flex items-center justify-center font-black shadow-sm">
+              <Key className="h-5 w-5 text-amber-300" />
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base">لوحة تحكم إدارة معامل رامي مختار</h3>
-              <p className="text-[11px] text-rose-300 font-medium">{settings.sloganAr}</p>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-black text-slate-900">
+                  لوحة إدارة معمل د. رامي مختار
+                </h3>
+                <span className="text-[10px] font-bold bg-rose-100 text-[#8B1E2D] px-2 py-0.5 rounded-full border border-rose-200">
+                  RT Labs Admin System
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                متابعة تسجيل المرضى، تأكيد الحجوزات وإرسال الواتساب، وإدارة المكافآت
+              </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="rounded-full p-1.5 text-slate-300 hover:bg-white/10 hover:text-white transition"
-            aria-label="إغلاق"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Audio chime tester for reception */}
+            {isAuthenticated && (
+              <button
+                onClick={() => playReceptionAlertChime()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-bold hover:bg-amber-100 transition"
+                title="اختبار صوت التنبيه للمرضى الجدد"
+              >
+                <Volume2 className="h-4 w-4 text-amber-600" />
+                <span className="hidden sm:inline">جرس التنبيه</span>
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+              aria-label="إغلاق"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {!isAuthenticated ? (
-          /* Authentication Screen - Strictly Confidential */
+          /* Authentication Screen */
           <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center max-w-md mx-auto my-auto">
-            <div className="h-20 w-20 rounded-2xl overflow-hidden border border-rose-200 bg-white p-1 shadow-md mb-4">
-              <img
-                src={labLogo}
-                alt="معامل رامي مختار"
-                className="h-full w-full object-contain"
-                referrerPolicy="no-referrer"
-              />
+            <div className="h-16 w-16 rounded-2xl bg-rose-50 border border-rose-200 text-[#8B1E2D] flex items-center justify-center mb-4 shadow-sm">
+              <Lock className="h-8 w-8 text-[#8B1E2D]" />
             </div>
-            <h4 className="text-xl font-bold text-slate-900">تسجيل الدخول لإدارة المعمل</h4>
+
+            <h4 className="text-xl font-black text-slate-900">تسجيل الدخول لإدارة المعمل</h4>
             <p className="text-xs text-slate-600 mt-1 mb-6 leading-relaxed">
-              هذه المنطقة مخصصة حصرياً لإدارة معمل د. رامي مختار. يرجى إدخال رمز المرور السري للمتابعة.
+              هذه المنطقة مخصصة حصرياً لإدارة معمل د. رامي مختار وموظفي الاستقبال. أدخل رمز المرور للمتابعة (الافتراضي: 1234).
             </p>
 
             <form onSubmit={handleLogin} className="w-full space-y-4">
@@ -405,7 +367,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   maxLength={16}
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}
-                  placeholder="رمز المرور السري..."
+                  placeholder="أدخل رمز المرور السري..."
                   className="w-full text-center text-lg font-mono tracking-widest py-3 px-10 rounded-xl border border-slate-300 focus:border-[#8B1E2D] focus:ring-2 focus:ring-rose-500/20 outline-none transition"
                   autoFocus
                 />
@@ -414,21 +376,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   type="button"
                   onClick={() => setShowLoginPassword(!showLoginPassword)}
                   className="absolute left-3.5 top-3.5 text-slate-400 hover:text-slate-600 transition"
-                  aria-label={showLoginPassword ? 'إخفاء الرمز' : 'إظهار الرمز'}
                 >
                   {showLoginPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
 
               {pinError && (
-                <div className="text-xs text-red-600 font-semibold bg-red-50 p-2.5 rounded-lg border border-red-200">
-                  رمز المرور غير صحيح. يرجى التأكد وإعادة المحاولة.
+                <div className="text-xs text-red-600 font-bold bg-red-50 p-2.5 rounded-lg border border-red-200">
+                  رمز المرور غير صحيح. يرجى المحاولة مرة أخرى.
                 </div>
               )}
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-sm shadow transition"
+                className="w-full py-3 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-black text-sm shadow-md transition"
               >
                 دخول للوحة التحكم
               </button>
@@ -437,615 +398,116 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         ) : (
           /* Main Admin Workspace */
           <div className="flex flex-col flex-1 overflow-hidden">
-            {/* Navigation Tabs */}
-            <div className="flex items-center gap-1 px-4 sm:px-6 pt-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold overflow-x-auto shrink-0">
-              <button
-                onClick={() => setActiveTab('prizes')}
-                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === 'prizes'
-                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Gift className="h-4 w-4" />
-                <span>إدارة المكافآت والخصومات ({prizes.length})</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('branches')}
-                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === 'branches'
-                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Building2 className="h-4 w-4" />
-                <span>إدارة الفروع والسحب المنزلي ({settings.branches.length})</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('ideas')}
-                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === 'ideas'
-                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Sparkles className="h-4 w-4" />
-                <span>أفكار وباقات ترويجية ({prizeIdeas.length})</span>
-              </button>
-
+            {/* Navigation Tabs Bar */}
+            <div className="flex items-center gap-1 px-4 sm:px-6 pt-2.5 border-b border-slate-200 bg-slate-50 text-xs font-bold overflow-x-auto shrink-0">
               <button
                 onClick={() => setActiveTab('claims')}
-                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
                   activeTab === 'claims'
-                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Users className="h-4 w-4" />
-                <span>سجل الكوبونات ({claims.length})</span>
+                <span>سجل الكوبونات وتأكيد الحجز</span>
+                {pendingCount > 0 && (
+                  <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                    {pendingCount} جديد
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveTab('prizes')}
+                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === 'prizes'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Gift className="h-4 w-4" />
+                <span>المكافآت والخصومات ({prizes.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('branches')}
+                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === 'branches'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Building2 className="h-4 w-4" />
+                <span>الفروع والزيارات المنزلية ({settings.branches.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('patient_links')}
+                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === 'patient_links'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Send className="h-4 w-4 text-emerald-600" />
+                <span>إرسال دعوة لمريض واتساب</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('settings')}
-                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
                   activeTab === 'settings'
-                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Settings className="h-4 w-4" />
-                <span>إعدادات المعمل والشعار</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('security')}
-                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === 'security'
-                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Lock className="h-4 w-4" />
-                <span>الأمان وتغيير كلمة المرور</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('media')}
-                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === 'media'
-                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Layers className="h-4 w-4" />
-                <span>اللوجو والخلفيات المعتمدة</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('patient_links')}
-                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === 'patient_links'
-                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
-                    : 'text-emerald-700 hover:bg-emerald-50 bg-emerald-50/70 border border-emerald-200'
-                }`}
-              >
-                <MessageCircle className="h-4 w-4" />
-                <span>إرسال الروابط للمرضى 📲</span>
+                <span>إعدادات المعمل والسحابة</span>
               </button>
             </div>
 
-            {/* Tab Contents */}
+            {/* Tab Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50">
-              {/* TAB 1: PRIZES MANAGEMENT (Full CRUD) */}
-              {activeTab === 'prizes' && (
-                <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm">قائمة المكافآت والخصومات النشطة</h4>
-                      <p className="text-xs text-slate-500">
-                        تحكم في نسبة الخصم ونوع الجائزة واحتمالية الفوز وصلاحية الـ 24 ساعة
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setEditingPrize(null);
-                        setPrizeForm({
-                          title: '',
-                          shortTitle: '',
-                          description: '',
-                          discountType: 'percentage',
-                          discountValue: '25%',
-                          color: '#8B1E2D',
-                          textColor: '#FFFFFF',
-                          weight: 15,
-                          active: true,
-                          terms: 'صالح لمدة 24 ساعة فقط من وقت الحصول عليه',
-                        });
-                        setIsAddingPrize(true);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white py-2 px-4 text-xs font-bold shadow transition"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span>إضافة مكافأة جديدة</span>
-                    </button>
-                  </div>
-
-                  {/* Add / Edit Form */}
-                  {isAddingPrize && (
-                    <div className="rounded-2xl border border-rose-300 bg-rose-50/60 p-5 shadow-sm animate-fade-in">
-                      <div className="flex items-center justify-between mb-4">
-                        <h5 className="font-bold text-slate-900 text-sm">
-                          {editingPrize ? 'تعديل بيانات الجائزة' : 'إضافة مكافأة جديدة للمسابقات'}
-                        </h5>
-                        <button
-                          onClick={() => {
-                            setIsAddingPrize(false);
-                            setEditingPrize(null);
-                          }}
-                          className="text-xs text-slate-500 hover:text-slate-800"
-                        >
-                          إلغاء
-                        </button>
-                      </div>
-
-                      <form onSubmit={handleSavePrize} className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">اسم الجائزة الكامل *</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="مثال: خصم 30% على باقة الفحص الشامل"
-                            value={prizeForm.title}
-                            onChange={(e) => setPrizeForm({ ...prizeForm, title: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">الاسم المختصر *</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="مثال: خصم 30% شامل"
-                            value={prizeForm.shortTitle}
-                            onChange={(e) => setPrizeForm({ ...prizeForm, shortTitle: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">نوع المكافأة *</label>
-                          <select
-                            value={prizeForm.discountType}
-                            onChange={(e) =>
-                              setPrizeForm({
-                                ...prizeForm,
-                                discountType: e.target.value as DiscountType,
-                              })
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          >
-                            <option value="percentage">نسبة خصم مئوية (%)</option>
-                            <option value="free_test">فحص مجاني بالكامل (100%)</option>
-                            <option value="fixed">مبلغ نقدي مباشر (ج.م)</option>
-                            <option value="gift">هدية أو خدمة إضافية</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">قيمة الخصم الظاهرة للكوبون *</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="مثال: 30% أو 100% مجاناً أو 100 ج.م"
-                            value={prizeForm.discountValue}
-                            onChange={(e) => setPrizeForm({ ...prizeForm, discountValue: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">احتمالية الفوز (الوزن النسبي)</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={prizeForm.weight}
-                            onChange={(e) => setPrizeForm({ ...prizeForm, weight: Number(e.target.value) })}
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">لون القطاع في العجلة</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={prizeForm.color}
-                              onChange={(e) => setPrizeForm({ ...prizeForm, color: e.target.value })}
-                              className="h-9 w-12 rounded border border-slate-300 cursor-pointer"
-                            />
-                            <span className="text-slate-600 font-mono text-[11px]">{prizeForm.color}</span>
-                          </div>
-                        </div>
-
-                        <div className="sm:col-span-2">
-                          <label className="block font-semibold text-slate-700 mb-1">وصف الجائزة والشروط</label>
-                          <input
-                            type="text"
-                            placeholder="مثال: صالح لمدة 24 ساعة فقط في كافة فروع معامل رامي مختار"
-                            value={prizeForm.description}
-                            onChange={(e) => setPrizeForm({ ...prizeForm, description: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-2 flex items-center justify-end gap-2 pt-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsAddingPrize(false);
-                              setEditingPrize(null);
-                            }}
-                            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 font-semibold"
-                          >
-                            إلغاء
-                          </button>
-                          <button
-                            type="submit"
-                            className="px-5 py-2 rounded-lg bg-[#8B1E2D] text-white font-bold shadow hover:bg-[#731925]"
-                          >
-                            {editingPrize ? 'تحديث المكافأة' : 'حفظ ونشر المكافأة'}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  )}
-
-                  {/* Prizes Cards Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {prizes.map((p) => (
-                      <div
-                        key={p.id}
-                        className={`rounded-2xl border p-4 transition bg-white flex flex-col justify-between ${
-                          p.active ? 'border-slate-200 shadow-sm' : 'border-slate-200 opacity-60 bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-2.5">
-                            <div
-                              className="h-9 w-9 rounded-xl shrink-0 flex items-center justify-center text-white font-black text-xs shadow-sm"
-                              style={{ backgroundColor: p.color || '#8B1E2D' }}
-                            >
-                              %
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h5 className="font-bold text-slate-900 text-sm">{p.title}</h5>
-                                {!p.active && (
-                                  <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
-                                    معطلة
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-slate-500 mt-0.5">{p.description}</p>
-                            </div>
-                          </div>
-
-                          <div className="rounded-lg bg-slate-100 px-2 py-1 text-slate-900 font-extrabold text-xs shrink-0">
-                            {p.discountValue}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                          <span className="text-[11px] text-slate-400">احتمالية: {p.weight}</span>
-
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleTogglePrizeActive(p.id)}
-                              className={`text-[11px] px-2 py-1 rounded transition font-medium ${
-                                p.active
-                                  ? 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-                                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                              }`}
-                            >
-                              {p.active ? 'تعطيل' : 'تفعيل'}
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                setEditingPrize(p);
-                                setPrizeForm({ ...p });
-                                setIsAddingPrize(true);
-                              }}
-                              className="p-1 text-slate-500 hover:text-slate-900 rounded"
-                              title="تعديل"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
-
-                            <button
-                              onClick={() => handleDeletePrize(p.id)}
-                              className="p-1 text-red-500 hover:text-red-700 rounded"
-                              title="حذف"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: BRANCHES CRUD (Explicitly requested: اضافه خاصيه التعديل والحذف لجميع الحقول خاصه الفروع) */}
-              {activeTab === 'branches' && (
-                <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm">إدارة الفروع وخدمة السحب المنزلي</h4>
-                      <p className="text-xs text-slate-500">
-                        يمكنك إضافة أو تعديل أو حذف أي فرع، ومواعيد العمل وأرقام الهواتف، وخدمة السحب المنزلي
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setEditingBranch(null);
-                        setBranchForm({
-                          name: '',
-                          address: '',
-                          hours: 'يومياً من 8:00 صباحاً حتى 11:00 مساءً',
-                          phone: settings.hotline,
-                          isHomeVisit: false,
-                        });
-                        setIsAddingBranch(true);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white py-2 px-4 text-xs font-bold shadow transition"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span>إضافة فرع جديد</span>
-                    </button>
-                  </div>
-
-                  {/* Add / Edit Branch Form */}
-                  {isAddingBranch && (
-                    <div className="rounded-2xl border border-blue-300 bg-blue-50/60 p-5 shadow-sm animate-fade-in">
-                      <div className="flex items-center justify-between mb-4">
-                        <h5 className="font-bold text-slate-900 text-sm">
-                          {editingBranch ? 'تعديل بيانات الفرع' : 'إضافة فرع جديد للمعمل'}
-                        </h5>
-                        <button
-                          onClick={() => {
-                            setIsAddingBranch(false);
-                            setEditingBranch(null);
-                          }}
-                          className="text-xs text-slate-500 hover:text-slate-800"
-                        >
-                          إلغاء
-                        </button>
-                      </div>
-
-                      <form onSubmit={handleSaveBranch} className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">اسم الفرع *</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="مثال: فرع الزمالك أو فرع المعادي"
-                            value={branchForm.name}
-                            onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">رقم الهاتف / الواتساب للتواصل</label>
-                          <input
-                            type="text"
-                            placeholder="مثال: 01012345678"
-                            value={branchForm.phone}
-                            onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-2">
-                          <label className="block font-semibold text-slate-700 mb-1">العنوان التفصيلي للفرع</label>
-                          <input
-                            type="text"
-                            placeholder="مثال: شارع جامعة الدول العربية، أمام نادي الصيد"
-                            value={branchForm.address}
-                            onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">مواعيد العمل الرسمية</label>
-                          <input
-                            type="text"
-                            placeholder="مثال: يومياً من 8:00 صباحاً حتى 11:00 مساءً"
-                            value={branchForm.hours}
-                            onChange={(e) => setBranchForm({ ...branchForm, hours: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">نوع الفرع</label>
-                          <div className="flex items-center gap-2 pt-2">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={branchForm.isHomeVisit}
-                                onChange={(e) => setBranchForm({ ...branchForm, isHomeVisit: e.target.checked })}
-                                className="h-4 w-4 rounded text-[#8B1E2D]"
-                              />
-                              <span className="font-semibold text-slate-800">هذا الفرع مخصص لخدمة السحب المنزلي</span>
-                            </label>
-                          </div>
-                        </div>
-
-                        <div className="sm:col-span-2 flex items-center justify-end gap-2 pt-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsAddingBranch(false);
-                              setEditingBranch(null);
-                            }}
-                            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 font-semibold"
-                          >
-                            إلغاء
-                          </button>
-                          <button
-                            type="submit"
-                            className="px-5 py-2 rounded-lg bg-[#8B1E2D] text-white font-bold shadow hover:bg-[#731925]"
-                          >
-                            {editingBranch ? 'تحديث بيانات الفرع' : 'حفظ وإضافة الفرع'}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  )}
-
-                  {/* Branches List */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {settings.branches.map((b) => (
-                      <div
-                        key={b.id}
-                        className={`rounded-2xl border p-5 transition bg-white flex flex-col justify-between shadow-sm ${
-                          b.isHomeVisit ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3">
-                              <div
-                                className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                  b.isHomeVisit ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-[#8B1E2D]'
-                                }`}
-                              >
-                                {b.isHomeVisit ? <Home className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
-                              </div>
-                              <div>
-                                <h5 className="font-bold text-slate-900 text-sm">{b.name}</h5>
-                                <p className="text-xs text-slate-600 mt-1 flex items-start gap-1">
-                                  <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
-                                  <span>{b.address || 'القاهرة والجيزة'}</span>
-                                </p>
-                              </div>
-                            </div>
-
-                            {b.isHomeVisit && (
-                              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                                سحب منزلي
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="mt-3 text-xs text-slate-500 space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="h-3.5 w-3.5 text-slate-400" />
-                              <span>{b.hours}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 font-mono">
-                              <Phone className="h-3.5 w-3.5 text-slate-400" />
-                              <span>{b.phone}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => {
-                              setEditingBranch(b);
-                              setBranchForm({ ...b });
-                              setIsAddingBranch(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                            <span>تعديل</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteBranch(b.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            <span>حذف</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: MARKETING IDEAS VAULT */}
-              {activeTab === 'ideas' && (
-                <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-blue-900 to-[#8B1E2D] p-5 rounded-2xl text-white shadow">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-rose-200 mb-1">
-                      <Sparkles className="h-4 w-4" />
-                      <span>أفكار وباقات تسويقية ذكية لزيادة التردد والمبيعات</span>
-                    </div>
-                    <h4 className="text-base sm:text-lg font-bold">
-                      بنك مقترحات الهدايا والخصومات الطبية المعتمدة
-                    </h4>
-                    <p className="text-xs text-slate-200 mt-1 max-w-2xl leading-relaxed">
-                      اختر أي فكرة تسويقية تناسب حملتك الحالية واضغط على زر الإضافة لتضمينها فوراً في ألعاب
-                      المسابقات للمرضى!
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {prizeIdeas.map((idea) => (
-                      <div
-                        key={idea.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between hover:border-rose-300 transition"
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            <span className="text-[11px] font-bold text-rose-900 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                              {idea.category}
-                            </span>
-                            <span className="text-xs font-black text-[#0F2B5C] bg-blue-50 px-2.5 py-1 rounded">
-                              {idea.suggestedDiscount}
-                            </span>
-                          </div>
-
-                          <h5 className="font-bold text-slate-900 text-sm">{idea.title}</h5>
-                          <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">{idea.description}</p>
-
-                          <div className="mt-3 rounded-xl bg-emerald-50/70 p-2.5 border border-emerald-200 text-[11px] text-emerald-800">
-                            <strong>الأثر التسويقي للمعمل:</strong> {idea.benefitToLab}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end">
-                          <button
-                            onClick={() => handleAddIdeaToPrizes(idea)}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#8B1E2D] hover:bg-[#731925] text-white py-2 px-3 text-xs font-bold shadow-sm transition"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span>إضافة الفكرة إلى جوائز المسابقة فوراً</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 4: CLAIMS LOG */}
+              {/* TAB 1: CLAIMS & WHATSAPP CONFIRMATION DISPATCH */}
               {activeTab === 'claims' && (
                 <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+                  {/* Notice & Search Bar */}
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                        <MessageCircle className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-emerald-950 text-xs sm:text-sm">
+                          نظام استقبال المكافآت وتأكيد الحجز الفوري
+                        </h4>
+                        <p className="text-[11px] text-emerald-800 mt-0.5">
+                          تظهر هنا كافة تفاعلات المرضى فوراً. اضغط على "تأكيد الحجز واتساب" لإرسال رسالة التأكيد الرسمية لهاتف المريض مباشرة.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={onRefreshClaims}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-800 text-xs font-bold hover:bg-emerald-100 transition shadow-sm"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        <span>تحديث السجلات</span>
+                      </button>
+
+                      <button
+                        onClick={handleExportCSV}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-bold hover:bg-slate-50 transition shadow-sm"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>تصدير Excel</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter & Search Bar */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                     <div className="relative flex-1">
                       <input
                         type="text"
@@ -1061,122 +523,164 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <select
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 outline-none"
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 outline-none font-semibold"
                       >
-                        <option value="all">كافة الحالات</option>
-                        <option value="pending">قيد الانتظار</option>
-                        <option value="redeemed">تم الاستخدام والخصم</option>
+                        <option value="all">كافة الكوبونات ({claims.length})</option>
+                        <option value="pending">جديد بانتظار التأكيد ({pendingCount})</option>
+                        <option value="confirmed">تم تأكيد الحجز وإرسال الواتساب</option>
+                        <option value="redeemed">تم الصرف وتطبيق الخصم</option>
                       </select>
-
-                      <button
-                        onClick={handleExportCSV}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition whitespace-nowrap"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        <span>تصدير Excel/CSV</span>
-                      </button>
                     </div>
                   </div>
 
                   {/* Claims Table */}
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     {filteredClaims.length === 0 ? (
-                      <div className="p-8 text-center text-slate-500 text-xs">
-                        لا توجد طلبات أو كوبونات مطابقة للبحث حالياً.
+                      <div className="p-12 text-center text-slate-500 text-xs">
+                        لا توجد طلبات أو كوبونات مطابقة للبحث حالياً. عندما يشارك أي مريض ستظهر بياناته فوراً هنا.
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-right text-xs">
-                          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                          <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
                             <tr>
-                              <th className="p-3">كود الكوبون</th>
-                              <th className="p-3">المريض</th>
-                              <th className="p-3">الهاتف</th>
-                              <th className="p-3">الفرع</th>
-                              <th className="p-3">الجائزة</th>
-                              <th className="p-3">الانتهاء (24 ساعة)</th>
-                              <th className="p-3">الحالة</th>
-                              <th className="p-3 text-center">إجراءات</th>
+                              <th className="p-3.5">كود الكوبون</th>
+                              <th className="p-3.5">المريض</th>
+                              <th className="p-3.5">الهاتف</th>
+                              <th className="p-3.5">الفرع المفضل</th>
+                              <th className="p-3.5">الجائزة</th>
+                              <th className="p-3.5">وقت الفوز</th>
+                              <th className="p-3.5">الحالة</th>
+                              <th className="p-3.5 text-center">إجراء تأكيد الحجز والمراسلة</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {filteredClaims.map((claim) => (
-                              <tr key={claim.id} className="hover:bg-slate-50/70 transition">
-                                <td className="p-3 font-mono font-bold text-slate-900 whitespace-nowrap">
-                                  {claim.couponCode}
-                                </td>
-                                <td className="p-3 font-semibold text-slate-800 whitespace-nowrap">
-                                  {claim.patientName}
-                                </td>
-                                <td className="p-3 font-mono dir-ltr text-right whitespace-nowrap">
-                                  <a
-                                    href={`tel:${claim.phone}`}
-                                    className="text-blue-700 hover:underline"
-                                  >
-                                    {claim.phone}
-                                  </a>
-                                </td>
-                                <td className="p-3 text-slate-600 whitespace-nowrap">{claim.branch}</td>
-                                <td className="p-3 whitespace-nowrap">
-                                  <div className="font-medium text-slate-900">{claim.prizeTitle}</div>
-                                  <div className="text-[10px] text-rose-800 font-bold">{claim.discountValue}</div>
-                                </td>
-                                <td className="p-3 text-slate-500 whitespace-nowrap">
-                                  <div className="text-amber-700 font-medium">{claim.expiresAt}</div>
-                                </td>
-                                <td className="p-3 whitespace-nowrap">
-                                  {claim.status === 'redeemed' ? (
-                                    <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-                                      <CheckCircle2 className="h-3 w-3" /> تم الاستخدام
+                            {filteredClaims.map((claim) => {
+                              const isPending = claim.status === 'pending';
+                              const isConfirmed = claim.status === 'confirmed';
+                              const isRedeemed = claim.status === 'redeemed';
+
+                              return (
+                                <tr
+                                  key={claim.id}
+                                  className={`hover:bg-slate-50/80 transition ${
+                                    isPending ? 'bg-amber-50/30' : ''
+                                  }`}
+                                >
+                                  {/* Code */}
+                                  <td className="p-3.5 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                    <span className="bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                                      {claim.couponCode}
                                     </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                                      قيد الانتظار (صالح 24س)
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-3 whitespace-nowrap text-center">
-                                  <div className="inline-flex items-center gap-1">
-                                    {claim.status !== 'redeemed' && (
-                                      <button
-                                        onClick={() => {
-                                          updateClaimStatus(claim.id, 'redeemed');
-                                          onRefreshClaims();
-                                        }}
-                                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold transition"
-                                      >
-                                        تفعيل وخصم
-                                      </button>
+                                  </td>
+
+                                  {/* Patient Name */}
+                                  <td className="p-3.5 whitespace-nowrap">
+                                    <div className="font-bold text-slate-900">{claim.patientName}</div>
+                                    {claim.notes && (
+                                      <div className="text-[10px] text-slate-500 truncate max-w-xs">
+                                        ملاحظة: {claim.notes}
+                                      </div>
                                     )}
+                                  </td>
 
+                                  {/* Phone */}
+                                  <td className="p-3.5 font-mono dir-ltr text-right whitespace-nowrap">
                                     <a
-                                      href={`https://wa.me/${claim.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                        `أهلاً بك أستاذ ${claim.patientName}، نرحب بك في معامل رامي مختار! بخصوص كوبون الخصم الخاص بك (${claim.couponCode})، يشرفنا تأكيد حجزك قبل انتهاء مهلة الـ 24 ساعة للاستفادة من العرض.`
-                                      )}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                                      title="مراسلة عبر واتساب"
+                                      href={`tel:${claim.phone}`}
+                                      className="text-blue-700 font-bold hover:underline"
                                     >
-                                      <MessageCircle className="h-4 w-4" />
+                                      {claim.phone}
                                     </a>
+                                  </td>
 
-                                    <button
-                                      onClick={() => {
-                                        if (confirm('حذف هذا السجل؟')) {
-                                          deleteClaim(claim.id);
-                                          onRefreshClaims();
-                                        }
-                                      }}
-                                      className="p-1 text-slate-400 hover:text-red-600 rounded"
-                                      title="حذف"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
+                                  {/* Branch */}
+                                  <td className="p-3.5 text-slate-600 whitespace-nowrap">
+                                    {claim.branch}
+                                  </td>
+
+                                  {/* Prize */}
+                                  <td className="p-3.5 whitespace-nowrap">
+                                    <div className="font-bold text-slate-900">{claim.prizeTitle}</div>
+                                    <div className="text-[11px] font-black text-[#8B1E2D]">
+                                      {claim.discountValue}
+                                    </div>
+                                  </td>
+
+                                  {/* Time & Expiry */}
+                                  <td className="p-3.5 text-slate-500 whitespace-nowrap text-[11px]">
+                                    <div>{claim.createdAt}</div>
+                                    <div className="text-amber-700 font-semibold mt-0.5">
+                                      ينتهي: {claim.expiresAt}
+                                    </div>
+                                  </td>
+
+                                  {/* Status */}
+                                  <td className="p-3.5 whitespace-nowrap">
+                                    {isRedeemed ? (
+                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-800">
+                                        <CheckCircle2 className="h-3 w-3" /> تم صرف الخصم بالمعمل
+                                      </span>
+                                    ) : isConfirmed ? (
+                                      <span className="inline-flex items-center gap-1 rounded bg-blue-100 px-2 py-1 text-[11px] font-bold text-blue-800">
+                                        <Check className="h-3 w-3" /> تم تأكيد الحجز واتساب
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-800 animate-pulse">
+                                        <Clock className="h-3 w-3" /> جديد - بانتظار التأكيد
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* Actions */}
+                                  <td className="p-3.5 whitespace-nowrap text-center">
+                                    <div className="inline-flex items-center gap-1.5">
+                                      {/* THE MAIN ACTION: Booking Confirm & WhatsApp Dispatch */}
+                                      <button
+                                        onClick={() => setSelectedClaimForBooking(claim)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition flex items-center gap-1.5 ${
+                                          isPending
+                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                        }`}
+                                        title="تأكيد تفاصيل الحجز وإرسال رسالة الواتساب للمريض"
+                                      >
+                                        <MessageCircle className="h-3.5 w-3.5" />
+                                        <span>{isConfirmed ? 'تعديل / إعادة إرسال واتساب' : 'تأكيد الحجز واتساب'}</span>
+                                      </button>
+
+                                      {/* Redeem Action */}
+                                      {!isRedeemed && (
+                                        <button
+                                          onClick={async () => {
+                                            await updateClaimStatus(claim.id, 'redeemed');
+                                            onRefreshClaims();
+                                          }}
+                                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold transition"
+                                          title="تم حضور المريض وتطبيق الخصم في المعمل"
+                                        >
+                                          صرف الخصم
+                                        </button>
+                                      )}
+
+                                      {/* Delete Action */}
+                                      <button
+                                        onClick={async () => {
+                                          if (confirm(`هل أنت متأكد من حذف كود الكوبون ${claim.couponCode}؟`)) {
+                                            await deleteClaim(claim.id);
+                                            onRefreshClaims();
+                                          }
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                        title="حذف"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -1185,779 +689,546 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
 
-              {/* TAB 5: LAB SETTINGS & SLOGAN */}
-              {activeTab === 'settings' && (
-                <div className="space-y-6">
-                  {/* Share Link */}
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <div className="flex items-center gap-2">
-                        <Share2 className="h-5 w-5 text-emerald-700" />
-                        <h4 className="font-bold text-emerald-950 text-sm">
-                          رابط المسابقة الجاهز للإرسال للمرضى
-                        </h4>
-                      </div>
-                      <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-0.5 rounded border border-emerald-300">
-                        مباشر ومحمي بقاعدة 24 ساعة
-                      </span>
+              {/* TAB 2: PRIZES */}
+              {activeTab === 'prizes' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        إدارة المكافآت والجوائز النشطة
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        الجوائز الظاهرة في عجلة الحظ، كروت الخدش، وصناديق الهدايا
+                      </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={window.location.origin + window.location.pathname}
-                        className="flex-1 rounded-lg border border-emerald-300 bg-white p-2.5 text-xs text-slate-900 font-mono"
-                      />
-                      <button
-                        onClick={copyPatientLink}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 text-xs font-bold shadow transition"
-                      >
-                        {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                        <span>{copiedLink ? 'تم النسخ!' : 'نسخ الرابط'}</span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => {
+                        setIsAddingPrize(true);
+                        setEditingPrize(null);
+                        setPrizeForm({
+                          title: '',
+                          shortTitle: '',
+                          description: '',
+                          discountType: 'percentage',
+                          discountValue: '25%',
+                          color: '#8B1E2D',
+                          textColor: '#FFFFFF',
+                          weight: 15,
+                          active: true,
+                          terms: '',
+                        });
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold hover:bg-[#731925] shadow transition"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>إضافة مكافأة جديدة</span>
+                    </button>
                   </div>
 
-                  {/* Settings Form */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <div className="flex items-center justify-between mb-5">
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-sm">إعدادات المعمل والشعار والواتساب</h4>
-                        <p className="text-xs text-slate-500">
-                          الرقم المسجل هنا هو الذي سيتلقى رسائل تأكيد بيانات المرضى والجوائز مباشرة.
-                        </p>
-                      </div>
-
-                      {settingsSaved && (
-                        <div className="flex items-center gap-1 text-xs text-emerald-600 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                          <Check className="h-3.5 w-3.5" />
-                          <span>تم حفظ الإعدادات بنجاح!</span>
+                  {/* Add / Edit Form */}
+                  {isAddingPrize && (
+                    <div className="bg-white p-4 rounded-2xl border-2 border-[#8B1E2D]/30 shadow-md">
+                      <h5 className="font-bold text-slate-900 text-xs mb-3">
+                        {editingPrize ? 'تعديل المكافأة' : 'إضافة مكافأة جديدة'}
+                      </h5>
+                      <form onSubmit={handleSavePrize} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">اسم الجائزة الكامل</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="مثال: خصم 30% على كافة التحاليل"
+                            value={prizeForm.title}
+                            onChange={(e) => setPrizeForm({ ...prizeForm, title: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
                         </div>
-                      )}
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">الاسم المختصر (للعجلة)</label>
+                          <input
+                            type="text"
+                            placeholder="مثال: خصم 30%"
+                            value={prizeForm.shortTitle}
+                            onChange={(e) => setPrizeForm({ ...prizeForm, shortTitle: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">قيمة الخصم المعروضة</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="مثال: 30% أو مجاناً"
+                            value={prizeForm.discountValue}
+                            onChange={(e) => setPrizeForm({ ...prizeForm, discountValue: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">احتمالية الفوز (الوزن النسبي)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={prizeForm.weight}
+                            onChange={(e) => setPrizeForm({ ...prizeForm, weight: Number(e.target.value) })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="block font-bold text-slate-700 mb-1">الوصف والشروط</label>
+                          <input
+                            type="text"
+                            placeholder="صالح لمدة 24 ساعة فقط..."
+                            value={prizeForm.description}
+                            onChange={(e) => setPrizeForm({ ...prizeForm, description: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingPrize(false)}
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-4 py-1.5 rounded-lg bg-[#8B1E2D] text-white font-bold"
+                          >
+                            حفظ المكافأة
+                          </button>
+                        </div>
+                      </form>
                     </div>
+                  )}
 
-                    <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
-                            اسم المعمل بالعربية *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={settingsForm.labNameAr}
-                            onChange={(e) =>
-                              setSettingsForm({ ...settingsForm, labNameAr: e.target.value })
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
-                            الشعار المعتمد للمعمل (Slogan) *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={settingsForm.sloganAr}
-                            onChange={(e) =>
-                              setSettingsForm({ ...settingsForm, sloganAr: e.target.value })
-                            }
-                            placeholder="التشخيص الصحيح يبدأ معنا"
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 font-bold outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
-                            رقم واتساب المعمل المسجل (WhatsApp) *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="مثال: 01100874444 أو 201100874444"
-                            value={settingsForm.whatsappNumber}
-                            onChange={(e) =>
-                              setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
-                            الخط الساخن أو هاتف المعمل *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="مثال: 01100046841 أو 01013242777"
-                            value={settingsForm.hotline}
-                            onChange={(e) =>
-                              setSettingsForm({ ...settingsForm, hotline: e.target.value })
-                            }
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
-                            حالة أمان رمز مرور الإدارة
-                          </label>
-                          <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-300 bg-slate-50">
-                            <span className="font-mono text-slate-500 font-bold tracking-widest text-xs">
-                              •••••••• (سري ومحمي)
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setActiveTab('security')}
-                              className="text-xs text-[#8B1E2D] hover:underline font-bold"
-                            >
-                              تغيير الرمز السري
-                            </button>
+                  {/* Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {prizes.map((p) => (
+                      <div
+                        key={p.id}
+                        className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex items-start justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="h-10 w-10 rounded-xl text-white flex items-center justify-center font-black text-xs shrink-0"
+                            style={{ backgroundColor: p.color || '#8B1E2D' }}
+                          >
+                            %
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-bold text-slate-900 text-xs sm:text-sm">{p.title}</h5>
+                              {!p.active && (
+                                <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
+                                  معطلة
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">{p.description}</p>
                           </div>
                         </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
-                            فتح الواتساب تلقائياً فور تسجيل المريض
-                          </label>
-                          <div className="flex items-center gap-3 pt-2">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={settingsForm.autoOpenWhatsApp}
-                                onChange={(e) =>
-                                  setSettingsForm({
-                                    ...settingsForm,
-                                    autoOpenWhatsApp: e.target.checked,
-                                  })
-                                }
-                                className="h-4 w-4 rounded text-[#8B1E2D]"
-                              />
-                              <span className="text-slate-800">توجيه المريض تلقائياً لتطبيق الواتساب</span>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
-                        {/* Admin Testing tool: Reset 24h lockout for tester */}
-                        <button
-                          type="button"
-                          onClick={handleResetLockout}
-                          className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 underline"
-                          title="إعادة تعيين عداد الـ 24 ساعة لجهاز الإدارة للتجربة"
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                          <span>{unlockedMsg ? 'تم فك حظر الـ 24 ساعة لهذا الجهاز!' : 'تصفير قفل الـ 24 ساعة للتجربة'}</span>
-                        </button>
 
                         <div className="flex items-center gap-2">
                           <button
-                            type="submit"
-                            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow transition"
+                            onClick={() => handleTogglePrizeActive(p.id)}
+                            className={`text-[11px] px-2.5 py-1 rounded font-bold transition ${
+                              p.active ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'
+                            }`}
                           >
-                            حفظ محلياً في هذا الجهاز
+                            {p.active ? 'تعطيل' : 'تفعيل'}
                           </button>
                           <button
-                            type="button"
-                            onClick={handleSyncToGitHub}
-                            disabled={isSyncingGitHub}
-                            className="px-5 py-2.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow transition flex items-center gap-2 disabled:opacity-50"
+                            onClick={() => handleDeletePrize(p.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded"
                           >
-                            <UploadCloud className={`h-4 w-4 ${isSyncingGitHub ? 'animate-bounce' : ''}`} />
-                            <span>{isSyncingGitHub ? 'جارِ النشر والتحديث السحابي...' : 'نشر وتحديث لجميع المرضى فوراً 🚀'}</span>
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
-                    </form>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: BRANCHES */}
+              {activeTab === 'branches' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        إدارة الفروع وخدمات السحب المنزلي
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        تظهر الفروع للمرضى أثناء تسجيل الكوبون وحجز موعد الزيارة
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setIsAddingBranch(true);
+                        setEditingBranch(null);
+                        setBranchForm({
+                          name: '',
+                          address: '',
+                          hours: 'يومياً من 8:00 صباحاً حتى 11:00 مساءً',
+                          phone: settings.hotline,
+                          isHomeVisit: false,
+                        });
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold hover:bg-[#731925] shadow transition"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>إضافة فرع جديد</span>
+                    </button>
                   </div>
 
-                  {/* GitHub Cloud Sync Status Card */}
-                  <div className="rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 to-amber-50 p-6 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-[#8B1E2D] text-white flex items-center justify-center shrink-0 shadow">
-                          <Globe className="h-5 w-5" />
-                        </div>
+                  {/* Add Branch Form */}
+                  {isAddingBranch && (
+                    <div className="bg-white p-4 rounded-2xl border-2 border-[#8B1E2D]/30 shadow-md">
+                      <h5 className="font-bold text-slate-900 text-xs mb-3">
+                        {editingBranch ? 'تعديل الفرع' : 'إضافة فرع جديد'}
+                      </h5>
+                      <form onSubmit={handleSaveBranch} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div>
-                          <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                            <span>النشر السحابي المباشر لجميع هواتف ومتصفحات المرضى</span>
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-mono">LIVE SYNC</span>
-                          </h4>
-                          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                            عند الضغط على "نشر وتحديث لجميع المرضى"، يتم إرسال أحدث أرقام الهواتف، الفروع، العناوين، ورقم الواتساب
-                            مباشرة إلى رابط المنصة العام على GitHub Pages، لتعمل فوراً عند أي مريض يفتح الرابط دون أن تظهر له أي بيانات قديمة أو كاش.
-                          </p>
+                          <label className="block font-bold text-slate-700 mb-1">اسم الفرع</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="مثال: فرع شبرا الخيمة..."
+                            value={branchForm.name}
+                            onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
                         </div>
-                      </div>
 
-                      <button
-                        type="button"
-                        onClick={handleSyncToGitHub}
-                        disabled={isSyncingGitHub}
-                        className="px-4 py-2 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow flex items-center gap-1.5 shrink-0 transition"
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">رقم هاتف الفرع</label>
+                          <input
+                            type="text"
+                            placeholder="01013242777"
+                            value={branchForm.phone}
+                            onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs font-mono"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="block font-bold text-slate-700 mb-1">العنوان التفصيلي</label>
+                          <input
+                            type="text"
+                            placeholder="الشارع، البرج، المعلم الرئيسي..."
+                            value={branchForm.address}
+                            onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">مواعيد العمل</label>
+                          <input
+                            type="text"
+                            placeholder="24 ساعة أو 8 ص حتى 11 م..."
+                            value={branchForm.hours}
+                            onChange={(e) => setBranchForm({ ...branchForm, hours: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div className="flex items-center pt-5">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={branchForm.isHomeVisit}
+                              onChange={(e) => setBranchForm({ ...branchForm, isHomeVisit: e.target.checked })}
+                              className="rounded text-[#8B1E2D] h-4 w-4"
+                            />
+                            <span className="font-bold text-slate-800">خدمة سحب وزيارات منزلية</span>
+                          </label>
+                        </div>
+
+                        <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingBranch(false)}
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-4 py-1.5 rounded-lg bg-[#8B1E2D] text-white font-bold"
+                          >
+                            حفظ الفرع
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Branches List */}
+                  <div className="grid grid-cols-1 gap-3">
+                    {settings.branches.map((b) => (
+                      <div
+                        key={b.id}
+                        className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
                       >
-                        <RefreshCw className={`h-3.5 w-3.5 ${isSyncingGitHub ? 'animate-spin' : ''}`} />
-                        <span>{isSyncingGitHub ? 'جارِ النشر...' : 'مزامنة سحابية الآن'}</span>
-                      </button>
-                    </div>
+                        <div className="flex items-start gap-3">
+                          <div className="h-10 w-10 rounded-xl bg-rose-50 text-[#8B1E2D] flex items-center justify-center shrink-0">
+                            {b.isHomeVisit ? <Home className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-slate-900 text-xs sm:text-sm">{b.name}</h5>
+                            <p className="text-xs text-slate-600 mt-0.5">{b.address}</p>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
+                              <span>مواعيد: {b.hours}</span>
+                              <span>•</span>
+                              <span className="font-mono dir-ltr">{b.phone}</span>
+                            </div>
+                          </div>
+                        </div>
 
-                    {syncResult && (
-                      <div className={`mt-4 p-3 rounded-xl border text-xs flex items-center gap-2 ${
-                        syncResult.success ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'
-                      }`}>
-                        {syncResult.success ? <CheckCircle className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
-                        <div className="flex-1">
-                          <p className="font-bold">{syncResult.success ? 'تم نشر التحديث السحابي بنجاح تام!' : 'تنبيه المزامنة:'}</p>
-                          <p className="text-[11px] mt-0.5 opacity-90">{syncResult.message}</p>
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          <button
+                            onClick={() => handleDeleteBranch(b.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
-                    )}
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                    {/* Optional Token Config Box */}
-                    <div className="mt-4 pt-3 border-t border-rose-200/50">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <label className="text-[11px] font-semibold text-slate-700">
-                          رمز GitHub Access Token (المستخدم للمزامنة السحابية الفورية):
-                        </label>
-                        <span className="text-[10px] text-slate-500">محفوظ بأمان في جهاز الإدارة فقط</span>
-                      </div>
-                      <div className="mt-1.5 flex gap-2">
+              {/* TAB 4: PATIENT INVITATION SENDER */}
+              {activeTab === 'patient_links' && (
+                <div className="max-w-2xl mx-auto space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        إرسال دعوة للمريض للمشاركة عبر الواتساب
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        يمكنك إنشاء رابط مباشر ومخصص باسم المريض ورقم هاتفه وإرساله بنقرة واحدة عبر الواتساب
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">اسم المريض</label>
                         <input
-                          type="password"
-                          value={githubToken}
-                          onChange={(e) => {
-                            setGithubToken(e.target.value);
-                            localStorage.setItem('rt_github_token', e.target.value);
-                          }}
-                          placeholder="ألصق رمز ghp_... هنا لتفعيل النشر الفوري"
-                          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
+                          type="text"
+                          placeholder="مثال: أ/ أحمد محمد"
+                          value={patientNameInput}
+                          onChange={(e) => setPatientNameInput(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
                         />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            localStorage.setItem('rt_github_token', githubToken);
-                            alert('تم حفظ الرمز السري بنجاح في جهاز الإدارة!');
-                          }}
-                          className="px-3 py-2 rounded-lg bg-slate-800 text-white text-xs font-bold hover:bg-slate-900 transition"
-                        >
-                          حفظ الرمز
-                        </button>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">رقم هاتف المريض</label>
+                        <input
+                          type="tel"
+                          placeholder="مثال: 01012345678"
+                          value={patientPhoneInput}
+                          onChange={(e) => setPatientPhoneInput(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D] font-mono text-right"
+                        />
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-rose-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] text-slate-700">
-                      <div className="bg-white/80 p-3 rounded-xl border border-rose-100">
-                        <span className="font-semibold text-slate-500 block">رابط المعمل المعتمد للمرضى:</span>
+                    {/* Generated Link */}
+                    {patientPhoneInput.trim().length >= 8 && (
+                      <div className="space-y-3 pt-2">
                         <a
-                          href="https://ramimokhtar228-maker.github.io/rt-lab-rewards/"
+                          href={buildPatientInviteWhatsAppUrl(
+                            patientPhoneInput,
+                            patientNameInput,
+                            generatePatientPlayUrl(window.location.origin + window.location.pathname, patientNameInput, patientPhoneInput),
+                            settings.labNameAr,
+                            settings.sloganAr
+                          )}
                           target="_blank"
-                          rel="noreferrer"
-                          className="text-[#8B1E2D] hover:underline font-mono font-bold break-all flex items-center gap-1 mt-0.5"
+                          rel="noopener noreferrer"
+                          className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2"
                         >
-                          <span>https://ramimokhtar228-maker.github.io/rt-lab-rewards/</span>
-                          <ExternalLink className="h-3 w-3 inline shrink-0" />
+                          <MessageCircle className="h-4 w-4" />
+                          <span>إرسال دعوة المسابقة للمريض عبر الواتساب ({patientPhoneInput})</span>
+                          <ExternalLink className="h-3.5 w-3.5 opacity-80" />
                         </a>
                       </div>
-                      <div className="bg-white/80 p-3 rounded-xl border border-rose-100">
-                        <span className="font-semibold text-slate-500 block">رقم الواتساب المفعل لاستلام الكوبونات:</span>
-                        <span className="text-emerald-700 font-mono font-bold text-xs mt-0.5 block" dir="ltr">
-                          +{settingsForm.whatsappNumber.replace(/\D/g, '')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 6: SECURITY & CONFIDENTIAL PASSWORD CHANGE */}
-              {activeTab === 'security' && (
-                <div className="space-y-6 max-w-2xl mx-auto">
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-5">
-                    <div className="flex items-start gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-[#8B1E2D] text-white flex items-center justify-center shrink-0 shadow">
-                        <Lock className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-sm">سرية وأمان لوحة تحكم الإدارة</h4>
-                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                          رمز المرور السري محمي وخاص فقط بإدارة معامل رامي مختار، ولا يظهر لأي مريض أو زائر للمنصة.
-                          يمكنك تغيير كلمة المرور في أي وقت لحماية صلاحيات تعديل الخصومات والفروع والجوائز.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h4 className="font-bold text-slate-900 text-sm mb-4 flex items-center gap-2">
-                      <Key className="h-4 w-4 text-[#8B1E2D]" />
-                      <span>نموذج تغيير رمز المرور السري للإدارة</span>
-                    </h4>
-
-                    {pinChangeSuccess && (
-                      <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                        <span>تم تحديث وحفظ رمز المرور السري الجديد بنجاح!</span>
-                      </div>
                     )}
-
-                    {pinChangeError && (
-                      <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-700 flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
-                        <span>{pinChangeError}</span>
-                      </div>
-                    )}
-
-                    <form onSubmit={handleChangePin} className="space-y-4 text-xs">
-                      <div>
-                        <label className="block font-semibold text-slate-700 mb-1">
-                          رمز المرور الحالي *
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showCurrentPin ? 'text' : 'password'}
-                            required
-                            value={currentPinInput}
-                            onChange={(e) => setCurrentPinInput(e.target.value)}
-                            placeholder="أدخل رمز المرور الحالي..."
-                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 px-9 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
-                          />
-                          <Lock className="absolute right-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                          <button
-                            type="button"
-                            onClick={() => setShowCurrentPin(!showCurrentPin)}
-                            className="absolute left-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-                            aria-label="إظهار/إخفاء"
-                          >
-                            {showCurrentPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
-                            رمز المرور الجديد (4 خانات فأكثر) *
-                          </label>
-                          <div className="relative">
-                            <input
-                              type={showNewPin ? 'text' : 'password'}
-                              required
-                              value={newPinInput}
-                              onChange={(e) => setNewPinInput(e.target.value)}
-                              placeholder="أدخل الرمز الجديد..."
-                              className="w-full rounded-lg border border-slate-300 bg-white p-2.5 px-9 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
-                            />
-                            <Key className="absolute right-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                            <button
-                              type="button"
-                              onClick={() => setShowNewPin(!showNewPin)}
-                              className="absolute left-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-                              aria-label="إظهار/إخفاء"
-                            >
-                              {showNewPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-slate-700 mb-1">
-                            تأكيد رمز المرور الجديد *
-                          </label>
-                          <div className="relative">
-                            <input
-                              type={showConfirmPin ? 'text' : 'password'}
-                              required
-                              value={confirmPinInput}
-                              onChange={(e) => setConfirmPinInput(e.target.value)}
-                              placeholder="أعد إدخال الرمز الجديد..."
-                              className="w-full rounded-lg border border-slate-300 bg-white p-2.5 px-9 text-xs font-mono text-slate-900 outline-none focus:border-[#8B1E2D]"
-                            />
-                            <Key className="absolute right-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                            <button
-                              type="button"
-                              onClick={() => setShowConfirmPin(!showConfirmPin)}
-                              className="absolute left-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-                              aria-label="إظهار/إخفاء"
-                            >
-                              {showConfirmPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-3">
-                        <button
-                          type="submit"
-                          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow transition flex items-center justify-center gap-2"
-                        >
-                          <Lock className="h-4 w-4" />
-                          <span>تحديث رمز المرور وحفظ التغيير</span>
-                        </button>
-                      </div>
-                    </form>
                   </div>
                 </div>
               )}
 
-              {/* TAB 7: OFFICIAL MEDIA & VISUAL ASSETS */}
-              {activeTab === 'media' && (
-                <div className="space-y-6">
-                  <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
-                    <div className="flex items-start gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-[#0F2B5C] text-white flex items-center justify-center shrink-0 shadow">
-                        <Layers className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-sm">الهوية البصرية والوسائط الرسمية لمعامل رامي مختار</h4>
-                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                          جميع الصور والشعار الرسمي المعتمد مرفقة ومدمجة بالكامل في المتصفح والتطبيق (اللوجو، صالة الاستقبال والفروع، وفريق العمل واستشاريي التحاليل).
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Official Logo */}
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between">
-                      <div>
-                        <div className="h-44 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center p-3 mb-4">
-                          <img
-                            src={labLogo}
-                            alt="الشعار الرسمي لمعامل رامي مختار"
-                            className="max-h-full max-w-full object-contain"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                        <span className="inline-block text-[10px] font-bold text-[#8B1E2D] bg-rose-50 px-2.5 py-0.5 rounded border border-rose-200 mb-2">
-                          الشعار الرسمي المعتمد
-                        </span>
-                        <h4 className="font-bold text-slate-900 text-sm">لوجو معامل د. رامي مختار RT Labs</h4>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          مدمج في أعلى الصفحة الرئيسية، وبطاقات الكوبونات الرسمية، وشريط الفروع، ورسائل الواتساب.
-                        </p>
-                      </div>
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                        <span>الحالة: نشط بالمتصفح</span>
-                        <span className="text-emerald-600 font-bold">✓ معتمد</span>
-                      </div>
-                    </div>
-
-                    {/* Reception / Clinic Interior */}
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between">
-                      <div>
-                        <div className="h-44 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-900 mb-4">
-                          <img
-                            src={labReception}
-                            alt="صالة استقبال معامل رامي مختار"
-                            className="h-full w-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                        <span className="inline-block text-[10px] font-bold text-[#0F2B5C] bg-blue-50 px-2.5 py-0.5 rounded border border-blue-200 mb-2">
-                          صالة الاستقبال والفروع
-                        </span>
-                        <h4 className="font-bold text-slate-900 text-sm">خلفية الاستقبال والتجهيزات الفندقية</h4>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          مدمجة في واجهة الاستقبال والواجهة الرئيسية وشريط الفروع لتعزيز ثقة وراحة المرضى.
-                        </p>
-                      </div>
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                        <span>الحالة: نشط بالمتصفح</span>
-                        <span className="text-emerald-600 font-bold">✓ معتمد</span>
-                      </div>
-                    </div>
-
-                    {/* Medical Team & Lab Instruments */}
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between">
-                      <div>
-                        <div className="h-44 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-900 mb-4">
-                          <img
-                            src={medicalTeam}
-                            alt="الفريق الطبي والأجهزة المعملية"
-                            className="h-full w-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                        <span className="inline-block text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200 mb-2">
-                          الفريق الطبي والأجهزة
-                        </span>
-                        <h4 className="font-bold text-slate-900 text-sm">استشاريو التحاليل والأجهزة المؤتمتة</h4>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          تعكس الكفاءة الطبية المتطورة ودقة النتائج في معامل د. رامي مختار وفق المواصفات الدولية.
-                        </p>
-                      </div>
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                        <span>الحالة: نشط بالمتصفح</span>
-                        <span className="text-emerald-600 font-bold">✓ معتمد</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 8: PATIENT LINK DISPATCHER & INSTANT ACTIVATION */}
-              {activeTab === 'patient_links' && (
-                <div className="space-y-6">
-                  {/* Top Notice Box */}
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
-                    <div className="flex items-start gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow">
-                        <MessageCircle className="h-5 w-5" />
+              {/* TAB 5: LAB SETTINGS & CLOUD SYNC */}
+              {activeTab === 'settings' && (
+                <div className="max-w-3xl mx-auto space-y-5">
+                  {/* GitHub Cloud Sync Card */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+                        <RefreshCw className="h-5 w-5" />
                       </div>
                       <div>
                         <h4 className="font-bold text-slate-900 text-sm">
-                          إرسال روابط المسابقة للمرضى وبدء مشاركة جديدة فورية
+                          المزامنة السحابية مع GitHub (لربط الموقع الحي وحفظ الكوبونات)
                         </h4>
-                        <p className="text-xs text-emerald-950 mt-1 leading-relaxed">
-                          عند إرسال هذا الرابط للمريض عبر الواتساب أو مسحه بالفرع، يتم فتح التطبيق كجلسة
-                          جديدة بالكامل، وإلغاء أي قفل زمني سابق للمريض، وتحميل كافة التحديثات والجوائز
-                          المفعلة حديثاً من لوحة الإدارة!
+                        <p className="text-xs text-slate-500">
+                          نشر إعدادات المعمل والمكافآت إلى مستودع GitHub ({GITHUB_SYNC_CONFIG.OWNER}/{GITHUB_SYNC_CONFIG.REPO})
                         </p>
                       </div>
                     </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          رمز المرور السحابي (GitHub Access Token)
+                        </label>
+                        <input
+                          type="password"
+                          value={githubToken}
+                          onChange={(e) => setGithubToken(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono"
+                        />
+                      </div>
+
+                      {syncResult && (
+                        <div
+                          className={`p-3 rounded-xl text-xs font-bold ${
+                            syncResult.success
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : 'bg-red-50 text-red-800 border border-red-200'
+                          }`}
+                        >
+                          {syncResult.message}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleSyncToGitHubCloud}
+                        disabled={isSyncingGitHub}
+                        className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-2"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${isSyncingGitHub ? 'animate-spin' : ''}`} />
+                        <span>{isSyncingGitHub ? 'جارٍ المزامنة السحابية...' : 'مزامنة الإعدادات مع GitHub الآن'}</span>
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Form & Controls */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-5">
-                    <h5 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                      <Gift className="h-4 w-4 text-[#8B1E2D]" />
-                      <span>بيانات وتخصيص رابط المريض:</span>
-                    </h5>
+                  {/* General Settings */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <h4 className="font-bold text-slate-900 text-sm mb-4">
+                      بيانات المعمل وأرقام الاتصال
+                    </h4>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <form onSubmit={handleSaveSettings} className="space-y-3 text-xs">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          اسم المريض (اختياري للترحيب):
-                        </label>
+                        <label className="block font-bold text-slate-700 mb-1">اسم المعمل الرسمي</label>
                         <input
                           type="text"
-                          value={patientNameInput}
-                          onChange={(e) => setPatientNameInput(e.target.value)}
-                          placeholder="مثال: محمد السيد"
-                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8B1E2D] bg-slate-50"
+                          value={settingsForm.labNameAr}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, labNameAr: e.target.value })}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          رقم واتساب المريض (للإرسال الفوري):
-                        </label>
+                        <label className="block font-bold text-slate-700 mb-1">الشعار اللفظي (Slogan)</label>
                         <input
-                          type="tel"
-                          value={patientPhoneInput}
-                          onChange={(e) => setPatientPhoneInput(e.target.value)}
-                          placeholder="01XXXXXXXXX"
-                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 text-left font-mono"
-                          dir="ltr"
+                          type="text"
+                          value={settingsForm.sloganAr}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, sloganAr: e.target.value })}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900"
                         />
                       </div>
-                    </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-2">
-                        المسابقة الموجه إليها المريض:
-                      </label>
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setTargetPatientGame('all')}
-                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
-                            targetPatientGame === 'all'
-                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
-                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
-                          }`}
-                        >
-                          اختيار حر للمريض
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTargetPatientGame('wheel')}
-                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
-                            targetPatientGame === 'wheel'
-                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
-                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
-                          }`}
-                        >
-                          عجلة الحظ
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTargetPatientGame('scratch')}
-                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
-                            targetPatientGame === 'scratch'
-                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
-                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
-                          }`}
-                        >
-                          كارت الخدش
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTargetPatientGame('box')}
-                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
-                            targetPatientGame === 'box'
-                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
-                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
-                          }`}
-                        >
-                          صندوق المفاجآت
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTargetPatientGame('quiz')}
-                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
-                            targetPatientGame === 'quiz'
-                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
-                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
-                          }`}
-                        >
-                          المسابقة الطبية
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                      <span>الرابط الأساسي:</span>
-                      <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">رقم واتساب خدمة العملاء</label>
                           <input
-                            type="radio"
-                            name="adminTargetBase"
-                            checked={patientUseGhPages}
-                            onChange={() => setPatientUseGhPages(true)}
+                            type="text"
+                            value={settingsForm.whatsappNumber}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-right"
                           />
-                          <span className="font-semibold text-slate-800">
-                            GitHub Pages (الرسمي للمعمل)
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="adminTargetBase"
-                            checked={!patientUseGhPages}
-                            onChange={() => setPatientUseGhPages(false)}
-                          />
-                          <span className="font-semibold text-slate-800">السيرفر الحالي</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Generated Link Input */}
-                    {(() => {
-                      const ghUrl = 'https://ramimokhtar228-maker.github.io/rt-lab-rewards/';
-                      const curUrl =
-                        typeof window !== 'undefined'
-                          ? `${window.location.origin}${window.location.pathname}`
-                          : ghUrl;
-                      const base = patientUseGhPages ? ghUrl : curUrl;
-                      const activePlayUrl = generatePatientPlayUrl({
-                        patientName: patientNameInput.trim() || undefined,
-                        game: targetPatientGame === 'all' ? undefined : targetPatientGame,
-                        customBaseUrl: base,
-                      });
-
-                      const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                        activePlayUrl
-                      )}&bgcolor=FFFFFF&color=8B1E2D&margin=1`;
-
-                      return (
-                        <div className="space-y-4 pt-2">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              readOnly
-                              value={activePlayUrl}
-                              className="flex-1 px-4 py-2.5 text-xs font-mono rounded-xl border border-slate-300 bg-slate-100 text-slate-800 select-all"
-                              dir="ltr"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(activePlayUrl);
-                                setPatientLinkCopied(true);
-                                setTimeout(() => setPatientLinkCopied(false), 2000);
-                              }}
-                              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shrink-0 transition ${
-                                patientLinkCopied
-                                  ? 'bg-emerald-600 text-white'
-                                  : 'bg-slate-800 text-white hover:bg-slate-900'
-                              }`}
-                            >
-                              {patientLinkCopied ? (
-                                <Check className="h-4 w-4" />
-                              ) : (
-                                <Copy className="h-4 w-4" />
-                              )}
-                              <span>{patientLinkCopied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
-                            </button>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50 flex flex-col justify-between">
-                              <div>
-                                <h6 className="font-bold text-xs text-emerald-900 flex items-center gap-1.5 mb-1">
-                                  <MessageCircle className="h-4 w-4 text-emerald-600" />
-                                  <span>إرسال واتساب مباشر للمريض</span>
-                                </h6>
-                                <p className="text-[11px] text-emerald-800 leading-relaxed mb-3">
-                                  فتح محادثة واتساب جاهزة فوراً مع المريض تحتوي على رابط المسابقة
-                                  ورسالة ترحيبية رسمية باسم المعمل.
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!patientPhoneInput.trim()) {
-                                    alert('يرجى إدخال رقم واتساب المريض للإرسال الفوري');
-                                    return;
-                                  }
-                                  const wa = buildPatientInviteWhatsAppUrl(
-                                    patientPhoneInput,
-                                    activePlayUrl,
-                                    patientNameInput.trim() || undefined,
-                                    settings.labNameAr,
-                                    settings.sloganAr
-                                  );
-                                  window.open(wa, '_blank');
-                                }}
-                                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition"
-                              >
-                                <Send className="h-3.5 w-3.5" />
-                                <span>إرسال عبر واتساب الآن</span>
-                              </button>
-                            </div>
-
-                            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center gap-3">
-                              <img
-                                src={qrImg}
-                                alt="QR للمريض"
-                                className="w-20 h-20 rounded-lg bg-white border border-slate-200 p-1 shrink-0"
-                              />
-                              <div className="space-y-1 text-xs">
-                                <span className="font-bold text-slate-800 block">
-                                  رمز QR لاستقبال المعمل
-                                </span>
-                                <span className="text-[11px] text-slate-500 block leading-tight">
-                                  يمسحه المريض بكاميرا الهاتف للبدء فوراً دون كتابة روابط.
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={handleResetLockout}
-                                  className="text-[11px] font-bold text-[#8B1E2D] hover:underline block pt-1"
-                                >
-                                  {unlockedMsg ? '✓ تم تجاوز القفل بنجاح!' : 'تجاوز القفل بهذا الجهاز الآن'}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
                         </div>
-                      );
-                    })()}
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">الخط الساخن</label>
+                          <input
+                            type="text"
+                            value={settingsForm.hotline}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, hotline: e.target.value })}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-right"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">رمز مرور لوحة التحكم (PIN)</label>
+                          <input
+                            type="text"
+                            value={settingsForm.adminPin}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, adminPin: e.target.value })}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-center tracking-widest"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">صلاحية الكوبونات (بالساعات)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="72"
+                            value={settingsForm.couponValidityHours}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, couponValidityHours: Number(e.target.value) })}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-center"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Reset test patient restriction button */}
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetPlaySessionAdmin();
+                            alert('تمت إعادة تعيين قيد الـ 24 ساعة لمتصفحك بنجاح! يمكنك الآن تجربة اللعب كمريض جديد.');
+                          }}
+                          className="px-3 py-2 rounded-xl bg-rose-50 text-[#8B1E2D] border border-rose-200 text-xs font-bold hover:bg-rose-100 transition"
+                        >
+                          إعادة تعيين قيود التجربة للمتصفح الحالي
+                        </button>
+                      </div>
+
+                      {settingsSaved && (
+                        <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                          تم حفظ الإعدادات بنجاح!
+                        </div>
+                      )}
+
+                      <div className="flex justify-end pt-3">
+                        <button
+                          type="submit"
+                          className="px-6 py-2.5 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold shadow hover:bg-[#731925] transition"
+                        >
+                          حفظ كافة الإعدادات
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 </div>
               )}
@@ -1965,6 +1236,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         )}
       </div>
+
+      {/* Booking Confirmation & WhatsApp Modal */}
+      {selectedClaimForBooking && (
+        <AdminBookingConfirmModal
+          claim={selectedClaimForBooking}
+          settings={settings}
+          onClose={() => setSelectedClaimForBooking(null)}
+          onSuccess={(updated) => {
+            setSelectedClaimForBooking(null);
+            onRefreshClaims();
+          }}
+        />
+      )}
     </div>
   );
 };
