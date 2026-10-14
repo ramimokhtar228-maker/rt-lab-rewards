@@ -350,6 +350,39 @@ export async function updateClaimStatus(
   return updated;
 }
 
+/**
+ * Edit full claim details (Patient Name, Phone, Branch, Prize, Notes, Status)
+ */
+export async function updateFullClaim(claim: PatientClaim): Promise<PatientClaim[]> {
+  const current = getLocalClaims();
+  const exists = current.some((c) => c.id === claim.id);
+  const updated = exists
+    ? current.map((c) => (c.id === claim.id ? { ...c, ...claim } : c))
+    : [claim, ...current];
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.CLAIMS, JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to update claim locally', err);
+  }
+
+  // 1. Update on Server API
+  try {
+    fetch(`/api/claims/${claim.id}`, {
+      method: exists ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(claim),
+    }).catch(() => {});
+  } catch {
+    // ignore
+  }
+
+  // 2. Sync to GitHub
+  syncClaimsToGitHub(updated).catch(() => {});
+
+  return updated;
+}
+
 export const deleteClaim = async (id: string): Promise<PatientClaim[]> => {
   const current = getLocalClaims();
   const updated = current.filter((c) => c.id !== id);
