@@ -1,18 +1,18 @@
 [
   {
-    "id": "claim-1791993141284",
-    "couponCode": "RT-8821",
-    "patientName": "رحاب علي",
-    "phone": "01100046841",
+    "id": "claim-1792003657552",
+    "couponCode": "RT-9081",
+    "patientName": "منه اشرف محمد",
+    "phone": "01066416961",
     "branch": "الفرع الرئيسي (بهتيم - شبرا الخيمة)",
-    "prizeId": "prize-5",
-    "prizeTitle": "خدمة سحب العينات المنزلية مجاناً",
-    "discountValue": "مجاناً 100%",
+    "prizeId": "prize-1791980000004",
+    "prizeTitle": "كوبون خصم نقدي 100 جنيه عند حجز باقة الفحص الدوري للأسرة",
+    "discountValue": "100 ج.م",
     "gameType": "wheel",
-    "createdAt": "١٤‏/١٠‏/٢٠٢٦، ٦:٥٢ م",
-    "createdAtTimestamp": 1791993141284,
-    "expiresAt": "١٥‏/١٠‏/٢٠٢٦، ٦:٥٢ م",
-    "expiresAtTimestamp": 1792079541284,
+    "createdAt": "١٤‏/١٠‏/٢٠٢٦، ٩:٤٧ م",
+    "createdAtTimestamp": 1792003657550,
+    "expiresAt": "١٥‏/١٠‏/٢٠٢٦، ٩:٤٧ م",
+    "expiresAtTimestamp": 1792090057550,
     "status": "pending"
   }
 ]
