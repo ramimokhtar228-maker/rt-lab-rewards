@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Award,
@@ -13,23 +18,27 @@ import {
   Package,
   Phone,
   QrCode,
+  RotateCcw,
   Share2,
   Shield,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
   Users,
+  X,
 } from 'lucide-react';
 import { GameType, LabSettings, PatientClaim, Prize, QuizQuestion } from './types';
 import { labLogo, labReception, medicalTeam } from './assets/images';
 import {
   check24HourRestriction,
+  checkPatientUrlForNewSession,
   fetchRemoteConfig,
   getClaims,
   getPrizes,
   getQuizQuestions,
   getSettings,
   PlayRestrictionStatus,
+  resetPlaySessionAdmin,
   savePrizes,
   saveSettings,
 } from './services/storageService';
@@ -45,7 +54,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { BranchesModal } from './components/BranchesModal';
 import { PolicyModal } from './components/PolicyModal';
 import { LockoutBanner } from './components/LockoutBanner';
-import { PWAInstallButton } from './components/PWAInstallButton';
+import { PatientShareModal } from './components/PatientShareModal';
 
 export default function App() {
   const [prizes, setPrizes] = useState<Prize[]>(() => getPrizes());
@@ -54,7 +63,9 @@ export default function App() {
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(() => getQuizQuestions());
 
   // 24-Hour Restriction State
-  const [restriction, setRestriction] = useState<PlayRestrictionStatus>(() => check24HourRestriction());
+  const [restriction, setRestriction] = useState<PlayRestrictionStatus>(() =>
+    check24HourRestriction()
+  );
 
   // UI Navigation states
   const [activeGame, setActiveGame] = useState<GameType>('wheel');
@@ -62,17 +73,63 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showBranches, setShowBranches] = useState(false);
   const [showPolicy, setShowPolicy] = useState(false);
+  const [showPatientShare, setShowPatientShare] = useState(false);
   const [copiedAppUrl, setCopiedAppUrl] = useState(false);
+
+  // Patient Greeting notification when opened via link
+  const [patientWelcomeNotice, setPatientWelcomeNotice] = useState<{
+    show: boolean;
+    patientName?: string;
+  }>({ show: false });
 
   const gameSectionRef = useRef<HTMLDivElement | null>(null);
 
-  // Auto-sync configuration from remote source so any patient browser reflects updates
+  const scrollToGames = () => {
+    if (gameSectionRef.current) {
+      gameSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // Check URL params for patient session invitation & Auto-sync remote config
   useEffect(() => {
-    fetchRemoteConfig().then((remote) => {
-      if (remote) {
-        setSettings(remote.settings);
+    // 1. Detect if patient opened link from WhatsApp/SMS/QR code
+    const sessionInfo = checkPatientUrlForNewSession();
+    if (sessionInfo.isPatientLink) {
+      // Force fresh session for the patient
+      resetPlaySessionAdmin();
+      setRestriction(check24HourRestriction());
+
+      if (sessionInfo.game) {
+        setActiveGame(sessionInfo.game);
       }
-    }).catch(() => {});
+
+      setPatientWelcomeNotice({
+        show: true,
+        patientName: sessionInfo.patientName,
+      });
+
+      // Smoothly scroll down to game selector so patient starts immediately
+      setTimeout(() => {
+        scrollToGames();
+      }, 600);
+    }
+
+    // 2. Auto-sync newest configuration and prizes from GitHub / cloud so patient browser has latest admin updates
+    fetchRemoteConfig()
+      .then((remote) => {
+        if (remote) {
+          if (remote.settings) {
+            setSettings(remote.settings);
+          }
+          if (remote.prizes && remote.prizes.length > 0) {
+            setPrizes(remote.prizes);
+          }
+          if (remote.quizQuestions && remote.quizQuestions.length > 0) {
+            setQuizQuestions(remote.quizQuestions);
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Periodic check of 24h timer
@@ -109,21 +166,24 @@ export default function App() {
     setRestriction(check24HourRestriction());
   };
 
-  const scrollToGames = () => {
-    if (gameSectionRef.current) {
-      gameSectionRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+  const handleResetLockoutSession = () => {
+    resetPlaySessionAdmin();
+    setRestriction(check24HourRestriction());
+    scrollToGames();
   };
 
   const handleShareApp = () => {
     const url = window.location.origin + window.location.pathname;
     const shareText = `جرّب حظك اليومي مع معامل د. رامي مختار RT Labs (${settings.sloganAr}) واكسب كروت خصم وفحوصات مجانية! 🎁🩺\n${url}`;
+
     if (navigator.share) {
-      navigator.share({
-        title: 'جوائز وخصومات معامل رامي مختار',
-        text: shareText,
-        url,
-      }).catch(() => {});
+      navigator
+        .share({
+          title: 'جوائز وخصومات معامل رامي مختار',
+          text: shareText,
+          url,
+        })
+        .catch(() => {});
     } else {
       navigator.clipboard.writeText(url);
       setCopiedAppUrl(true);
@@ -146,7 +206,46 @@ export default function App() {
         onOpenAdmin={() => setShowAdmin(true)}
         onOpenBranches={() => setShowBranches(true)}
         onOpenPolicy={() => setShowPolicy(true)}
+        onOpenPatientShare={() => setShowPatientShare(true)}
       />
+
+      {/* Patient Welcome Celebration Notification */}
+      {patientWelcomeNotice.show && (
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 py-3 shadow-md border-b border-emerald-500 animate-fadeIn">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-right">
+            <div className="flex items-center gap-2.5">
+              <span className="text-2xl animate-bounce">🎁</span>
+              <div>
+                <span className="font-black text-sm sm:text-base">
+                  {patientWelcomeNotice.patientName
+                    ? `أهلاً بك أستاذ/ة ${patientWelcomeNotice.patientName}!`
+                    : 'أهلاً بك عميلنا العزيز!'}
+                </span>
+                <span className="text-xs sm:text-sm mr-2 opacity-95">
+                  تم تفعيل جلسة مسابقة جديدة لك بنجاح مع أحدث جوائز وخصومات إدارة معامل RT Labs ·
+                  اختر وسيلتك المفضلة الآن.
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={scrollToGames}
+                className="px-4 py-1.5 bg-white text-emerald-900 hover:bg-emerald-50 font-black text-xs rounded-xl shadow transition"
+              >
+                اختيار المسابقة الآن 🎮
+              </button>
+              <button
+                type="button"
+                onClick={() => setPatientWelcomeNotice({ show: false })}
+                className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1">
@@ -156,6 +255,7 @@ export default function App() {
           onScrollToGame={scrollToGames}
           onOpenBranches={() => setShowBranches(true)}
           onOpenPolicy={() => setShowPolicy(true)}
+          onOpenPatientShare={() => setShowPatientShare(true)}
         />
 
         {/* 24-Hour Active Lockout Banner (Rendered when patient has already played today) */}
@@ -168,6 +268,8 @@ export default function App() {
               activeCoupon={restriction.activeCoupon}
               settings={settings}
               onRefresh={() => setRestriction(check24HourRestriction())}
+              onResetSession={handleResetLockoutSession}
+              onOpenPatientShare={() => setShowPatientShare(true)}
             />
           </section>
         )}
@@ -178,6 +280,26 @@ export default function App() {
           className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14"
         >
           {/* Game Switcher Tabs */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+            <div className="text-center sm:text-right">
+              <span className="text-xs font-bold text-[#8B1E2D] flex items-center gap-1 justify-center sm:justify-start">
+                <Sparkles className="h-3.5 w-3.5" />
+                اختر وسيلتك الترفيهية المفضلة
+              </span>
+              <h2 className="text-lg sm:text-2xl font-black text-slate-900 mt-0.5">
+                مسابقات وجوائز معامل رامي مختار RT Labs
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPatientShare(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition shadow-xs"
+            >
+              <Gift className="h-4 w-4 text-emerald-600" />
+              <span>إرسال رابط جديد للمريض 📲</span>
+            </button>
+          </div>
+
           <GameSelector
             selectedGame={activeGame}
             onSelectGame={setActiveGame}
@@ -195,14 +317,21 @@ export default function App() {
                   تم قفل الألعاب مؤقتاً لحسابك لمدة 24 ساعة
                 </h3>
                 <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                  للمصداقية وتكافؤ الفرص بين كافة المرضى، لا يجوز اختيار أكثر من وسيلة ترفيهية واحدة كل 24
-                  ساعة. يمكنك استغلال كوبونك النشط بالتوجه للفرع أو حجز الزيارة المنزلية قبل انتهاء مهلة
-                  الـ 24 ساعة.
+                  للمصداقية وتكافؤ الفرص بين كافة المرضى، لا يجوز اختيار أكثر من وسيلة ترفيهية واحدة
+                  كل 24 ساعة. يمكنك استغلال كوبونك النشط بالتوجه للفرع أو حجز الزيارة المنزلية قبل
+                  انتهاء مهلة الـ 24 ساعة.
                 </p>
-                <div className="mt-5 flex justify-center gap-3">
+                <div className="mt-6 flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={handleResetLockoutSession}
+                    className="px-4 py-2 bg-gradient-to-r from-[#8B1E2D] to-[#681420] text-white text-xs font-bold rounded-xl shadow hover:opacity-95 transition flex items-center gap-1.5"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>بدء مسابقة جديدة للمريض الآن</span>
+                  </button>
                   <button
                     onClick={() => setShowPolicy(true)}
-                    className="text-xs text-[#8B1E2D] font-bold underline underline-offset-4"
+                    className="text-xs text-slate-600 hover:text-slate-900 font-bold underline underline-offset-4 self-center"
                   >
                     عرض شروط وسياسة الـ 24 ساعة
                   </button>
@@ -216,14 +345,12 @@ export default function App() {
                     onWin={handleWin}
                   />
                 )}
-
                 {activeGame === 'scratch' && (
                   <ScratchCard
                     prizes={prizes}
                     onWin={handleWin}
                   />
                 )}
-
                 {activeGame === 'quiz' && (
                   <HealthQuiz
                     questions={quizQuestions}
@@ -231,7 +358,6 @@ export default function App() {
                     onWin={handleWin}
                   />
                 )}
-
                 {activeGame === 'box' && (
                   <MysteryBox
                     prizes={prizes}
@@ -252,34 +378,28 @@ export default function App() {
                 {settings.sloganAr}
               </span>
               <h3 className="text-xl sm:text-2xl font-bold">
-                شارك رابط المسابقة مع أسرتك واكسبوا الخصومات سوياً
+                شارك رابط المسابقة مع المرضى والأسرة واكسبوا الخصومات سوياً
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
-                بمجرد الدخول، يستطيع كل فرد تجربة حظه في إحدى الوسائل الترفيهية وتوليد كارت الخصم الصالح
-                لمدة 24 ساعة لتأكيده مع واتساب المعمل فوراً.
+                بمجرد الدخول، يستطيع كل مريض تجربة حظه في إحدى الوسائل الترفيهية وتوليد كارت الخصم
+                الصالح لمدة 24 ساعة لتأكيده مع واتساب المعمل فوراً مع أحدث الجوائز المفعلة.
               </p>
             </div>
-
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex flex-wrap items-center justify-center gap-3 shrink-0">
+              <button
+                onClick={() => setShowPatientShare(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 text-xs sm:text-sm shadow-md transition"
+              >
+                <Gift className="h-4 w-4" />
+                <span>إرسال الرابط لمريض عبر واتساب</span>
+              </button>
               <button
                 onClick={handleShareApp}
-                className="inline-flex items-center gap-2 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-bold px-5 py-3 text-xs sm:text-sm shadow-md transition"
+                className="inline-flex items-center gap-2 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-bold px-4 py-3 text-xs sm:text-sm shadow-md transition"
               >
                 <Share2 className="h-4 w-4 text-[#8B1E2D]" />
                 <span>{copiedAppUrl ? 'تم نسخ الرابط!' : 'مشاركة الرابط'}</span>
               </button>
-
-              <a
-                href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(
-                  `مرحباً معامل د. رامي مختار (${settings.sloganAr})، أود الاستفسار عن كروت الخصم اليومية وباقات الفحص الطبي.`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 text-xs sm:text-sm shadow-md transition"
-              >
-                <MessageCircle className="h-4 w-4" />
-                <span>واتساب المعمل المباشر</span>
-              </a>
             </div>
           </div>
         </section>
@@ -296,8 +416,8 @@ export default function App() {
               لماذا يثق الآلاف في معامل د. رامي مختار؟
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 mt-2 max-w-2xl mx-auto">
-              نلتزم بأعلى معايير ضبط الجودة المعملية العالمية عبر أحدث الأنظمة المؤتمتة وتحت إشراف استشاريين
-              متخصصين.
+              نلتزم بأعلى معايير ضبط الجودة المعملية العالمية عبر أحدث الأنظمة المؤتمتة وتحت إشراف
+              استشاريين متخصصين.
             </p>
           </div>
 
@@ -309,8 +429,8 @@ export default function App() {
                 </div>
                 <h3 className="font-bold text-slate-900 text-base">دقة متناهية وسرعة في النتائج</h3>
                 <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                  أنظمة تحليل آلية بالكامل ومغلقة تمنع أي خطأ بشري، مع إمكانية استلام النتائج في نفس اليوم
-                  عبر تطبيق الواتساب وبوابة النتائج الإلكترونية.
+                  أنظمة تحليل آلية بالكامل ومغلقة تمنع أي خطأ بشري، مع إمكانية استلام النتائج في نفس
+                  اليوم عبر تطبيق الواتساب وبوابة النتائج الإلكترونية.
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 font-medium">
@@ -323,14 +443,14 @@ export default function App() {
                 <div className="h-12 w-12 rounded-xl bg-blue-50 text-[#0F2B5C] flex items-center justify-center mb-4">
                   <Home className="h-6 w-6" />
                 </div>
-                <h3 className="font-bold text-slate-900 text-base">خدمة السحب المنزلي المعقم</h3>
+                <h3 className="font-bold text-slate-900 text-base">خدمة سحب العينات المنزلية</h3>
                 <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                  أخصائيون مدربون لسحب العينات من المنازل لكبار السن والأطفال والمرضى بأحدث الأدوات
-                  المعقمة المخصصة للاستخدام لمرة واحدة فقط.
+                  فريق تمريض متخصص وأحدث حقائب التبريد المعيارية لسحب العينات من المنزل لكبار السن
+                  والأطفال وكافة أفراد الأسرة بنفس دقة الفروع.
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 font-medium">
-                تغطية شاملة لكافة المحافظة والمناطق
+                متاح الحجز الفوري عبر الخط الساخن والواتساب
               </div>
             </div>
 
@@ -339,132 +459,28 @@ export default function App() {
                 <div className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-4">
                   <ShieldCheck className="h-6 w-6" />
                 </div>
-                <h3 className="font-bold text-slate-900 text-base">باقات فحص دورية واقتصادية</h3>
+                <h3 className="font-bold text-slate-900 text-base">شفافية وأسعار عادلة</h3>
                 <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                  نقدم باقات شاملة مصممة علمياً للاطمئنان الدوري للأسرة، تشمل الفحص العام، متابعة مرضى
-                  السكر، وصحة الكبد والكلى والدهون بأسعار مخفضة.
+                  باقات تشخيصية شاملة وكروت خصم حقيقية عبر مسابقاتنا الترفيهية تخفيفاً عن كاهل المريض
+                  دون أي مساومة على معايير الجودة الطبية.
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 font-medium">
-                كروت خصم يومية لتشجيع الفحص المبكر
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Visual Lab Environment & Medical Expertise Gallery */}
-        <section className="bg-slate-100/80 py-12 sm:py-16 border-t border-slate-200">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="text-center mb-10">
-              <span className="text-xs font-bold text-[#8B1E2D] bg-rose-50 border border-rose-200 px-3 py-1 rounded-full">
-                {settings.sloganAr}
-              </span>
-              <h2 className="text-xl sm:text-3xl font-black text-slate-900 mt-2">
-                بيئة العمل والتجهيزات الطبية في معامل رامي مختار
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-xl mx-auto">
-                نحرص على توفير أرقى صالات الاستقبال الفندقية المريحة، وأحدث أنظمة التحاليل الرقمية الآلية تحت إشراف نخبة من الأطباء.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Photo 1: Reception */}
-              <div className="rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm flex flex-col group hover:shadow-md transition">
-                <div className="relative h-52 overflow-hidden bg-slate-900">
-                  <img
-                    src={labReception}
-                    alt="صالة استقبال معامل رامي مختار"
-                    className="h-full w-full object-cover group-hover:scale-105 transition duration-500"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-lg">
-                    صالة الاستقبال
-                  </div>
-                </div>
-                <div className="p-5 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm sm:text-base">استقبال فندقي وخدمة متميزة</h3>
-                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                      صالات استقبال مجهزة ومكيفة تضمن الخصوصية والراحة التامة للمريض مع سرعة في سحب العينات دون انتظار.
-                    </p>
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-[#8B1E2D] font-bold flex items-center justify-between">
-                    <span>جميع فروع المعمل</span>
-                    <button onClick={() => setShowBranches(true)} className="hover:underline cursor-pointer">عرض الفروع ←</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Photo 2: Medical Specialists */}
-              <div className="rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm flex flex-col group hover:shadow-md transition">
-                <div className="relative h-52 overflow-hidden bg-slate-900">
-                  <img
-                    src={medicalTeam}
-                    alt="فريق أطباء واستشاريي التحاليل"
-                    className="h-full w-full object-cover group-hover:scale-105 transition duration-500"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-lg">
-                    فريق الأطباء والمختبر
-                  </div>
-                </div>
-                <div className="p-5 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm sm:text-base">نخبة من الاستشاريين والأخصائيين</h3>
-                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                      إشراف طبي دقيق من استشاريي الباثولوجيا الإكلينيكية لمراجعة وتدقيق كافة النتائج لضمان أقصى درجات المصداقية.
-                    </p>
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-[#0F2B5C] font-bold flex items-center justify-between">
-                    <span>دقة تشخيصية معتمدة</span>
-                    <span>100% موثوقية</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Photo 3: Official Brand Identity Card */}
-              <div className="rounded-3xl overflow-hidden bg-gradient-to-br from-[#0F2B5C] via-[#162A4D] to-[#8B1E2D] text-white p-6 shadow-sm flex flex-col justify-between md:col-span-2 lg:col-span-1">
-                <div>
-                  <div className="h-16 w-16 rounded-2xl overflow-hidden border border-white/20 bg-white p-1.5 shadow mb-4">
-                    <img
-                      src={labLogo}
-                      alt="لوجو معامل رامي مختار"
-                      className="h-full w-full object-contain"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider">
-                    RT Labs Accreditation
-                  </span>
-                  <h3 className="text-lg font-black mt-1">معامل د. رامي مختار للتحاليل الطبية</h3>
-                  <p className="text-xs text-slate-200 mt-2 leading-relaxed">
-                    «{settings.sloganAr}» شعارنا الذي نلتزم به في كل تحليل. جوائز وكروت خصم دورية تشجيعاً للفحص والوقاية المستمرة.
-                  </p>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-white/15 flex items-center justify-between">
-                  <span className="text-xs text-amber-300 font-bold">الخط الساخن: {settings.hotline}</span>
-                  <button
-                    onClick={scrollToGames}
-                    className="px-3.5 py-1.5 rounded-xl bg-white text-slate-900 text-xs font-bold hover:bg-slate-100 transition shadow cursor-pointer"
-                  >
-                    العب واكسب الآن
-                  </button>
-                </div>
+                التشخيص الصحيح يبدأ معنا دائماً
               </div>
             </div>
           </div>
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white text-slate-600 text-xs py-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Global Brand Footer */}
+      <footer className="bg-white border-t border-slate-200 py-8 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-200 bg-white">
+            <div className="h-10 w-10 rounded-xl overflow-hidden border border-rose-200 bg-white p-0.5">
               <img
                 src={labLogo}
-                alt="RT Lab"
+                alt="لوجو معامل رامي مختار"
                 className="h-full w-full object-contain"
                 referrerPolicy="no-referrer"
               />
@@ -478,18 +494,33 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-medium">
-            <button onClick={() => setShowPolicy(true)} className="hover:text-slate-900 transition text-amber-800 font-bold">
+            <button
+              onClick={() => setShowPolicy(true)}
+              className="hover:text-slate-900 transition text-amber-800 font-bold"
+            >
               سياسة المكافآت والـ 24 ساعة
             </button>
-            <span aria-hidden="true" className="text-slate-300">·</span>
-            <button onClick={() => setShowBranches(true)} className="hover:text-slate-900 transition">
+            <span aria-hidden="true" className="text-slate-300">
+              ·
+            </span>
+            <button
+              onClick={() => setShowBranches(true)}
+              className="hover:text-slate-900 transition"
+            >
               الفروع ({settings.branches.length})
             </button>
-            <span aria-hidden="true" className="text-slate-300">·</span>
-            <a href={`tel:${settings.hotline}`} className="hover:text-slate-900 transition">
+            <span aria-hidden="true" className="text-slate-300">
+              ·
+            </span>
+            <a
+              href={`tel:${settings.hotline}`}
+              className="hover:text-slate-900 transition"
+            >
               الخط الساخن: {settings.hotline}
             </a>
-            <span aria-hidden="true" className="text-slate-300">·</span>
+            <span aria-hidden="true" className="text-slate-300">
+              ·
+            </span>
             <button
               onClick={() => setShowAdmin(true)}
               className="hover:text-[#8B1E2D] transition flex items-center gap-1"
@@ -542,6 +573,19 @@ export default function App() {
         <PolicyModal
           settings={settings}
           onClose={() => setShowPolicy(false)}
+        />
+      )}
+
+      {/* Patient Competition Link Sharing Modal */}
+      {showPatientShare && (
+        <PatientShareModal
+          settings={settings}
+          onClose={() => setShowPatientShare(false)}
+          onStartFreshPatientPlay={(game) => {
+            if (game) setActiveGame(game);
+            setRestriction(check24HourRestriction());
+            scrollToGames();
+          }}
         />
       )}
     </div>
