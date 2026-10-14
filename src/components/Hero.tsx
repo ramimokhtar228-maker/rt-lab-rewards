@@ -1,11 +1,12 @@
 import React from 'react';
-import { ArrowDown, CheckCircle2, Clock, Gift, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowDown, CheckCircle2, Clock, Gift, MapPin, MessageCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import { labLogo, labReception } from '../assets/images';
 
 interface HeroProps {
   onScrollToGame: () => void;
   onOpenBranches: () => void;
   onOpenPolicy: () => void;
+  onOpenPatientShare?: () => void;
   slogan?: string;
 }
 
@@ -13,6 +14,7 @@ export const Hero: React.FC<HeroProps> = ({
   onScrollToGame,
   onOpenBranches,
   onOpenPolicy,
+  onOpenPatientShare,
   slogan = 'التشخيص الصحيح يبدأ معنا',
 }) => {
   return (
@@ -48,42 +50,53 @@ export const Hero: React.FC<HeroProps> = ({
             </h1>
 
             <p className="mt-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
-              مرحباً بك في منصة مكافآت المرضى الرسمية لمعامل رامي مختار. اختر وسيلتك الترفيهية المفضلة (عجلة
-              الحظ، كارت الخدش، مسابقة المعلومات، أو صندوق المفاجآت) واحصل على كود خصم طبي فوري صالح لمدة 24
-              ساعة.
+              مرحباً بك في منصة مكافآت المرضى الرسمية لمعامل رامي مختار. اختر وسيلتك الترفيهية
+              المفضلة (عجلة الحظ، كارت الخدش، مسابقة المعلومات، أو صندوق المفاجآت) واحصل على كود خصم
+              طبي فوري صالح لمدة 24 ساعة.
             </p>
 
             {/* 24-hour transparency rule chip */}
             <div className="mt-5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-3.5 flex items-start gap-2.5 text-xs text-rose-200">
               <Clock className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
               <div>
-                <strong className="text-white">ضوابط المسابقة للمصداقية:</strong> يحق لكل مريض اختيار لعبة
-                واحدة فقط كل <strong>24 ساعة</strong>. ينتهي الكوبون تلقائياً بعد 24 ساعة إذا لم يتم الحجز في
-                المعمل.
+                <strong className="text-white">ضوابط المسابقة للمصداقية:</strong> يحق لكل مريض
+                اختيار لعبة واحدة فقط كل <strong>24 ساعة</strong>. ينتهي الكوبون تلقائياً بعد 24
+                ساعة إذا لم يتم الحجز في المعمل.
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="mt-8 flex flex-wrap items-center gap-4">
+            <div className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
               <button
                 onClick={onScrollToGame}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#8B1E2D] to-[#B91C1C] px-6 py-3.5 text-xs sm:text-sm font-bold text-white shadow-lg hover:from-[#731925] hover:to-[#991B1B] active:scale-[0.98] transition cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#8B1E2D] to-[#B91C1C] px-5 sm:px-6 py-3.5 text-xs sm:text-sm font-bold text-white shadow-lg hover:from-[#731925] hover:to-[#991B1B] active:scale-[0.98] transition cursor-pointer"
               >
                 <Gift className="h-4 w-4" />
                 <span>جرب حظك الآن واحصل على الكوبون</span>
                 <ArrowDown className="h-4 w-4" />
               </button>
 
+              {onOpenPatientShare && (
+                <button
+                  onClick={onOpenPatientShare}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 sm:px-5 py-3.5 text-xs sm:text-sm font-bold text-white shadow-lg active:scale-[0.98] transition cursor-pointer"
+                  title="إنشاء وإرسال رابط مسابقة جديد ومفعّل للمريض عبر واتساب"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  <span>إرسال الرابط لمريض عبر واتساب 📲</span>
+                </button>
+              )}
+
               <button
                 onClick={onOpenPolicy}
                 className="text-xs font-semibold text-amber-300 hover:text-white transition underline underline-offset-4 cursor-pointer"
               >
-                قراءة سياسة المكافآت والـ 24 ساعة
+                سياسة المكافآت والـ 24 ساعة
               </button>
             </div>
           </div>
 
-          {/* Visual Showcase Card (Attached Lab Logo & Clinic Reception Image) */}
+          {/* Visual Showcase Card */}
           <div className="lg:col-span-5">
             <div className="relative rounded-3xl overflow-hidden border border-white/20 bg-slate-800/80 shadow-2xl backdrop-blur-md p-3 sm:p-4 group">
               <div className="relative h-64 sm:h-72 w-full rounded-2xl overflow-hidden bg-slate-950">
@@ -106,7 +119,9 @@ export const Hero: React.FC<HeroProps> = ({
                     />
                   </div>
                   <div className="text-right">
-                    <div className="text-[11px] font-black text-[#0F2B5C] leading-tight">معامل رامي مختار</div>
+                    <div className="text-[11px] font-black text-[#0F2B5C] leading-tight">
+                      معامل رامي مختار
+                    </div>
                     <div className="text-[9px] font-bold text-[#8B1E2D]">RT Labs</div>
                   </div>
                 </div>
@@ -118,9 +133,10 @@ export const Hero: React.FC<HeroProps> = ({
                       <ShieldCheck className="h-4 w-4 text-emerald-400" />
                       <span>{slogan}</span>
                     </div>
-                    <div className="text-[11px] text-slate-300">صالة استقبال فندقية وأعلى دقة معملية</div>
+                    <div className="text-[11px] text-slate-300">
+                      صالة استقبال فندقية وأعلى دقة معملية
+                    </div>
                   </div>
-
                   <button
                     onClick={onOpenBranches}
                     className="inline-flex items-center gap-1 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md px-3 py-1.5 text-[11px] font-bold text-white border border-white/25 transition cursor-pointer"
