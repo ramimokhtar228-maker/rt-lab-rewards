@@ -1,5 +1,22 @@
 [
   {
+    "id": "claim-1792015755679",
+    "couponCode": "RT-4781",
+    "patientName": "جهاد احمد سعد",
+    "phone": "01145995424",
+    "branch": "الفرع الرئيسي (بهتيم - شبرا الخيمة)",
+    "prizeId": "prize-1791975764548",
+    "prizeTitle": "خصم 40% على تحليل جرثومة المعدة ",
+    "discountValue": "40%",
+    "gameType": "wheel",
+    "createdAt": "١٥‏/١٠‏/٢٠٢٦، ١:٠٩ ص",
+    "createdAtTimestamp": 1792015755679,
+    "expiresAt": "١٦‏/١٠‏/٢٠٢٦، ١:٠٩ ص",
+    "expiresAtTimestamp": 1792102155679,
+    "status": "pending",
+    "notes": "جرثومة المعدة"
+  },
+  {
     "id": "claim-1792015371954",
     "couponCode": "RT-4443",
     "patientName": "ابتسام حسني",
