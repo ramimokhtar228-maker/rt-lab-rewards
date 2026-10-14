@@ -10,11 +10,14 @@ import {
   Clock,
   Copy,
   Download,
+  Edit,
   Edit2,
   ExternalLink,
   Eye,
   EyeOff,
+  FileText,
   Gift,
+  HelpCircle,
   Home,
   Key,
   Layers,
@@ -35,16 +38,18 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
-import { Branch, DiscountType, LabSettings, PatientClaim, Prize, PrizeIdea } from '../types';
+import { Branch, DiscountType, GameType, LabSettings, PatientClaim, Prize, QuizQuestion } from '../types';
 import {
   buildPatientInviteWhatsAppUrl,
   deleteClaim,
+  generateCouponCode,
   generatePatientPlayUrl,
   getPrizeIdeas,
   GITHUB_SYNC_CONFIG,
   resetPlaySessionAdmin,
   syncConfigToGitHub,
   updateClaimStatus,
+  updateFullClaim,
 } from '../services/storageService';
 import { labLogo } from '../assets/images';
 import { playReceptionAlertChime } from '../utils/audio';
@@ -57,6 +62,8 @@ interface AdminPanelProps {
   onUpdateSettings: (newSettings: LabSettings) => void;
   claims: PatientClaim[];
   onRefreshClaims: () => void;
+  quizQuestions: QuizQuestion[];
+  onUpdateQuizQuestions: (newQuestions: QuizQuestion[]) => void;
   onClose: () => void;
 }
 
@@ -67,6 +74,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateSettings,
   claims,
   onRefreshClaims,
+  quizQuestions,
+  onUpdateQuizQuestions,
   onClose,
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -75,10 +84,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<'claims' | 'prizes' | 'branches' | 'patient_links' | 'settings'>('claims');
+  const [activeTab, setActiveTab] = useState<
+    'claims' | 'prizes' | 'branches' | 'quiz' | 'terms' | 'patient_links' | 'settings'
+  >('claims');
 
   // Booking Modal Target
   const [selectedClaimForBooking, setSelectedClaimForBooking] = useState<PatientClaim | null>(null);
+
+  // Claim Editing / Manual Adding State
+  const [editingClaim, setEditingClaim] = useState<PatientClaim | null>(null);
+  const [isAddingClaim, setIsAddingClaim] = useState(false);
+  const [claimForm, setClaimForm] = useState<Partial<PatientClaim>>({
+    patientName: '',
+    phone: '',
+    branch: settings.branches[0]?.name || '',
+    prizeTitle: prizes[0]?.title || '',
+    discountValue: prizes[0]?.discountValue || '',
+    notes: '',
+    status: 'pending',
+  });
 
   // Prize editing / creation state
   const [editingPrize, setEditingPrize] = useState<Prize | null>(null);
@@ -93,7 +117,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     textColor: '#FFFFFF',
     weight: 15,
     active: true,
-    terms: '',
+    terms: 'صالح لمدة 24 ساعة فقط في كافة الفروع',
   });
 
   // Branch editing / creation state
@@ -107,6 +131,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     isHomeVisit: false,
   });
 
+  // Quiz question editing / creation state
+  const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
+  const [isAddingQuestion, setIsAddingQuestion] = useState(false);
+  const [questionForm, setQuestionForm] = useState<Partial<QuizQuestion>>({
+    question: '',
+    options: ['', '', '', ''],
+    correctIndex: 0,
+    explanation: '',
+    hint: '',
+  });
+
+  // Terms editing / creation state
+  const [editingTermIndex, setEditingTermIndex] = useState<number | null>(null);
+  const [editingTermText, setEditingTermText] = useState('');
+  const [newTermText, setNewTermText] = useState('');
+  const [isAddingTerm, setIsAddingTerm] = useState(false);
+
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<LabSettings>({ ...settings });
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -119,7 +160,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Patient Link Dispatcher State
   const [patientNameInput, setPatientNameInput] = useState('');
   const [patientPhoneInput, setPatientPhoneInput] = useState('');
-  const [patientLinkCopied, setPatientLinkCopied] = useState(false);
 
   // Claims search & filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -137,16 +177,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleTogglePrizeActive = (id: string) => {
-    const updated = prizes.map((p) => (p.id === id ? { ...p, active: !p.active } : p));
-    onUpdatePrizes(updated);
+  // ==================== PRIZES HANDLERS ====================
+  const handleOpenAddPrize = () => {
+    setEditingPrize(null);
+    setPrizeForm({
+      title: '',
+      shortTitle: '',
+      description: '',
+      discountType: 'percentage',
+      discountValue: '25%',
+      color: '#8B1E2D',
+      textColor: '#FFFFFF',
+      weight: 15,
+      active: true,
+      terms: 'صالح لمدة 24 ساعة فقط في كافة الفروع',
+    });
+    setIsAddingPrize(true);
   };
 
-  const handleDeletePrize = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذه المكافأة نهائياً؟')) {
-      const updated = prizes.filter((p) => p.id !== id);
-      onUpdatePrizes(updated);
-    }
+  const handleOpenEditPrize = (prize: Prize) => {
+    setEditingPrize(prize);
+    setPrizeForm({ ...prize });
+    setIsAddingPrize(true);
   };
 
   const handleSavePrize = (e: React.FormEvent) => {
@@ -171,11 +223,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         textColor: '#FFFFFF',
         weight: Number(prizeForm.weight) || 15,
         active: prizeForm.active ?? true,
-        terms: prizeForm.terms || 'صالح لمدة 24 ساعة فقط',
+        terms: prizeForm.terms || 'صالح لمدة 24 ساعة فقط في كافة الفروع',
       };
       onUpdatePrizes([...prizes, newPrize]);
     }
     setIsAddingPrize(false);
+  };
+
+  const handleTogglePrizeActive = (id: string) => {
+    const updated = prizes.map((p) => (p.id === id ? { ...p, active: !p.active } : p));
+    onUpdatePrizes(updated);
+  };
+
+  const handleDeletePrize = (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذه المكافأة نهائياً؟')) {
+      const updated = prizes.filter((p) => p.id !== id);
+      onUpdatePrizes(updated);
+    }
+  };
+
+  // ==================== BRANCHES HANDLERS ====================
+  const handleOpenAddBranch = () => {
+    setEditingBranch(null);
+    setBranchForm({
+      name: '',
+      address: '',
+      hours: 'يومياً من 8:00 صباحاً حتى 11:00 مساءً',
+      phone: settings.hotline,
+      isHomeVisit: false,
+    });
+    setIsAddingBranch(true);
+  };
+
+  const handleOpenEditBranch = (branch: Branch) => {
+    setEditingBranch(branch);
+    setBranchForm({ ...branch });
+    setIsAddingBranch(true);
   };
 
   const handleSaveBranch = (e: React.FormEvent) => {
@@ -216,6 +299,160 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
+  // ==================== CLAIMS HANDLERS ====================
+  const handleOpenAddClaim = () => {
+    setEditingClaim(null);
+    setClaimForm({
+      patientName: '',
+      phone: '',
+      branch: settings.branches[0]?.name || 'الفرع الرئيسي (بهتيم - شبرا الخيمة)',
+      prizeTitle: prizes[0]?.title || 'خصم 30% على كافة التحاليل',
+      discountValue: prizes[0]?.discountValue || '30%',
+      notes: '',
+      status: 'pending',
+    });
+    setIsAddingClaim(true);
+  };
+
+  const handleOpenEditClaim = (claim: PatientClaim) => {
+    setEditingClaim(claim);
+    setClaimForm({ ...claim });
+    setIsAddingClaim(true);
+  };
+
+  const handleSaveClaim = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!claimForm.patientName || !claimForm.phone) return;
+
+    const now = new Date();
+    const expiryDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    if (editingClaim) {
+      const updatedItem: PatientClaim = {
+        ...editingClaim,
+        patientName: claimForm.patientName.trim(),
+        phone: claimForm.phone.trim(),
+        branch: claimForm.branch || editingClaim.branch,
+        prizeTitle: claimForm.prizeTitle || editingClaim.prizeTitle,
+        discountValue: claimForm.discountValue || editingClaim.discountValue,
+        notes: claimForm.notes?.trim() || undefined,
+        status: (claimForm.status as PatientClaim['status']) || editingClaim.status,
+      };
+      await updateFullClaim(updatedItem);
+      setEditingClaim(null);
+    } else {
+      const newClaim: PatientClaim = {
+        id: 'claim-' + Date.now(),
+        couponCode: generateCouponCode(),
+        patientName: claimForm.patientName.trim(),
+        phone: claimForm.phone.trim(),
+        branch: claimForm.branch || settings.branches[0]?.name || '',
+        prizeId: 'manual',
+        prizeTitle: claimForm.prizeTitle || 'خصم مخصص',
+        discountValue: claimForm.discountValue || 'خصم معتمد',
+        gameType: 'wheel',
+        createdAt: now.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }),
+        createdAtTimestamp: now.getTime(),
+        expiresAt: expiryDate.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }),
+        expiresAtTimestamp: expiryDate.getTime(),
+        status: (claimForm.status as PatientClaim['status']) || 'pending',
+        notes: claimForm.notes?.trim() || undefined,
+      };
+      await updateFullClaim(newClaim);
+    }
+
+    setIsAddingClaim(false);
+    onRefreshClaims();
+  };
+
+  // ==================== QUIZ QUESTIONS HANDLERS ====================
+  const handleOpenAddQuestion = () => {
+    setEditingQuestion(null);
+    setQuestionForm({
+      question: '',
+      options: ['', '', '', ''],
+      correctIndex: 0,
+      explanation: '',
+      hint: '',
+    });
+    setIsAddingQuestion(true);
+  };
+
+  const handleOpenEditQuestion = (q: QuizQuestion) => {
+    setEditingQuestion(q);
+    setQuestionForm({ ...q, options: [...q.options] });
+    setIsAddingQuestion(true);
+  };
+
+  const handleSaveQuestion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!questionForm.question || !questionForm.options?.some((o) => o.trim())) return;
+
+    const validOptions = (questionForm.options || []).map((o, i) => o.trim() || `الخيار ${i + 1}`);
+
+    if (editingQuestion) {
+      const updated = quizQuestions.map((q) =>
+        q.id === editingQuestion.id
+          ? ({
+              ...q,
+              question: questionForm.question!.trim(),
+              options: validOptions,
+              correctIndex: Number(questionForm.correctIndex) || 0,
+              explanation: questionForm.explanation?.trim() || '',
+              hint: questionForm.hint?.trim() || undefined,
+            } as QuizQuestion)
+          : q
+      );
+      onUpdateQuizQuestions(updated);
+      setEditingQuestion(null);
+    } else {
+      const newQ: QuizQuestion = {
+        id: 'q-' + Date.now(),
+        question: questionForm.question!.trim(),
+        options: validOptions,
+        correctIndex: Number(questionForm.correctIndex) || 0,
+        explanation: questionForm.explanation?.trim() || '',
+        hint: questionForm.hint?.trim() || undefined,
+      };
+      onUpdateQuizQuestions([...quizQuestions, newQ]);
+    }
+
+    setIsAddingQuestion(false);
+  };
+
+  const handleDeleteQuestion = (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذا السؤال الطبي؟')) {
+      const updated = quizQuestions.filter((q) => q.id !== id);
+      onUpdateQuizQuestions(updated);
+    }
+  };
+
+  // ==================== TERMS & CONDITIONS HANDLERS ====================
+  const handleAddTerm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTermText.trim()) return;
+    const updated = [...settings.termsAndConditions, newTermText.trim()];
+    onUpdateSettings({ ...settings, termsAndConditions: updated });
+    setNewTermText('');
+    setIsAddingTerm(false);
+  };
+
+  const handleSaveEditTerm = (index: number) => {
+    if (!editingTermText.trim()) return;
+    const updated = [...settings.termsAndConditions];
+    updated[index] = editingTermText.trim();
+    onUpdateSettings({ ...settings, termsAndConditions: updated });
+    setEditingTermIndex(null);
+  };
+
+  const handleDeleteTerm = (index: number) => {
+    if (confirm('هل أنت متأكد من حذف هذا البند؟')) {
+      const updated = settings.termsAndConditions.filter((_, i) => i !== index);
+      onUpdateSettings({ ...settings, termsAndConditions: updated });
+    }
+  };
+
+  // ==================== SETTINGS & CLOUD SYNC ====================
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     onUpdateSettings(settingsForm);
@@ -226,7 +463,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleSyncToGitHubCloud = async () => {
     setIsSyncingGitHub(true);
     setSyncResult(null);
-    const result = await syncConfigToGitHub(settings, prizes, undefined, githubToken);
+    const result = await syncConfigToGitHub(settings, prizes, quizQuestions, githubToken);
     setSyncResult(result);
     setIsSyncingGitHub(false);
   };
@@ -306,10 +543,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="h-2.5 sm:h-3 bg-gradient-to-r from-[#8B1E2D] via-[#D97706] to-[#0F2B5C] shrink-0" />
 
         {/* Modal Top Header Bar */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-200 bg-white shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200 bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#8B1E2D] to-rose-700 text-white flex items-center justify-center font-black shadow-sm">
-              <Key className="h-5 w-5 text-amber-300" />
+            <div className="h-11 w-11 rounded-2xl overflow-hidden border border-rose-200 bg-white p-1 shadow-sm shrink-0">
+              <img src={labLogo} alt="Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -317,22 +554,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   لوحة إدارة معمل د. رامي مختار
                 </h3>
                 <span className="text-[10px] font-bold bg-rose-100 text-[#8B1E2D] px-2 py-0.5 rounded-full border border-rose-200">
-                  RT Labs Admin System
+                  نظام الإدارة الشامل (إضافة وتعديل وحذف)
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                متابعة تسجيل المرضى، تأكيد الحجوزات وإرسال الواتساب، وإدارة المكافآت
+                تسجيل ومتابعة الكوبونات، تأكيد الحجوزات وإرسال الواتساب، والتحكم في كل حقول البرنامج
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Audio chime tester for reception */}
             {isAuthenticated && (
               <button
                 onClick={() => playReceptionAlertChime()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-bold hover:bg-amber-100 transition"
-                title="اختبار صوت التنبيه للمرضى الجدد"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-bold hover:bg-amber-100 transition shadow-xs"
+                title="اختبار نغمة إشعار المرضى الجدد"
               >
                 <Volume2 className="h-4 w-4 text-amber-600" />
                 <span className="hidden sm:inline">جرس التنبيه</span>
@@ -353,16 +589,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           /* Authentication Screen */
           <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center max-w-md mx-auto my-auto">
             <div className="h-20 w-20 rounded-2xl overflow-hidden border border-rose-200 bg-white p-1.5 shadow-md mb-4">
-              <img
-                src={labLogo}
-                alt="معامل د. رامي مختار RT Labs"
-                className="h-full w-full object-contain"
-              />
+              <img src={labLogo} alt="Logo" className="h-full w-full object-contain" />
             </div>
 
             <h4 className="text-xl font-black text-slate-900">تسجيل الدخول لإدارة المعمل</h4>
             <p className="text-xs text-slate-600 mt-1 mb-6 leading-relaxed">
-              هذه المنطقة مخصصة حصرياً لإدارة معمل د. رامي مختار وموظفي الاستقبال. أدخل رمز المرور للمتابعة (الافتراضي: 1234).
+              هذه المنطقة مخصصة حصرياً لإدارة معمل د. رامي مختار وموظفي الاستقبال. أدخل رمز المرور السري (الافتراضي: 1234).
             </p>
 
             <form onSubmit={handleLogin} className="w-full space-y-4">
@@ -372,7 +604,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   maxLength={16}
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}
-                  placeholder="أدخل رمز المرور السري..."
+                  placeholder="رمز المرور السري..."
                   className="w-full text-center text-lg font-mono tracking-widest py-3 px-10 rounded-xl border border-slate-300 focus:border-[#8B1E2D] focus:ring-2 focus:ring-rose-500/20 outline-none transition"
                   autoFocus
                 />
@@ -407,14 +639,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="flex items-center gap-1 px-4 sm:px-6 pt-2.5 border-b border-slate-200 bg-slate-50 text-xs font-bold overflow-x-auto shrink-0">
               <button
                 onClick={() => setActiveTab('claims')}
-                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
+                className={`py-2.5 px-3.5 rounded-t-xl transition flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'claims'
                     ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Users className="h-4 w-4" />
-                <span>سجل الكوبونات وتأكيد الحجز</span>
+                <span>سجل الكوبونات ({claims.length})</span>
                 {pendingCount > 0 && (
                   <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
                     {pendingCount} جديد
@@ -424,59 +656,85 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <button
                 onClick={() => setActiveTab('prizes')}
-                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
+                className={`py-2.5 px-3.5 rounded-t-xl transition flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'prizes'
                     ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Gift className="h-4 w-4" />
-                <span>المكافآت والخصومات ({prizes.length})</span>
+                <span>المكافآت والجوائز ({prizes.length})</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('branches')}
-                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
+                className={`py-2.5 px-3.5 rounded-t-xl transition flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'branches'
                     ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Building2 className="h-4 w-4" />
-                <span>الفروع والزيارات المنزلية ({settings.branches.length})</span>
+                <span>الفروع والسحب المنزلي ({settings.branches.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('quiz')}
+                className={`py-2.5 px-3.5 rounded-t-xl transition flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'quiz'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <HelpCircle className="h-4 w-4" />
+                <span>الأسئلة الطبية ({quizQuestions.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('terms')}
+                className={`py-2.5 px-3.5 rounded-t-xl transition flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'terms'
+                    ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="h-4 w-4" />
+                <span>الشروط واللوائح ({settings.termsAndConditions.length})</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('patient_links')}
-                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
+                className={`py-2.5 px-3.5 rounded-t-xl transition flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'patient_links'
                     ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Send className="h-4 w-4 text-emerald-600" />
-                <span>إرسال دعوة لمريض واتساب</span>
+                <span>إرسال دعوة لمريض</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('settings')}
-                className={`py-2.5 px-4 rounded-t-xl transition flex items-center gap-2 whitespace-nowrap ${
+                className={`py-2.5 px-3.5 rounded-t-xl transition flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'settings'
                     ? 'bg-white border-t-2 border-t-[#8B1E2D] text-[#8B1E2D] shadow-sm font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Settings className="h-4 w-4" />
-                <span>إعدادات المعمل والسحابة</span>
+                <span>إعدادات المعمل والشعار</span>
               </button>
             </div>
 
             {/* Tab Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50">
-              {/* TAB 1: CLAIMS & WHATSAPP CONFIRMATION DISPATCH */}
+              {/* ========================================================= */}
+              {/* TAB 1: CLAIMS & PATIENT BOOKINGS */}
+              {/* ========================================================= */}
               {activeTab === 'claims' && (
                 <div className="space-y-4">
-                  {/* Notice & Search Bar */}
+                  {/* Notice & Action Bar */}
                   <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
@@ -484,26 +742,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                       <div>
                         <h4 className="font-bold text-emerald-950 text-xs sm:text-sm">
-                          نظام استقبال المكافآت وتأكيد الحجز الفوري
+                          سجل الكوبونات وتأكيد الحجز التلقائي
                         </h4>
                         <p className="text-[11px] text-emerald-800 mt-0.5">
-                          تظهر هنا كافة تفاعلات المرضى فوراً. اضغط على "تأكيد الحجز واتساب" لإرسال رسالة التأكيد الرسمية لهاتف المريض مباشرة.
+                          تظهر تفاعلات المرضى فوراً. يمكنك إضافة كوبون مريض يدوياً، أو تعديل أي بيان، أو تأكيد الحجز وإرسال الواتساب.
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* ADD CLAIM MANUALLY BUTTON */}
+                      <button
+                        onClick={handleOpenAddClaim}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold hover:bg-[#731925] shadow transition"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>إضافة كوبون يدوي لمريض</span>
+                      </button>
+
                       <button
                         onClick={onRefreshClaims}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-800 text-xs font-bold hover:bg-emerald-100 transition shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-800 text-xs font-bold hover:bg-emerald-100 transition shadow-xs"
                       >
                         <RefreshCw className="h-3.5 w-3.5" />
-                        <span>تحديث السجلات</span>
+                        <span>تحديث</span>
                       </button>
 
                       <button
                         onClick={handleExportCSV}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-bold hover:bg-slate-50 transition shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-bold hover:bg-slate-50 transition shadow-xs"
                       >
                         <Download className="h-3.5 w-3.5" />
                         <span>تصدير Excel</span>
@@ -511,8 +778,130 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
                   </div>
 
+                  {/* Add / Edit Claim Modal Form */}
+                  {isAddingClaim && (
+                    <div className="bg-white p-5 rounded-2xl border-2 border-[#8B1E2D]/40 shadow-lg animate-fade-in mb-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <Edit className="h-4 w-4 text-[#8B1E2D]" />
+                          <h5 className="font-bold text-slate-900 text-xs sm:text-sm">
+                            {editingClaim ? `تعديل بيانات كوبون المريض (${editingClaim.couponCode})` : 'إضافة كوبون مريض جديد يدوياً بالاستقبال'}
+                          </h5>
+                        </div>
+                        <button
+                          onClick={() => setIsAddingClaim(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleSaveClaim} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">اسم المريض <span className="text-red-500">*</span></label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="الاسم ثلاثي..."
+                            value={claimForm.patientName}
+                            onChange={(e) => setClaimForm({ ...claimForm, patientName: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">رقم الهاتف (واتساب) <span className="text-red-500">*</span></label>
+                          <input
+                            type="tel"
+                            required
+                            placeholder="01012345678"
+                            value={claimForm.phone}
+                            onChange={(e) => setClaimForm({ ...claimForm, phone: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs font-mono text-right"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">الفرع المفضل</label>
+                          <select
+                            value={claimForm.branch}
+                            onChange={(e) => setClaimForm({ ...claimForm, branch: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          >
+                            {settings.branches.map((b) => (
+                              <option key={b.id} value={b.name}>{b.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">اسم الجائزة أو الفحص</label>
+                          <input
+                            type="text"
+                            placeholder="مثال: خصم 30% على كافة التحاليل"
+                            value={claimForm.prizeTitle}
+                            onChange={(e) => setClaimForm({ ...claimForm, prizeTitle: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">قيمة الخصم</label>
+                          <input
+                            type="text"
+                            placeholder="مثال: 30% أو 100% مجاناً"
+                            value={claimForm.discountValue}
+                            onChange={(e) => setClaimForm({ ...claimForm, discountValue: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">حالة الكوبون</label>
+                          <select
+                            value={claimForm.status}
+                            onChange={(e) => setClaimForm({ ...claimForm, status: e.target.value as any })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          >
+                            <option value="pending">قيد الانتظار (جديد)</option>
+                            <option value="confirmed">تم تأكيد الحجز واتساب</option>
+                            <option value="redeemed">تم الصرف بالمعمل</option>
+                            <option value="cancelled">ملغي</option>
+                          </select>
+                        </div>
+
+                        <div className="sm:col-span-2 md:col-span-3">
+                          <label className="block font-bold text-slate-700 mb-1">ملاحظات التحليل أو الاستقبال</label>
+                          <input
+                            type="text"
+                            placeholder="ملاحظات المريض أو نوع التحليل المطلوب..."
+                            value={claimForm.notes || ''}
+                            onChange={(e) => setClaimForm({ ...claimForm, notes: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2 md:col-span-3 flex justify-end gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingClaim(false)}
+                            className="px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-bold"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-5 py-1.5 rounded-lg bg-[#8B1E2D] text-white font-bold shadow hover:bg-[#731925]"
+                          >
+                            {editingClaim ? 'تحديث وحفظ بيانات الكوبون' : 'إصدار وتسجيل الكوبون فوراً'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
                   {/* Filter & Search Bar */}
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
                     <div className="relative flex-1">
                       <input
                         type="text"
@@ -532,8 +921,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       >
                         <option value="all">كافة الكوبونات ({claims.length})</option>
                         <option value="pending">جديد بانتظار التأكيد ({pendingCount})</option>
-                        <option value="confirmed">تم تأكيد الحجز وإرسال الواتساب</option>
-                        <option value="redeemed">تم الصرف وتطبيق الخصم</option>
+                        <option value="confirmed">تم تأكيد الحجز واتساب</option>
+                        <option value="redeemed">تم الصرف بالمعمل</option>
                       </select>
                     </div>
                   </div>
@@ -542,21 +931,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     {filteredClaims.length === 0 ? (
                       <div className="p-12 text-center text-slate-500 text-xs">
-                        لا توجد طلبات أو كوبونات مطابقة للبحث حالياً. عندما يشارك أي مريض ستظهر بياناته فوراً هنا.
+                        لا توجد طلبات أو كوبونات مطابقة للبحث حالياً.
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-right text-xs">
                           <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
                             <tr>
-                              <th className="p-3.5">كود الكوبون</th>
-                              <th className="p-3.5">المريض</th>
-                              <th className="p-3.5">الهاتف</th>
-                              <th className="p-3.5">الفرع المفضل</th>
-                              <th className="p-3.5">الجائزة</th>
-                              <th className="p-3.5">وقت الفوز</th>
-                              <th className="p-3.5">الحالة</th>
-                              <th className="p-3.5 text-center">إجراء تأكيد الحجز والمراسلة</th>
+                              <th className="p-3">كود الكوبون</th>
+                              <th className="p-3">المريض</th>
+                              <th className="p-3">الهاتف</th>
+                              <th className="p-3">الفرع</th>
+                              <th className="p-3">الجائزة والخصم</th>
+                              <th className="p-3">الصلاحية (24س)</th>
+                              <th className="p-3">الحالة</th>
+                              <th className="p-3 text-center">أزرار الإجراء والتعديل</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
@@ -569,18 +958,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 <tr
                                   key={claim.id}
                                   className={`hover:bg-slate-50/80 transition ${
-                                    isPending ? 'bg-amber-50/30' : ''
+                                    isPending ? 'bg-amber-50/40' : ''
                                   }`}
                                 >
                                   {/* Code */}
-                                  <td className="p-3.5 font-mono font-bold text-slate-900 whitespace-nowrap">
-                                    <span className="bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                                  <td className="p-3 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                    <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                       {claim.couponCode}
                                     </span>
                                   </td>
 
                                   {/* Patient Name */}
-                                  <td className="p-3.5 whitespace-nowrap">
+                                  <td className="p-3 whitespace-nowrap">
                                     <div className="font-bold text-slate-900">{claim.patientName}</div>
                                     {claim.notes && (
                                       <div className="text-[10px] text-slate-500 truncate max-w-xs">
@@ -590,7 +979,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   </td>
 
                                   {/* Phone */}
-                                  <td className="p-3.5 font-mono dir-ltr text-right whitespace-nowrap">
+                                  <td className="p-3 font-mono dir-ltr text-right whitespace-nowrap">
                                     <a
                                       href={`tel:${claim.phone}`}
                                       className="text-blue-700 font-bold hover:underline"
@@ -600,75 +989,82 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   </td>
 
                                   {/* Branch */}
-                                  <td className="p-3.5 text-slate-600 whitespace-nowrap">
+                                  <td className="p-3 text-slate-600 whitespace-nowrap text-[11px]">
                                     {claim.branch}
                                   </td>
 
                                   {/* Prize */}
-                                  <td className="p-3.5 whitespace-nowrap">
+                                  <td className="p-3 whitespace-nowrap">
                                     <div className="font-bold text-slate-900">{claim.prizeTitle}</div>
-                                    <div className="text-[11px] font-black text-[#8B1E2D]">
+                                    <div className="text-[10px] font-black text-[#8B1E2D]">
                                       {claim.discountValue}
                                     </div>
                                   </td>
 
-                                  {/* Time & Expiry */}
-                                  <td className="p-3.5 text-slate-500 whitespace-nowrap text-[11px]">
-                                    <div>{claim.createdAt}</div>
-                                    <div className="text-amber-700 font-semibold mt-0.5">
-                                      ينتهي: {claim.expiresAt}
-                                    </div>
+                                  {/* Expiry */}
+                                  <td className="p-3 text-slate-500 whitespace-nowrap text-[11px]">
+                                    <div className="text-amber-700 font-semibold">{claim.expiresAt}</div>
                                   </td>
 
                                   {/* Status */}
-                                  <td className="p-3.5 whitespace-nowrap">
+                                  <td className="p-3 whitespace-nowrap">
                                     {isRedeemed ? (
-                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-800">
-                                        <CheckCircle2 className="h-3 w-3" /> تم صرف الخصم بالمعمل
+                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                                        <CheckCircle2 className="h-3 w-3" /> تم الصرف
                                       </span>
                                     ) : isConfirmed ? (
-                                      <span className="inline-flex items-center gap-1 rounded bg-blue-100 px-2 py-1 text-[11px] font-bold text-blue-800">
-                                        <Check className="h-3 w-3" /> تم تأكيد الحجز واتساب
+                                      <span className="inline-flex items-center gap-1 rounded bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                                        <Check className="h-3 w-3" /> مؤكد واتساب
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-800 animate-pulse">
-                                        <Clock className="h-3 w-3" /> جديد - بانتظار التأكيد
+                                      <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 animate-pulse">
+                                        <Clock className="h-3 w-3" /> جديد غير مؤكد
                                       </span>
                                     )}
                                   </td>
 
-                                  {/* Actions */}
-                                  <td className="p-3.5 whitespace-nowrap text-center">
+                                  {/* ACTION & EDIT BUTTONS */}
+                                  <td className="p-3 whitespace-nowrap text-center">
                                     <div className="inline-flex items-center gap-1.5">
-                                      {/* THE MAIN ACTION: Booking Confirm & WhatsApp Dispatch */}
+                                      {/* WhatsApp Booking confirmation */}
                                       <button
                                         onClick={() => setSelectedClaimForBooking(claim)}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition flex items-center gap-1.5 ${
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
                                           isPending
-                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
                                             : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
                                         }`}
-                                        title="تأكيد تفاصيل الحجز وإرسال رسالة الواتساب للمريض"
+                                        title="تأكيد الحجز ومراسلة المريض واتساب"
                                       >
                                         <MessageCircle className="h-3.5 w-3.5" />
-                                        <span>{isConfirmed ? 'تعديل / إعادة إرسال واتساب' : 'تأكيد الحجز واتساب'}</span>
+                                        <span>تأكيد واتساب</span>
                                       </button>
 
-                                      {/* Redeem Action */}
+                                      {/* EDIT CLAIM BUTTON */}
+                                      <button
+                                        onClick={() => handleOpenEditClaim(claim)}
+                                        className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold flex items-center gap-1 transition"
+                                        title="تعديل بيانات الكوبون والمريض"
+                                      >
+                                        <Edit className="h-3.5 w-3.5 text-amber-700" />
+                                        <span>تعديل</span>
+                                      </button>
+
+                                      {/* Mark Redeemed */}
                                       {!isRedeemed && (
                                         <button
                                           onClick={async () => {
                                             await updateClaimStatus(claim.id, 'redeemed');
                                             onRefreshClaims();
                                           }}
-                                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold transition"
-                                          title="تم حضور المريض وتطبيق الخصم في المعمل"
+                                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[10px] font-bold transition"
+                                          title="صرف الكوبون"
                                         >
-                                          صرف الخصم
+                                          صرف
                                         </button>
                                       )}
 
-                                      {/* Delete Action */}
+                                      {/* Delete */}
                                       <button
                                         onClick={async () => {
                                           if (confirm(`هل أنت متأكد من حذف كود الكوبون ${claim.couponCode}؟`)) {
@@ -676,7 +1072,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                             onRefreshClaims();
                                           }
                                         }}
-                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
                                         title="حذف"
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
@@ -694,7 +1090,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
 
-              {/* TAB 2: PRIZES */}
+              {/* ========================================================= */}
+              {/* TAB 2: PRIZES MANAGEMENT (ADD & EDIT BUTTONS) */}
+              {/* ========================================================= */}
               {activeTab === 'prizes' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -703,43 +1101,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         إدارة المكافآت والجوائز النشطة
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        الجوائز الظاهرة في عجلة الحظ، كروت الخدش، وصناديق الهدايا
+                        تحكم في كافة حقول الجوائز، نسب الخصومات، والوزن النسبي للاحتمالية
                       </p>
                     </div>
 
+                    {/* ADD PRIZE BUTTON */}
                     <button
-                      onClick={() => {
-                        setIsAddingPrize(true);
-                        setEditingPrize(null);
-                        setPrizeForm({
-                          title: '',
-                          shortTitle: '',
-                          description: '',
-                          discountType: 'percentage',
-                          discountValue: '25%',
-                          color: '#8B1E2D',
-                          textColor: '#FFFFFF',
-                          weight: 15,
-                          active: true,
-                          terms: '',
-                        });
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold hover:bg-[#731925] shadow transition"
+                      onClick={handleOpenAddPrize}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold hover:bg-[#731925] shadow transition"
                     >
                       <Plus className="h-4 w-4" />
                       <span>إضافة مكافأة جديدة</span>
                     </button>
                   </div>
 
-                  {/* Add / Edit Form */}
+                  {/* Add / Edit Prize Form */}
                   {isAddingPrize && (
-                    <div className="bg-white p-4 rounded-2xl border-2 border-[#8B1E2D]/30 shadow-md">
-                      <h5 className="font-bold text-slate-900 text-xs mb-3">
-                        {editingPrize ? 'تعديل المكافأة' : 'إضافة مكافأة جديدة'}
-                      </h5>
-                      <form onSubmit={handleSavePrize} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="bg-white p-5 rounded-2xl border-2 border-[#8B1E2D]/40 shadow-lg animate-fade-in mb-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <Edit className="h-4 w-4 text-[#8B1E2D]" />
+                          <h5 className="font-bold text-slate-900 text-xs sm:text-sm">
+                            {editingPrize ? `تعديل حقول المكافأة (${editingPrize.title})` : 'إضافة مكافأة جديدة لعجلة الحظ والمسابقات'}
+                          </h5>
+                        </div>
+                        <button
+                          onClick={() => setIsAddingPrize(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleSavePrize} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">اسم الجائزة الكامل</label>
+                          <label className="block font-bold text-slate-700 mb-1">اسم الجائزة الكامل <span className="text-red-500">*</span></label>
                           <input
                             type="text"
                             required
@@ -762,15 +1158,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
 
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">قيمة الخصم المعروضة</label>
+                          <label className="block font-bold text-slate-700 mb-1">قيمة الخصم المعروضة <span className="text-red-500">*</span></label>
                           <input
                             type="text"
                             required
-                            placeholder="مثال: 30% أو مجاناً"
+                            placeholder="مثال: 30% أو 100% مجاناً"
                             value={prizeForm.discountValue}
                             onChange={(e) => setPrizeForm({ ...prizeForm, discountValue: e.target.value })}
                             className="w-full rounded-lg border border-slate-300 p-2 text-xs"
                           />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">نوع الخصم</label>
+                          <select
+                            value={prizeForm.discountType}
+                            onChange={(e) => setPrizeForm({ ...prizeForm, discountType: e.target.value as any })}
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                          >
+                            <option value="percentage">نسبة مئوية (%)</option>
+                            <option value="free_test">فحص مجاني 100%</option>
+                            <option value="fixed">مبلغ مالي ثابت (ج.م)</option>
+                            <option value="gift">هدية أو باقة خاصة</option>
+                          </select>
                         </div>
 
                         <div>
@@ -785,78 +1195,113 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           />
                         </div>
 
-                        <div className="sm:col-span-2">
-                          <label className="block font-bold text-slate-700 mb-1">الوصف والشروط</label>
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">لون القطاع في العجلة</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={prizeForm.color || '#8B1E2D'}
+                              onChange={(e) => setPrizeForm({ ...prizeForm, color: e.target.value })}
+                              className="h-9 w-12 rounded border border-slate-300 cursor-pointer"
+                            />
+                            <span className="font-mono text-slate-600 text-xs">{prizeForm.color}</span>
+                          </div>
+                        </div>
+
+                        <div className="sm:col-span-2 md:col-span-3">
+                          <label className="block font-bold text-slate-700 mb-1">الوصف والشروط الملحقة</label>
                           <input
                             type="text"
-                            placeholder="صالح لمدة 24 ساعة فقط..."
+                            placeholder="مثال: صالح لمدة 24 ساعة فقط في كافة فروع معامل رامي مختار..."
                             value={prizeForm.description}
                             onChange={(e) => setPrizeForm({ ...prizeForm, description: e.target.value })}
                             className="w-full rounded-lg border border-slate-300 p-2 text-xs"
                           />
                         </div>
 
-                        <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                        <div className="sm:col-span-2 md:col-span-3 flex justify-end gap-2 pt-2 border-t border-slate-100">
                           <button
                             type="button"
                             onClick={() => setIsAddingPrize(false)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                            className="px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold"
                           >
                             إلغاء
                           </button>
                           <button
                             type="submit"
-                            className="px-4 py-1.5 rounded-lg bg-[#8B1E2D] text-white font-bold"
+                            className="px-5 py-1.5 rounded-lg bg-[#8B1E2D] text-white font-bold shadow hover:bg-[#731925]"
                           >
-                            حفظ المكافأة
+                            {editingPrize ? 'تحديث المكافأة' : 'حفظ ونشر المكافأة'}
                           </button>
                         </div>
                       </form>
                     </div>
                   )}
 
-                  {/* Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Prizes List */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     {prizes.map((p) => (
                       <div
                         key={p.id}
-                        className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex items-start justify-between gap-3"
+                        className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between"
                       >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="h-10 w-10 rounded-xl text-white flex items-center justify-center font-black text-xs shrink-0"
-                            style={{ backgroundColor: p.color || '#8B1E2D' }}
-                          >
-                            %
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h5 className="font-bold text-slate-900 text-xs sm:text-sm">{p.title}</h5>
-                              {!p.active && (
-                                <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
-                                  معطلة
-                                </span>
-                              )}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="h-10 w-10 rounded-xl text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs"
+                              style={{ backgroundColor: p.color || '#8B1E2D' }}
+                            >
+                              %
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-0.5">{p.description}</p>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h5 className="font-bold text-slate-900 text-xs sm:text-sm">{p.title}</h5>
+                                {!p.active && (
+                                  <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
+                                    معطلة
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">{p.description}</p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-rose-50 border border-rose-200 text-[#8B1E2D] px-2.5 py-1 text-xs font-black shrink-0">
+                            {p.discountValue}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleTogglePrizeActive(p.id)}
-                            className={`text-[11px] px-2.5 py-1 rounded font-bold transition ${
-                              p.active ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            {p.active ? 'تعطيل' : 'تفعيل'}
-                          </button>
-                          <button
-                            onClick={() => handleDeletePrize(p.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                        {/* EDIT AND ACTION BUTTONS */}
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                          <span className="text-[11px] text-slate-400">احتمالية الفوز: {p.weight}%</span>
+
+                          <div className="flex items-center gap-1.5">
+                            {/* EDIT PRIZE BUTTON */}
+                            <button
+                              onClick={() => handleOpenEditPrize(p)}
+                              className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold flex items-center gap-1 transition"
+                            >
+                              <Edit className="h-3.5 w-3.5 text-amber-700" />
+                              <span>تعديل</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleTogglePrizeActive(p.id)}
+                              className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition ${
+                                p.active ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-emerald-50 text-emerald-800'
+                              }`}
+                            >
+                              {p.active ? 'تعطيل' : 'تفعيل'}
+                            </button>
+
+                            <button
+                              onClick={() => handleDeletePrize(p.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                              title="حذف الجائزة"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -864,47 +1309,52 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
 
-              {/* TAB 3: BRANCHES */}
+              {/* ========================================================= */}
+              {/* TAB 3: BRANCHES MANAGEMENT (ADD & EDIT BUTTONS) */}
+              {/* ========================================================= */}
               {activeTab === 'branches' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-bold text-slate-900 text-sm">
-                        إدارة الفروع وخدمات السحب المنزلي
+                        إدارة الفروع وخدمات الزيارات المنزلية
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        تظهر الفروع للمرضى أثناء تسجيل الكوبون وحجز موعد الزيارة
+                        يمكنك إضافة فرع جديد أو تعديل عناوين ومواعيد وأرقام هواتف كافة الفروع
                       </p>
                     </div>
 
+                    {/* ADD BRANCH BUTTON */}
                     <button
-                      onClick={() => {
-                        setIsAddingBranch(true);
-                        setEditingBranch(null);
-                        setBranchForm({
-                          name: '',
-                          address: '',
-                          hours: 'يومياً من 8:00 صباحاً حتى 11:00 مساءً',
-                          phone: settings.hotline,
-                          isHomeVisit: false,
-                        });
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold hover:bg-[#731925] shadow transition"
+                      onClick={handleOpenAddBranch}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold hover:bg-[#731925] shadow transition"
                     >
                       <Plus className="h-4 w-4" />
                       <span>إضافة فرع جديد</span>
                     </button>
                   </div>
 
-                  {/* Add Branch Form */}
+                  {/* Add / Edit Branch Form */}
                   {isAddingBranch && (
-                    <div className="bg-white p-4 rounded-2xl border-2 border-[#8B1E2D]/30 shadow-md">
-                      <h5 className="font-bold text-slate-900 text-xs mb-3">
-                        {editingBranch ? 'تعديل الفرع' : 'إضافة فرع جديد'}
-                      </h5>
+                    <div className="bg-white p-5 rounded-2xl border-2 border-[#8B1E2D]/40 shadow-lg animate-fade-in mb-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <Edit className="h-4 w-4 text-[#8B1E2D]" />
+                          <h5 className="font-bold text-slate-900 text-xs sm:text-sm">
+                            {editingBranch ? `تعديل حقول الفرع (${editingBranch.name})` : 'إضافة فرع معمل جديد للنظام'}
+                          </h5>
+                        </div>
+                        <button
+                          onClick={() => setIsAddingBranch(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
                       <form onSubmit={handleSaveBranch} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">اسم الفرع</label>
+                          <label className="block font-bold text-slate-700 mb-1">اسم الفرع <span className="text-red-500">*</span></label>
                           <input
                             type="text"
                             required
@@ -916,13 +1366,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
 
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">رقم هاتف الفرع</label>
+                          <label className="block font-bold text-slate-700 mb-1">رقم الهاتف للتواصل والواتساب</label>
                           <input
                             type="text"
                             placeholder="01013242777"
                             value={branchForm.phone}
                             onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 p-2 text-xs font-mono"
+                            className="w-full rounded-lg border border-slate-300 p-2 text-xs font-mono text-right"
                           />
                         </div>
 
@@ -938,10 +1388,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
 
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">مواعيد العمل</label>
+                          <label className="block font-bold text-slate-700 mb-1">مواعيد وساعات العمل</label>
                           <input
                             type="text"
-                            placeholder="24 ساعة أو 8 ص حتى 11 م..."
+                            placeholder="24 ساعة أو من 8:30 ص حتى 11:30 م..."
                             value={branchForm.hours}
                             onChange={(e) => setBranchForm({ ...branchForm, hours: e.target.value })}
                             className="w-full rounded-lg border border-slate-300 p-2 text-xs"
@@ -956,23 +1406,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               onChange={(e) => setBranchForm({ ...branchForm, isHomeVisit: e.target.checked })}
                               className="rounded text-[#8B1E2D] h-4 w-4"
                             />
-                            <span className="font-bold text-slate-800">خدمة سحب وزيارات منزلية</span>
+                            <span className="font-bold text-slate-800">خدمة سحب وزيارات منزلية مريحة</span>
                           </label>
                         </div>
 
-                        <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                        <div className="sm:col-span-2 flex justify-end gap-2 pt-2 border-t border-slate-100">
                           <button
                             type="button"
                             onClick={() => setIsAddingBranch(false)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                            className="px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold"
                           >
                             إلغاء
                           </button>
                           <button
                             type="submit"
-                            className="px-4 py-1.5 rounded-lg bg-[#8B1E2D] text-white font-bold"
+                            className="px-5 py-1.5 rounded-lg bg-[#8B1E2D] text-white font-bold shadow hover:bg-[#731925]"
                           >
-                            حفظ الفرع
+                            {editingBranch ? 'تحديث بيانات الفرع' : 'حفظ الفرع الجديد'}
                           </button>
                         </div>
                       </form>
@@ -984,27 +1434,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     {settings.branches.map((b) => (
                       <div
                         key={b.id}
-                        className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                        className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-start gap-3">
                           <div className="h-10 w-10 rounded-xl bg-rose-50 text-[#8B1E2D] flex items-center justify-center shrink-0">
                             {b.isHomeVisit ? <Home className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
                           </div>
                           <div>
-                            <h5 className="font-bold text-slate-900 text-xs sm:text-sm">{b.name}</h5>
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-bold text-slate-900 text-xs sm:text-sm">{b.name}</h5>
+                              {b.isHomeVisit && (
+                                <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold">
+                                  سحب منزلي 24/7
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-slate-600 mt-0.5">{b.address}</p>
                             <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
-                              <span>مواعيد: {b.hours}</span>
+                              <span>المواعيد: {b.hours}</span>
                               <span>•</span>
                               <span className="font-mono dir-ltr">{b.phone}</span>
                             </div>
                           </div>
                         </div>
 
+                        {/* EDIT AND DELETE BRANCH BUTTONS */}
                         <div className="flex items-center gap-2 self-end sm:self-center">
+                          {/* EDIT BRANCH BUTTON */}
+                          <button
+                            onClick={() => handleOpenEditBranch(b)}
+                            className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold flex items-center gap-1 transition"
+                          >
+                            <Edit className="h-3.5 w-3.5 text-amber-700" />
+                            <span>تعديل الفرع</span>
+                          </button>
+
                           <button
                             onClick={() => handleDeleteBranch(b.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded"
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            title="حذف الفرع"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -1015,7 +1483,327 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
 
-              {/* TAB 4: PATIENT INVITATION SENDER */}
+              {/* ========================================================= */}
+              {/* TAB 4: QUIZ QUESTIONS MANAGEMENT (ADD & EDIT BUTTONS) */}
+              {/* ========================================================= */}
+              {activeTab === 'quiz' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        إدارة أسئلة المسابقة الطبية التثقيفية
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        يمكنك إضافة أسئلة طبية جديدة، تعديل الخيارات، تحديد الإجابة الصحيحة، والتلميحات
+                      </p>
+                    </div>
+
+                    {/* ADD QUESTION BUTTON */}
+                    <button
+                      onClick={handleOpenAddQuestion}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold hover:bg-[#731925] shadow transition"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>إضافة سؤال طبي جديد</span>
+                    </button>
+                  </div>
+
+                  {/* Add / Edit Question Form */}
+                  {isAddingQuestion && (
+                    <div className="bg-white p-5 rounded-2xl border-2 border-[#8B1E2D]/40 shadow-lg animate-fade-in mb-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <Edit className="h-4 w-4 text-[#8B1E2D]" />
+                          <h5 className="font-bold text-slate-900 text-xs sm:text-sm">
+                            {editingQuestion ? 'تعديل السؤال الطبي والإجابات' : 'إضافة سؤال طبي جديد للمسابقة'}
+                          </h5>
+                        </div>
+                        <button
+                          onClick={() => setIsAddingQuestion(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleSaveQuestion} className="space-y-3 text-xs">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">نص السؤال الطبي <span className="text-red-500">*</span></label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="مثال: كم عدد ساعات الصيام المطلوبة لتحليل دهون الدم؟"
+                            value={questionForm.question}
+                            onChange={(e) => setQuestionForm({ ...questionForm, question: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 p-2.5 text-xs font-bold"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {[0, 1, 2, 3].map((optIdx) => (
+                            <div key={optIdx} className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="font-bold text-slate-700">الخيار {optIdx + 1}</label>
+                                <label className="flex items-center gap-1 text-[11px] text-emerald-800 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name="correctOption"
+                                    checked={questionForm.correctIndex === optIdx}
+                                    onChange={() => setQuestionForm({ ...questionForm, correctIndex: optIdx })}
+                                    className="text-emerald-600"
+                                  />
+                                  <span>الإجابة الصحيحة</span>
+                                </label>
+                              </div>
+                              <input
+                                type="text"
+                                placeholder={`الخيار ${optIdx + 1}...`}
+                                value={questionForm.options?.[optIdx] || ''}
+                                onChange={(e) => {
+                                  const opts = [...(questionForm.options || ['', '', '', ''])];
+                                  opts[optIdx] = e.target.value;
+                                  setQuestionForm({ ...questionForm, options: opts });
+                                }}
+                                className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">الشرح الطبي المعتمد (يظهر بعد الإجابة)</label>
+                            <input
+                              type="text"
+                              placeholder="توضيح استشاري من معمل RT..."
+                              value={questionForm.explanation || ''}
+                              onChange={(e) => setQuestionForm({ ...questionForm, explanation: e.target.value })}
+                              className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">تلميح طبي اختياري للمريض</label>
+                            <input
+                              type="text"
+                              placeholder="تلميح مبسط..."
+                              value={questionForm.hint || ''}
+                              onChange={(e) => setQuestionForm({ ...questionForm, hint: e.target.value })}
+                              className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingQuestion(false)}
+                            className="px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-5 py-1.5 rounded-lg bg-[#8B1E2D] text-white font-bold shadow hover:bg-[#731925]"
+                          >
+                            {editingQuestion ? 'تحديث السؤال' : 'حفظ السؤال الطبي'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Questions List */}
+                  <div className="space-y-3">
+                    {quizQuestions.map((q, idx) => (
+                      <div
+                        key={q.id}
+                        className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5">
+                            <span className="h-6 w-6 rounded-lg bg-rose-50 text-[#8B1E2D] font-bold text-xs flex items-center justify-center shrink-0">
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <h5 className="font-bold text-slate-900 text-xs sm:text-sm">{q.question}</h5>
+                              {q.explanation && (
+                                <p className="text-[11px] text-slate-500 mt-1">الشرح: {q.explanation}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* EDIT AND DELETE QUESTION BUTTONS */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* EDIT QUESTION BUTTON */}
+                            <button
+                              onClick={() => handleOpenEditQuestion(q)}
+                              className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold flex items-center gap-1 transition"
+                            >
+                              <Edit className="h-3.5 w-3.5 text-amber-700" />
+                              <span>تعديل</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteQuestion(q.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                              title="حذف السؤال"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Options preview */}
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-[11px]">
+                          {q.options.map((opt, oIdx) => (
+                            <div
+                              key={oIdx}
+                              className={`p-1.5 rounded-lg border ${
+                                oIdx === q.correctIndex
+                                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold'
+                                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {oIdx === q.correctIndex && '✓ '}
+                              {opt}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ========================================================= */}
+              {/* TAB 5: TERMS & CONDITIONS (ADD & EDIT BUTTONS) */}
+              {/* ========================================================= */}
+              {activeTab === 'terms' && (
+                <div className="space-y-4 max-w-3xl mx-auto">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        إدارة بنود وشروط وقواعد المسابقة
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        البنود الظاهرة للمرضى في نافذة الشروط وأسفل الكوبونات
+                      </p>
+                    </div>
+
+                    {/* ADD TERM BUTTON */}
+                    <button
+                      onClick={() => setIsAddingTerm(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold hover:bg-[#731925] shadow transition"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>إضافة شرط جديد</span>
+                    </button>
+                  </div>
+
+                  {/* Add Term Form */}
+                  {isAddingTerm && (
+                    <form onSubmit={handleAddTerm} className="bg-white p-4 rounded-2xl border-2 border-[#8B1E2D]/40 shadow-md space-y-3 text-xs">
+                      <label className="block font-bold text-slate-700">نص البند أو الشرط الجديد:</label>
+                      <textarea
+                        rows={2}
+                        required
+                        placeholder="أدخل نص الشرط التنظيمي..."
+                        value={newTermText}
+                        onChange={(e) => setNewTermText(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingTerm(false)}
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                        >
+                          إلغاء
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-1.5 rounded-lg bg-[#8B1E2D] text-white font-bold"
+                        >
+                          حفظ البند
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Terms List with Edit buttons */}
+                  <div className="space-y-2.5">
+                    {settings.termsAndConditions.map((term, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-start justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-start gap-2.5 flex-1">
+                          <span className="h-5 w-5 rounded-full bg-slate-100 text-slate-600 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                            {idx + 1}
+                          </span>
+
+                          {editingTermIndex === idx ? (
+                            <div className="flex-1 space-y-2">
+                              <textarea
+                                rows={2}
+                                value={editingTermText}
+                                onChange={(e) => setEditingTermText(e.target.value)}
+                                className="w-full rounded-lg border border-slate-300 p-2 text-xs"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveEditTerm(idx)}
+                                  className="px-3 py-1 rounded bg-emerald-600 text-white font-bold text-xs"
+                                >
+                                  حفظ
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingTermIndex(null)}
+                                  className="px-3 py-1 rounded border border-slate-300 text-xs"
+                                >
+                                  إلغاء
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-slate-800 leading-relaxed">{term}</p>
+                          )}
+                        </div>
+
+                        {editingTermIndex !== idx && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* EDIT TERM BUTTON */}
+                            <button
+                              onClick={() => {
+                                setEditingTermIndex(idx);
+                                setEditingTermText(term);
+                              }}
+                              className="px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold flex items-center gap-1 transition"
+                            >
+                              <Edit className="h-3 w-3 text-amber-700" />
+                              <span>تعديل</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteTerm(idx)}
+                              className="p-1 text-slate-400 hover:text-red-600 rounded"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ========================================================= */}
+              {/* TAB 6: PATIENT INVITATION SENDER */}
+              {/* ========================================================= */}
               {activeTab === 'patient_links' && (
                 <div className="max-w-2xl mx-auto space-y-4">
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
@@ -1024,7 +1812,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         إرسال دعوة للمريض للمشاركة عبر الواتساب
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        يمكنك إنشاء رابط مباشر ومخصص باسم المريض ورقم هاتفه وإرساله بنقرة واحدة عبر الواتساب
+                        أنشئ رابطاً مخصصاً باسم المريض ورقم هاتفه وأرسله بنقرة واحدة عبر الواتساب
                       </p>
                     </div>
 
@@ -1052,7 +1840,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* Generated Link */}
                     {patientPhoneInput.trim().length >= 8 && (
                       <div className="space-y-3 pt-2">
                         <a
@@ -1077,9 +1864,126 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
 
-              {/* TAB 5: LAB SETTINGS & CLOUD SYNC */}
+              {/* ========================================================= */}
+              {/* TAB 7: LAB SETTINGS & CLOUD SYNC (EDIT ALL FIELDS) */}
+              {/* ========================================================= */}
               {activeTab === 'settings' && (
                 <div className="max-w-3xl mx-auto space-y-5">
+                  {/* General Settings */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">
+                          تعديل بيانات المعمل والشعار وأرقام الاتصال
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          تنعكس هذه البيانات تلقائياً على رسائل الواتساب والهيدر وكروت الكوبونات
+                        </p>
+                      </div>
+
+                      <span className="text-xs font-bold text-[#8B1E2D] bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
+                        حقول قابلة للتعديل المباشر
+                      </span>
+                    </div>
+
+                    <form onSubmit={handleSaveSettings} className="space-y-3 text-xs">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">اسم المعمل الرسمي (بالعربية)</label>
+                        <input
+                          type="text"
+                          value={settingsForm.labNameAr}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, labNameAr: e.target.value })}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">الشعار اللفظي (Slogan)</label>
+                        <input
+                          type="text"
+                          value={settingsForm.sloganAr}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, sloganAr: e.target.value })}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">رقم واتساب خدمة العملاء</label>
+                          <input
+                            type="text"
+                            value={settingsForm.whatsappNumber}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-right"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">الخط الساخن الموحد</label>
+                          <input
+                            type="text"
+                            value={settingsForm.hotline}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, hotline: e.target.value })}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-right"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">رمز مرور لوحة الإدارة (PIN)</label>
+                          <input
+                            type="text"
+                            value={settingsForm.adminPin}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, adminPin: e.target.value })}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-center tracking-widest"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">مدة صلاحية الكوبونات (بالساعات)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="72"
+                            value={settingsForm.couponValidityHours}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, couponValidityHours: Number(e.target.value) })}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-center"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Reset trial restrictions */}
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetPlaySessionAdmin();
+                            alert('تمت إعادة تعيين قيد الـ 24 ساعة لمتصفحك بنجاح! يمكنك الآن تجربة اللعب كمريض جديد.');
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-rose-50 text-[#8B1E2D] border border-rose-200 text-xs font-bold hover:bg-rose-100 transition"
+                        >
+                          إعادة تعيين قيود التجربة للمتصفح الحالي
+                        </button>
+                      </div>
+
+                      {settingsSaved && (
+                        <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                          تم حفظ وتطبيق كافة التعديلات بنجاح!
+                        </div>
+                      )}
+
+                      <div className="flex justify-end pt-3">
+                        <button
+                          type="submit"
+                          className="px-6 py-2.5 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold shadow hover:bg-[#731925] transition"
+                        >
+                          حفظ كافة تعديلات المعمل
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
                   {/* GitHub Cloud Sync Card */}
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                     <div className="flex items-center gap-3 mb-3">
@@ -1088,10 +1992,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                       <div>
                         <h4 className="font-bold text-slate-900 text-sm">
-                          المزامنة السحابية مع GitHub (لربط الموقع الحي وحفظ الكوبونات)
+                          المزامنة السحابية الفورية مع GitHub
                         </h4>
                         <p className="text-xs text-slate-500">
-                          نشر إعدادات المعمل والمكافآت إلى مستودع GitHub ({GITHUB_SYNC_CONFIG.OWNER}/{GITHUB_SYNC_CONFIG.REPO})
+                          نشر كافة التعديلات إلى موقعك الحي ومستودع GitHub ({GITHUB_SYNC_CONFIG.OWNER}/{GITHUB_SYNC_CONFIG.REPO})
                         </p>
                       </div>
                     </div>
@@ -1124,116 +2028,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <button
                         onClick={handleSyncToGitHubCloud}
                         disabled={isSyncingGitHub}
-                        className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-2"
+                        className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-2"
                       >
                         <RefreshCw className={`h-4 w-4 ${isSyncingGitHub ? 'animate-spin' : ''}`} />
-                        <span>{isSyncingGitHub ? 'جارٍ المزامنة السحابية...' : 'مزامنة الإعدادات مع GitHub الآن'}</span>
+                        <span>{isSyncingGitHub ? 'جارٍ المزامنة السحابية...' : 'مزامنة كافة التعديلات مع GitHub الآن'}</span>
                       </button>
                     </div>
-                  </div>
-
-                  {/* General Settings */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                    <h4 className="font-bold text-slate-900 text-sm mb-4">
-                      بيانات المعمل وأرقام الاتصال
-                    </h4>
-
-                    <form onSubmit={handleSaveSettings} className="space-y-3 text-xs">
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">اسم المعمل الرسمي</label>
-                        <input
-                          type="text"
-                          value={settingsForm.labNameAr}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, labNameAr: e.target.value })}
-                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">الشعار اللفظي (Slogan)</label>
-                        <input
-                          type="text"
-                          value={settingsForm.sloganAr}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, sloganAr: e.target.value })}
-                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block font-bold text-slate-700 mb-1">رقم واتساب خدمة العملاء</label>
-                          <input
-                            type="text"
-                            value={settingsForm.whatsappNumber}
-                            onChange={(e) => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
-                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-right"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-bold text-slate-700 mb-1">الخط الساخن</label>
-                          <input
-                            type="text"
-                            value={settingsForm.hotline}
-                            onChange={(e) => setSettingsForm({ ...settingsForm, hotline: e.target.value })}
-                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-right"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block font-bold text-slate-700 mb-1">رمز مرور لوحة التحكم (PIN)</label>
-                          <input
-                            type="text"
-                            value={settingsForm.adminPin}
-                            onChange={(e) => setSettingsForm({ ...settingsForm, adminPin: e.target.value })}
-                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-center tracking-widest"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-bold text-slate-700 mb-1">صلاحية الكوبونات (بالساعات)</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="72"
-                            value={settingsForm.couponValidityHours}
-                            onChange={(e) => setSettingsForm({ ...settingsForm, couponValidityHours: Number(e.target.value) })}
-                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-center"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Reset test patient restriction button */}
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            resetPlaySessionAdmin();
-                            alert('تمت إعادة تعيين قيد الـ 24 ساعة لمتصفحك بنجاح! يمكنك الآن تجربة اللعب كمريض جديد.');
-                          }}
-                          className="px-3 py-2 rounded-xl bg-rose-50 text-[#8B1E2D] border border-rose-200 text-xs font-bold hover:bg-rose-100 transition"
-                        >
-                          إعادة تعيين قيود التجربة للمتصفح الحالي
-                        </button>
-                      </div>
-
-                      {settingsSaved && (
-                        <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
-                          تم حفظ الإعدادات بنجاح!
-                        </div>
-                      )}
-
-                      <div className="flex justify-end pt-3">
-                        <button
-                          type="submit"
-                          className="px-6 py-2.5 rounded-xl bg-[#8B1E2D] text-white text-xs font-bold shadow hover:bg-[#731925] transition"
-                        >
-                          حفظ كافة الإعدادات
-                        </button>
-                      </div>
-                    </form>
                   </div>
                 </div>
               )}
@@ -1248,7 +2048,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           claim={selectedClaimForBooking}
           settings={settings}
           onClose={() => setSelectedClaimForBooking(null)}
-          onSuccess={(updated) => {
+          onSuccess={() => {
             setSelectedClaimForBooking(null);
             onRefreshClaims();
           }}
