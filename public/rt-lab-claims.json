@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "id": "claim-1791993141284",
+    "couponCode": "RT-8821",
+    "patientName": "رحاب علي",
+    "phone": "01100046841",
+    "branch": "الفرع الرئيسي (بهتيم - شبرا الخيمة)",
+    "prizeId": "prize-5",
+    "prizeTitle": "خدمة سحب العينات المنزلية مجاناً",
+    "discountValue": "مجاناً 100%",
+    "gameType": "wheel",
+    "createdAt": "١٤‏/١٠‏/٢٠٢٦، ٦:٥٢ م",
+    "createdAtTimestamp": 1791993141284,
+    "expiresAt": "١٥‏/١٠‏/٢٠٢٦، ٦:٥٢ م",
+    "expiresAtTimestamp": 1792079541284,
+    "status": "pending"
+  }
+]
