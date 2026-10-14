@@ -46,6 +46,7 @@ export const initialSettings: LabSettings = {
   branches: initialBranches,
   couponValidityHours: 24,
   autoOpenWhatsApp: true,
+  enableNotificationSound: true,
   termsAndConditions: [
     'المريض يسجل مرة واحدة فقط كل 24 ساعة ولا يجوز اختيار أكثر من وسيلة ترفيهية لضمان المصداقية وتكافؤ الفرص.',
     'صلاحية الكوبون 24 ساعة فقط من وقت الحصول عليه؛ في حال عدم استخدام الجائزة أو حجز موعد التحاليل بالمعمل خلال 24 ساعة يتم إلغاء الكوبون تلقائياً.',

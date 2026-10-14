@@ -70,8 +70,8 @@ export const PatientShareModal: React.FC<PatientShareModalProps> = ({
     }
     const waUrl = buildPatientInviteWhatsAppUrl(
       patientPhone,
+      patientName.trim(),
       playUrl,
-      patientName.trim() || undefined,
       settings.labNameAr,
       settings.sloganAr
     );

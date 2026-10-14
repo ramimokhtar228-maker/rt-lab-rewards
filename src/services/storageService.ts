@@ -557,31 +557,72 @@ ${bookingDetails.prepInstructions ? `• تعليمات التحضير: ⚠️ $
 };
 
 // Generate patient game invitation url
-export const generatePatientPlayUrl = (
-  baseUrl: string,
+export interface GeneratePatientPlayUrlOptions {
+  customBaseUrl?: string;
+  baseUrl?: string;
+  patientName?: string;
+  patientPhone?: string;
+  game?: GameType;
+  preferredGame?: GameType;
+}
+
+export function generatePatientPlayUrl(
+  baseUrlOrOptions: string | GeneratePatientPlayUrlOptions,
   patientName?: string,
   patientPhone?: string,
   preferredGame?: GameType
-): string => {
+): string {
+  let baseUrl = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : 'https://ramimokhtar228-maker.github.io/rt-lab-rewards/';
+  let pName = patientName;
+  let pPhone = patientPhone;
+  let game = preferredGame;
+
+  if (typeof baseUrlOrOptions === 'object' && baseUrlOrOptions !== null) {
+    baseUrl = baseUrlOrOptions.customBaseUrl || baseUrlOrOptions.baseUrl || baseUrl;
+    pName = baseUrlOrOptions.patientName;
+    pPhone = baseUrlOrOptions.patientPhone;
+    game = baseUrlOrOptions.game || baseUrlOrOptions.preferredGame;
+  } else if (typeof baseUrlOrOptions === 'string') {
+    baseUrl = baseUrlOrOptions;
+  }
+
   const cleanBase = baseUrl.split('?')[0];
   const params = new URLSearchParams();
   params.set('ref', 'patient_invite');
   params.set('t', Date.now().toString());
-  if (patientName?.trim()) params.set('pname', patientName.trim());
-  if (patientPhone?.trim()) params.set('pphone', patientPhone.trim());
-  if (preferredGame) params.set('game', preferredGame);
+  if (pName?.trim()) params.set('pname', pName.trim());
+  if (pPhone?.trim()) params.set('pphone', pPhone.trim());
+  if (game) params.set('game', game);
   return `${cleanBase}?${params.toString()}`;
-};
+}
 
 // WhatsApp invitation message from Lab to patient to invite them to play
-export const buildPatientInviteWhatsAppUrl = (
+export function buildPatientInviteWhatsAppUrl(
   patientPhone: string,
-  patientName: string,
-  playUrl: string,
-  labName: string,
-  slogan: string = 'التشخيص الصحيح يبدأ معنا'
-): string => {
+  param2: string,
+  param3?: string,
+  param4?: string,
+  param5: string = 'التشخيص الصحيح يبدأ معنا'
+): string {
   const cleanNumber = cleanEgyptianPhone(patientPhone);
+
+  // Detect whether param2 is playUrl or patientName
+  let patientName = '';
+  let playUrl = '';
+  let labName = param4 || 'معامل رامي مختار للتحاليل الطبية (RT Labs)';
+  let slogan = param5;
+
+  if (param2.startsWith('http://') || param2.startsWith('https://')) {
+    playUrl = param2;
+    patientName = param3 || '';
+  } else if (param3 && (param3.startsWith('http://') || param3.startsWith('https://'))) {
+    patientName = param2;
+    playUrl = param3;
+  } else {
+    patientName = param2;
+    playUrl = param3 || '';
+  }
+
   const greeting = patientName ? `أهلاً بك يا أستاذ/ة ${patientName} 🌸\n` : `أهلاً بك عميلنا العزيز 🌸\n`;
   const message = `${greeting}يسعد إدارة ${labName} (${slogan}) إهداءك فرصة حصرية للمشاركة في مسابقات وجوائز المرضى! 🎁🩺
 
@@ -592,7 +633,7 @@ export const buildPatientInviteWhatsAppUrl = (
 نتمنى لك وافر الصحة والعافية! ❤️`;
 
   return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
-};
+}
 
 // Check if patient opened link with invitation params
 export function checkPatientUrlForNewSession(): {
