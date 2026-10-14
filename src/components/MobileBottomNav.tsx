@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Compass, Key, MessageCircle, Phone, Shield } from 'lucide-react';
+import { Building2, Compass, Gift, Key, MessageCircle, Phone, Shield } from 'lucide-react';
 import { LabSettings } from '../types';
 
 interface MobileBottomNavProps {
@@ -9,6 +9,7 @@ interface MobileBottomNavProps {
   onOpenBranches: () => void;
   onOpenPolicy: () => void;
   onScrollToGames: () => void;
+  onOpenReferral?: () => void;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
@@ -18,6 +19,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenBranches,
   onOpenPolicy,
   onScrollToGames,
+  onOpenReferral,
 }) => {
   return (
     <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex items-center justify-around text-[10px] font-bold text-slate-600 shadow-lg">
@@ -36,6 +38,16 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <Building2 className="h-4 w-4 text-slate-700" />
         <span>الفروع</span>
       </button>
+
+      {onOpenReferral && (
+        <button
+          onClick={onOpenReferral}
+          className="flex flex-col items-center gap-1 text-amber-600 hover:text-amber-700 transition"
+        >
+          <Gift className="h-4 w-4 text-amber-500 animate-bounce" />
+          <span>مكافأة 🎁</span>
+        </button>
+      )}
 
       <a
         href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`}

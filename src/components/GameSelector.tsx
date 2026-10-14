@@ -48,6 +48,13 @@ export const GameSelector: React.FC<GameSelectorProps> = ({
       icon: <Dna className="h-5 w-5" />,
     },
     {
+      id: 'capsule',
+      title: 'كبسولة الحظ الذهبية',
+      description: 'اسحب كبسولتك الصحية واكشف باقتك الفورية',
+      badge: 'حصري وجديد',
+      icon: <Award className="h-5 w-5 text-amber-500" />,
+    },
+    {
       id: 'quiz',
       title: 'المسابقة الطبية',
       description: 'أجب عن أسئلة صحية سريعة واحصل على كوبونك',
@@ -57,7 +64,7 @@ export const GameSelector: React.FC<GameSelectorProps> = ({
   ];
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4">
+    <div className="w-full max-w-6xl mx-auto px-4">
       <div className="text-center mb-5">
         <h3 className="text-lg sm:text-xl font-black text-slate-900">
           اختر وسيلة الترفيه المفضلة لديك 🎮
@@ -67,7 +74,7 @@ export const GameSelector: React.FC<GameSelectorProps> = ({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
         {games.map((g) => {
           const isActive = activeGame === g.id;
           return (

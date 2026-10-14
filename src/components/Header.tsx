@@ -10,9 +10,11 @@ import {
   Phone,
   Shield,
   Sparkles,
+  Users,
 } from 'lucide-react';
 import { LabSettings } from '../types';
 import { labLogo } from '../assets/images';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderProps {
   settings: LabSettings;
@@ -20,6 +22,7 @@ interface HeaderProps {
   onOpenAdmin: () => void;
   onOpenBranches: () => void;
   onOpenPolicy: () => void;
+  onOpenReferral?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAdmin,
   onOpenBranches,
   onOpenPolicy,
+  onOpenReferral,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
@@ -99,6 +103,22 @@ export const Header: React.FC<HeaderProps> = ({
             <MapPin className="h-3.5 w-3.5 text-[#8B1E2D]" />
             <span>الفروع والعناوين (4)</span>
           </button>
+
+          {/* Referral Button */}
+          {onOpenReferral && (
+            <button
+              onClick={onOpenReferral}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-xs font-black text-amber-900 transition shadow-2xs"
+              title="شارك الرابط مع أصدقائك واربح مكافأة فورية"
+            >
+              <Users className="h-3.5 w-3.5 text-amber-600" />
+              <span className="hidden md:inline">دعوة صديق واربح</span>
+              <span className="md:hidden">مكافأة 🎁</span>
+            </button>
+          )}
+
+          {/* PWA Install Button */}
+          <PWAInstallButton />
 
           {/* Policy / Terms button */}
           <button

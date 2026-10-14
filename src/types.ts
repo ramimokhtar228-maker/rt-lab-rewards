@@ -1,4 +1,4 @@
-export type GameType = 'wheel' | 'scratch' | 'quiz' | 'box' | 'match';
+export type GameType = 'wheel' | 'scratch' | 'quiz' | 'box' | 'match' | 'capsule';
 
 export type DiscountType = 'percentage' | 'fixed' | 'free_test' | 'gift';
 

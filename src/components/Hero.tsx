@@ -7,9 +7,10 @@ interface HeroProps {
   settings: LabSettings;
   onScrollToGames: () => void;
   onOpenBranches: () => void;
+  onOpenReferral?: () => void;
 }
 
-export const Hero: React.FC<HeroProps> = ({ settings, onScrollToGames, onOpenBranches }) => {
+export const Hero: React.FC<HeroProps> = ({ settings, onScrollToGames, onOpenBranches, onOpenReferral }) => {
   return (
     <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-[#8B1E2D] to-[#0F2B5C] text-white py-8 sm:py-14 px-4 sm:px-6">
       {/* Background circles decoration */}
@@ -62,6 +63,16 @@ export const Hero: React.FC<HeroProps> = ({ settings, onScrollToGames, onOpenBra
               <Trophy className="h-5 w-5 text-slate-950" />
               <span>اختر لعبتك وابدأ السحب الآن!</span>
             </button>
+
+            {onOpenReferral && (
+              <button
+                onClick={onOpenReferral}
+                className="px-5 py-3.5 rounded-2xl bg-gradient-to-r from-rose-600/80 to-rose-700/80 hover:from-rose-500 hover:to-rose-600 border border-rose-300/40 text-white font-bold text-xs sm:text-sm backdrop-blur-md transition inline-flex items-center gap-2 cursor-pointer shadow-lg shadow-rose-900/30"
+              >
+                <Gift className="h-4 w-4 text-amber-300 animate-pulse" />
+                <span>دعوة صديق ومكافأة فورية 🎁</span>
+              </button>
+            )}
 
             <button
               onClick={onOpenBranches}

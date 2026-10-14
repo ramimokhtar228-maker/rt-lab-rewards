@@ -49,6 +49,8 @@ import { ScratchCard } from './components/ScratchCard';
 import { MysteryBox } from './components/MysteryBox';
 import { HealthQuiz } from './components/HealthQuiz';
 import { MedicalMemoryMatch } from './components/MedicalMemoryMatch';
+import { LuckyCapsule } from './components/LuckyCapsule';
+import { ReferralRewardModal } from './components/ReferralRewardModal';
 import { ClaimModal } from './components/ClaimModal';
 import { AdminPanel } from './components/AdminPanel';
 import { BranchesModal } from './components/BranchesModal';
@@ -75,6 +77,7 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showBranches, setShowBranches] = useState(false);
   const [showPolicy, setShowPolicy] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
 
   // Real-time reception alert banner ("المعلن يسمع فى البرنامج")
   const [newClaimAlert, setNewClaimAlert] = useState<PatientClaim | null>(null);
@@ -232,6 +235,7 @@ export default function App() {
         onOpenAdmin={() => setShowAdmin(true)}
         onOpenBranches={() => setShowBranches(true)}
         onOpenPolicy={() => setShowPolicy(true)}
+        onOpenReferral={() => setShowReferral(true)}
       />
 
       {/* Patient Greeting when invited via direct WhatsApp link */}
@@ -269,6 +273,7 @@ export default function App() {
         settings={settings}
         onScrollToGames={scrollToGames}
         onOpenBranches={() => setShowBranches(true)}
+        onOpenReferral={() => setShowReferral(true)}
       />
 
       {/* Main Content Area */}
@@ -327,6 +332,14 @@ export default function App() {
             {activeGame === 'quiz' && (
               <HealthQuiz
                 questions={quizQuestions}
+                prizes={prizes}
+                onWin={handlePrizeWon}
+                disabled={!restriction.canPlay}
+              />
+            )}
+
+            {activeGame === 'capsule' && (
+              <LuckyCapsule
                 prizes={prizes}
                 onWin={handlePrizeWon}
                 disabled={!restriction.canPlay}
@@ -526,6 +539,7 @@ export default function App() {
         onOpenBranches={() => setShowBranches(true)}
         onOpenPolicy={() => setShowPolicy(true)}
         onScrollToGames={scrollToGames}
+        onOpenReferral={() => setShowReferral(true)}
       />
 
       {/* Claim Modal when patient wins */}
@@ -538,6 +552,14 @@ export default function App() {
           onSuccess={handleClaimSuccess}
         />
       )}
+
+      {/* Referral / Invite Friend Reward Modal */}
+      <ReferralRewardModal
+        settings={settings}
+        isOpen={showReferral}
+        onClose={() => setShowReferral(false)}
+        onClaimCreated={handleClaimSuccess}
+      />
 
       {/* Admin Panel Modal */}
       {showAdmin && (

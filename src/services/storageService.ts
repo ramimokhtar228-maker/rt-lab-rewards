@@ -664,7 +664,7 @@ export function checkPatientUrlForNewSession(): {
     const patientPhone = params.get('pphone') || undefined;
     const rawGame = params.get('game');
     const game =
-      rawGame === 'wheel' || rawGame === 'scratch' || rawGame === 'quiz' || rawGame === 'box' || rawGame === 'match'
+      rawGame === 'wheel' || rawGame === 'scratch' || rawGame === 'quiz' || rawGame === 'box' || rawGame === 'match' || rawGame === 'capsule'
         ? rawGame
         : undefined;
 
