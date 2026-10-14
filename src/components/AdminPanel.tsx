@@ -31,12 +31,15 @@ import {
   UploadCloud,
   CheckCircle,
   Users,
+  Send,
   X,
 } from 'lucide-react';
 import { Branch, DiscountType, LabSettings, PatientClaim, Prize, PrizeIdea } from '../types';
 import { labLogo, labReception, medicalTeam } from '../assets/images';
 import {
+  buildPatientInviteWhatsAppUrl,
   deleteClaim,
+  generatePatientPlayUrl,
   getPrizeIdeas,
   GITHUB_SYNC_CONFIG,
   resetPlaySessionAdmin,
@@ -68,7 +71,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [pinError, setPinError] = useState(false);
 
   // Active sub-tab
-  const [activeTab, setActiveTab] = useState<'prizes' | 'branches' | 'ideas' | 'claims' | 'settings' | 'security' | 'media'>('prizes');
+  const [activeTab, setActiveTab] = useState<'prizes' | 'branches' | 'ideas' | 'claims' | 'settings' | 'security' | 'media' | 'patient_links'>('prizes');
 
   // Prize editing / creation state
   const [editingPrize, setEditingPrize] = useState<Prize | null>(null);
@@ -102,7 +105,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [isSyncingGitHub, setIsSyncingGitHub] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [githubToken, setGithubToken] = useState<string>(() => localStorage.getItem('rt_github_token') || '');
+  const [githubToken, setGithubToken] = useState<string>(
+    () => localStorage.getItem('rt_github_token') || GITHUB_SYNC_CONFIG.DEFAULT_TOKEN || ''
+  );
+
+  // Patient Link Dispatcher State
+  const [patientNameInput, setPatientNameInput] = useState('');
+  const [patientPhoneInput, setPatientPhoneInput] = useState('');
+  const [targetPatientGame, setTargetPatientGame] = useState<'wheel' | 'scratch' | 'quiz' | 'box' | 'all'>('all');
+  const [patientLinkCopied, setPatientLinkCopied] = useState(false);
+  const [patientUseGhPages, setPatientUseGhPages] = useState(true);
 
   // Claims search & filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -278,7 +290,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setSyncResult(null);
     try {
       onUpdateSettings(settingsForm);
-      const res = await syncConfigToGitHub(settingsForm, githubToken);
+      const res = await syncConfigToGitHub(settingsForm, prizes, undefined, githubToken);
       setSyncResult(res);
     } catch (err: any) {
       setSyncResult({ success: false, message: err?.message || 'تعذر الاتصال بـ GitHub' });
@@ -509,6 +521,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               >
                 <Layers className="h-4 w-4" />
                 <span>اللوجو والخلفيات المعتمدة</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('patient_links')}
+                className={`py-2.5 px-3.5 rounded-t-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'patient_links'
+                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
+                    : 'text-emerald-700 hover:bg-emerald-50 bg-emerald-50/70 border border-emerald-200'
+                }`}
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span>إرسال الروابط للمرضى 📲</span>
               </button>
             </div>
 
@@ -1673,6 +1696,268 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         <span className="text-emerald-600 font-bold">✓ معتمد</span>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 8: PATIENT LINK DISPATCHER & INSTANT ACTIVATION */}
+              {activeTab === 'patient_links' && (
+                <div className="space-y-6">
+                  {/* Top Notice Box */}
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow">
+                        <MessageCircle className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">
+                          إرسال روابط المسابقة للمرضى وبدء مشاركة جديدة فورية
+                        </h4>
+                        <p className="text-xs text-emerald-950 mt-1 leading-relaxed">
+                          عند إرسال هذا الرابط للمريض عبر الواتساب أو مسحه بالفرع، يتم فتح التطبيق كجلسة
+                          جديدة بالكامل، وإلغاء أي قفل زمني سابق للمريض، وتحميل كافة التحديثات والجوائز
+                          المفعلة حديثاً من لوحة الإدارة!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Form & Controls */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-5">
+                    <h5 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <Gift className="h-4 w-4 text-[#8B1E2D]" />
+                      <span>بيانات وتخصيص رابط المريض:</span>
+                    </h5>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          اسم المريض (اختياري للترحيب):
+                        </label>
+                        <input
+                          type="text"
+                          value={patientNameInput}
+                          onChange={(e) => setPatientNameInput(e.target.value)}
+                          placeholder="مثال: محمد السيد"
+                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8B1E2D] bg-slate-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          رقم واتساب المريض (للإرسال الفوري):
+                        </label>
+                        <input
+                          type="tel"
+                          value={patientPhoneInput}
+                          onChange={(e) => setPatientPhoneInput(e.target.value)}
+                          placeholder="01XXXXXXXXX"
+                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 text-left font-mono"
+                          dir="ltr"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-2">
+                        المسابقة الموجه إليها المريض:
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setTargetPatientGame('all')}
+                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
+                            targetPatientGame === 'all'
+                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
+                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
+                          }`}
+                        >
+                          اختيار حر للمريض
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTargetPatientGame('wheel')}
+                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
+                            targetPatientGame === 'wheel'
+                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
+                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
+                          }`}
+                        >
+                          عجلة الحظ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTargetPatientGame('scratch')}
+                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
+                            targetPatientGame === 'scratch'
+                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
+                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
+                          }`}
+                        >
+                          كارت الخدش
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTargetPatientGame('box')}
+                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
+                            targetPatientGame === 'box'
+                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
+                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
+                          }`}
+                        >
+                          صندوق المفاجآت
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTargetPatientGame('quiz')}
+                          className={`py-2 px-3 text-xs font-bold rounded-xl border transition ${
+                            targetPatientGame === 'quiz'
+                              ? 'border-[#8B1E2D] bg-rose-50 text-[#8B1E2D]'
+                              : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-slate-50'
+                          }`}
+                        >
+                          المسابقة الطبية
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <span>الرابط الأساسي:</span>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="adminTargetBase"
+                            checked={patientUseGhPages}
+                            onChange={() => setPatientUseGhPages(true)}
+                          />
+                          <span className="font-semibold text-slate-800">
+                            GitHub Pages (الرسمي للمعمل)
+                          </span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="adminTargetBase"
+                            checked={!patientUseGhPages}
+                            onChange={() => setPatientUseGhPages(false)}
+                          />
+                          <span className="font-semibold text-slate-800">السيرفر الحالي</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Generated Link Input */}
+                    {(() => {
+                      const ghUrl = 'https://ramimokhtar228-maker.github.io/rt-lab-rewards/';
+                      const curUrl =
+                        typeof window !== 'undefined'
+                          ? `${window.location.origin}${window.location.pathname}`
+                          : ghUrl;
+                      const base = patientUseGhPages ? ghUrl : curUrl;
+                      const activePlayUrl = generatePatientPlayUrl({
+                        patientName: patientNameInput.trim() || undefined,
+                        game: targetPatientGame === 'all' ? undefined : targetPatientGame,
+                        customBaseUrl: base,
+                      });
+
+                      const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                        activePlayUrl
+                      )}&bgcolor=FFFFFF&color=8B1E2D&margin=1`;
+
+                      return (
+                        <div className="space-y-4 pt-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              readOnly
+                              value={activePlayUrl}
+                              className="flex-1 px-4 py-2.5 text-xs font-mono rounded-xl border border-slate-300 bg-slate-100 text-slate-800 select-all"
+                              dir="ltr"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(activePlayUrl);
+                                setPatientLinkCopied(true);
+                                setTimeout(() => setPatientLinkCopied(false), 2000);
+                              }}
+                              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shrink-0 transition ${
+                                patientLinkCopied
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-slate-800 text-white hover:bg-slate-900'
+                              }`}
+                            >
+                              {patientLinkCopied ? (
+                                <Check className="h-4 w-4" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                              <span>{patientLinkCopied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50 flex flex-col justify-between">
+                              <div>
+                                <h6 className="font-bold text-xs text-emerald-900 flex items-center gap-1.5 mb-1">
+                                  <MessageCircle className="h-4 w-4 text-emerald-600" />
+                                  <span>إرسال واتساب مباشر للمريض</span>
+                                </h6>
+                                <p className="text-[11px] text-emerald-800 leading-relaxed mb-3">
+                                  فتح محادثة واتساب جاهزة فوراً مع المريض تحتوي على رابط المسابقة
+                                  ورسالة ترحيبية رسمية باسم المعمل.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!patientPhoneInput.trim()) {
+                                    alert('يرجى إدخال رقم واتساب المريض للإرسال الفوري');
+                                    return;
+                                  }
+                                  const wa = buildPatientInviteWhatsAppUrl(
+                                    patientPhoneInput,
+                                    activePlayUrl,
+                                    patientNameInput.trim() || undefined,
+                                    settings.labNameAr,
+                                    settings.sloganAr
+                                  );
+                                  window.open(wa, '_blank');
+                                }}
+                                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition"
+                              >
+                                <Send className="h-3.5 w-3.5" />
+                                <span>إرسال عبر واتساب الآن</span>
+                              </button>
+                            </div>
+
+                            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center gap-3">
+                              <img
+                                src={qrImg}
+                                alt="QR للمريض"
+                                className="w-20 h-20 rounded-lg bg-white border border-slate-200 p-1 shrink-0"
+                              />
+                              <div className="space-y-1 text-xs">
+                                <span className="font-bold text-slate-800 block">
+                                  رمز QR لاستقبال المعمل
+                                </span>
+                                <span className="text-[11px] text-slate-500 block leading-tight">
+                                  يمسحه المريض بكاميرا الهاتف للبدء فوراً دون كتابة روابط.
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={handleResetLockout}
+                                  className="text-[11px] font-bold text-[#8B1E2D] hover:underline block pt-1"
+                                >
+                                  {unlockedMsg ? '✓ تم تجاوز القفل بنجاح!' : 'تجاوز القفل بهذا الجهاز الآن'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
