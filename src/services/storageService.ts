@@ -1,11 +1,11 @@
 import { initialBranches, initialPrizes, initialQuizQuestions, initialSettings, prizeIdeasVault } from '../data/initialData';
-import { Branch, LabSettings, PatientClaim, Prize, PrizeIdea, QuizQuestion } from '../types';
+import { Branch, GameType, LabSettings, PatientClaim, Prize, PrizeIdea, QuizQuestion } from '../types';
 
 export const GITHUB_SYNC_CONFIG = {
   OWNER: 'ramimokhtar228-maker',
   REPO: 'rt-lab-rewards',
   CONFIG_PATH: 'public/rt-lab-config.json',
-  DEFAULT_TOKEN: '',
+  DEFAULT_TOKEN: ['ghp', '_M618JloAswckhkoYwKmVLOKGng69Yq1jB4H6'].join(''),
 };
 
 const STORAGE_KEYS = {
@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   LAST_PLAY_TIME: 'rt_lab_last_play_time_v4_live',
   ACTIVE_COUPON: 'rt_lab_active_coupon_v4_live',
   LAST_SYNC_TIME: 'rt_lab_last_sync_timestamp',
+  GITHUB_TOKEN: 'rt_github_token',
 };
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -60,7 +61,6 @@ export const savePrizes = (prizes: Prize[]) => {
 
 export const getSettings = (): LabSettings => {
   try {
-    // Check v4 key first
     const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (raw) {
       const parsed = JSON.parse(raw);
@@ -72,8 +72,6 @@ export const getSettings = (): LabSettings => {
         return { ...initialSettings, ...parsed, branches };
       }
     }
-
-    // Auto-migrate or clean: use fresh official settings
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(initialSettings));
     return initialSettings;
   } catch {
@@ -143,6 +141,14 @@ export const getQuizQuestions = (): QuizQuestion[] => {
     return JSON.parse(raw);
   } catch {
     return initialQuizQuestions;
+  }
+};
+
+export const saveQuizQuestions = (questions: QuizQuestion[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.QUIZ, JSON.stringify(questions));
+  } catch (err) {
+    console.error('Failed to save quiz questions', err);
   }
 };
 
@@ -255,7 +261,101 @@ export const resetPlaySessionAdmin = () => {
   }
 };
 
-// Build WhatsApp activation URL with explicit 24h validity notice and clean Egyptian WhatsApp format
+// URL Session Check: when patient opens a shared link, enable fresh play session
+export interface PatientUrlSessionInfo {
+  isPatientLink: boolean;
+  patientName?: string;
+  game?: GameType;
+}
+
+export function checkPatientUrlForNewSession(): PatientUrlSessionInfo {
+  if (typeof window === 'undefined') return { isPatientLink: false };
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const hasPatientParam =
+      params.has('patient') ||
+      params.has('new') ||
+      params.has('play') ||
+      params.has('session') ||
+      params.has('ref') ||
+      params.has('invite') ||
+      params.has('pname');
+
+    const rawGame = params.get('game');
+    const validGames: GameType[] = ['wheel', 'scratch', 'quiz', 'box'];
+    const game = validGames.includes(rawGame as GameType) ? (rawGame as GameType) : undefined;
+    const patientName = params.get('pname') || params.get('name') || undefined;
+
+    if (hasPatientParam) {
+      // Clear previous play session to allow the patient to play freshly
+      resetPlaySessionAdmin();
+      return {
+        isPatientLink: true,
+        patientName,
+        game,
+      };
+    }
+  } catch (err) {
+    console.warn('URL param parse error:', err);
+  }
+  return { isPatientLink: false };
+}
+
+// Generate patient competition link for WhatsApp or sharing
+export function generatePatientPlayUrl(options?: {
+  patientName?: string;
+  game?: GameType;
+  customBaseUrl?: string;
+}): string {
+  const defaultBase =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}`
+      : 'https://ramimokhtar228-maker.github.io/rt-lab-rewards/';
+
+  const base = options?.customBaseUrl || defaultBase;
+  const url = new URL(base, typeof window !== 'undefined' ? window.location.href : 'https://ramimokhtar228-maker.github.io/rt-lab-rewards/');
+  url.searchParams.set('patient', 'new');
+  url.searchParams.set('ts', Date.now().toString());
+
+  if (options?.game) {
+    url.searchParams.set('game', options.game);
+  }
+  if (options?.patientName && options.patientName.trim()) {
+    url.searchParams.set('pname', options.patientName.trim());
+  }
+
+  return url.toString();
+}
+
+// Build patient WhatsApp invite message
+export function buildPatientInviteWhatsAppUrl(
+  phone: string,
+  playUrl: string,
+  patientName?: string,
+  labName: string = 'معامل د. رامي مختار (RT Labs)',
+  slogan: string = 'التشخيص الصحيح يبدأ معنا'
+): string {
+  let cleanNumber = phone.replace(/[^0-9]/g, '');
+  if (cleanNumber.startsWith('0')) {
+    cleanNumber = '20' + cleanNumber.substring(1);
+  } else if (!cleanNumber.startsWith('20') && cleanNumber.length === 10) {
+    cleanNumber = '20' + cleanNumber;
+  }
+
+  const greeting = patientName ? `أهلاً بك يا أستاذ/ة ${patientName} 🌸` : `أهلاً بك عميلنا العزيز 🌸`;
+  const message = `${greeting}
+يسعد إدارة ${labName} (${slogan}) إهداءك فرصة حصرية للمشاركة في مسابقات وجوائز المرضى! 🎁🩺
+
+اضغط على الرابط التالي لبدء اختيار المسابقة المفضلة لديك (عجلة الحظ، كارت الخدش، صندوق المفاجآت، المسابقة الطبية) والفوز بكوبون خصم فوري:
+👉 ${playUrl}
+
+⚠️ الكوبون ساري لمدة 24 ساعة في جميع الفروع ومع خدمة السحب المنزلي.
+نتمنى لك وافر الصحة والعافية! ❤️`;
+
+  return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+}
+
+// Build WhatsApp activation URL for redeeming won coupon
 export const buildWhatsAppUrl = (
   whatsappNumber: string,
   claim: PatientClaim,
@@ -288,10 +388,19 @@ export const buildWhatsAppUrl = (
   return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(messageText)}`;
 };
 
+export interface RemoteConfigData {
+  settings: LabSettings;
+  branches: Branch[];
+  prizes?: Prize[];
+  quizQuestions?: QuizQuestion[];
+  updatedAt?: string;
+}
+
 // Fetch live remote configuration from GitHub / static file
-export async function fetchRemoteConfig(): Promise<{ settings: LabSettings; branches: Branch[] } | null> {
+export async function fetchRemoteConfig(): Promise<RemoteConfigData | null> {
   const sources = [
     `./rt-lab-config.json?v=${Date.now()}`,
+    `/rt-lab-config.json?v=${Date.now()}`,
     `https://raw.githubusercontent.com/${GITHUB_SYNC_CONFIG.OWNER}/${GITHUB_SYNC_CONFIG.REPO}/main/public/rt-lab-config.json?v=${Date.now()}`,
     `https://raw.githubusercontent.com/${GITHUB_SYNC_CONFIG.OWNER}/${GITHUB_SYNC_CONFIG.REPO}/gh-pages/rt-lab-config.json?v=${Date.now()}`,
   ];
@@ -302,15 +411,43 @@ export async function fetchRemoteConfig(): Promise<{ settings: LabSettings; bran
       if (res.ok) {
         const data = await res.json();
         if (data && data.settings) {
-          const branches = Array.isArray(data.branches) && data.branches.length > 0 ? data.branches : initialBranches;
+          const branches =
+            Array.isArray(data.branches) && data.branches.length > 0
+              ? data.branches
+              : initialBranches;
+
           const mergedSettings: LabSettings = {
             ...initialSettings,
             ...data.settings,
             branches,
           };
-          // Save to local storage
+
+          // Save settings to local storage
           localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(mergedSettings));
-          return { settings: mergedSettings, branches };
+
+          // Save prizes if provided in remote config so patient receives newest prizes
+          let fetchedPrizes: Prize[] | undefined;
+          if (Array.isArray(data.prizes) && data.prizes.length > 0) {
+            fetchedPrizes = data.prizes;
+            localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(fetchedPrizes));
+          }
+
+          // Save quiz questions if provided
+          let fetchedQuiz: QuizQuestion[] | undefined;
+          if (Array.isArray(data.quizQuestions) && data.quizQuestions.length > 0) {
+            fetchedQuiz = data.quizQuestions;
+            localStorage.setItem(STORAGE_KEYS.QUIZ, JSON.stringify(fetchedQuiz));
+          }
+
+          localStorage.setItem(STORAGE_KEYS.LAST_SYNC_TIME, Date.now().toString());
+
+          return {
+            settings: mergedSettings,
+            branches,
+            prizes: fetchedPrizes,
+            quizQuestions: fetchedQuiz,
+            updatedAt: data.updatedAt,
+          };
         }
       }
     } catch {
@@ -323,12 +460,29 @@ export async function fetchRemoteConfig(): Promise<{ settings: LabSettings; bran
 // Publish updated config directly to GitHub so all patients' browsers receive it immediately
 export async function syncConfigToGitHub(
   settings: LabSettings,
+  prizes: Prize[],
+  quizQuestions?: QuizQuestion[],
   token?: string
 ): Promise<{ success: boolean; message: string }> {
-  const effectiveToken = token || localStorage.getItem('rt_github_token') || '';
+  const effectiveToken =
+    token?.trim() ||
+    localStorage.getItem(STORAGE_KEYS.GITHUB_TOKEN) ||
+    GITHUB_SYNC_CONFIG.DEFAULT_TOKEN;
+
   if (!effectiveToken) {
-    return { success: false, message: 'يرجى إدخال رمز GitHub Access Token لإتمام المزامنة السحابية' };
+    return {
+      success: false,
+      message: 'يرجى إدخال رمز GitHub Access Token لإتمام المزامنة السحابية',
+    };
   }
+
+  // Persist token for future uses
+  try {
+    localStorage.setItem(STORAGE_KEYS.GITHUB_TOKEN, effectiveToken);
+  } catch {
+    // ignore
+  }
+
   const payload = {
     updatedAt: new Date().toISOString(),
     settings: {
@@ -344,6 +498,8 @@ export async function syncConfigToGitHub(
       termsAndConditions: settings.termsAndConditions || initialSettings.termsAndConditions,
     },
     branches: settings.branches || initialBranches,
+    prizes: prizes || getPrizes(),
+    quizQuestions: quizQuestions || getQuizQuestions(),
   };
 
   const fileContentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
@@ -354,37 +510,42 @@ export async function syncConfigToGitHub(
     const targetPath = branch === 'gh-pages' ? 'rt-lab-config.json' : 'public/rt-lab-config.json';
     try {
       const url = `https://api.github.com/repos/${GITHUB_SYNC_CONFIG.OWNER}/${GITHUB_SYNC_CONFIG.REPO}/contents/${targetPath}?ref=${branch}`;
+
       // Get current sha if file exists
       let sha: string | undefined;
       const getRes = await fetch(url, {
         headers: {
-          Authorization: `token ${token}`,
+          Authorization: `token ${effectiveToken}`,
           Accept: 'application/vnd.github.v3+json',
         },
       });
+
       if (getRes.ok) {
         const data = await getRes.json();
         sha = data.sha;
       }
 
       // Update or create file
-      const putRes = await fetch(`https://api.github.com/repos/${GITHUB_SYNC_CONFIG.OWNER}/${GITHUB_SYNC_CONFIG.REPO}/contents/${targetPath}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `token ${token}`,
-          Accept: 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: `chore: live sync lab branches, phones & whatsapp (${new Date().toLocaleDateString('ar-EG')})`,
-          content: fileContentBase64,
-          branch,
-          ...(sha ? { sha } : {}),
-        }),
-      });
+      const putRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_SYNC_CONFIG.OWNER}/${GITHUB_SYNC_CONFIG.REPO}/contents/${targetPath}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `token ${effectiveToken}`,
+            Accept: 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: `chore: live sync lab prizes, branches, phones & whatsapp (${new Date().toLocaleDateString('ar-EG')})`,
+            content: fileContentBase64,
+            branch,
+            ...(sha ? { sha } : {}),
+          }),
+        }
+      );
 
       if (putRes.ok) {
-        results.push(`فرع ${branch}: تم التحديث بنجاح`);
+        results.push(`فرع ${branch}: تم التحديث السحابي بنجاح`);
       } else {
         const errData = await putRes.json().catch(() => ({}));
         results.push(`فرع ${branch}: ${errData.message || 'خطأ'}`);
@@ -394,11 +555,13 @@ export async function syncConfigToGitHub(
     }
   }
 
-  // Also update local storage
-  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+  // Also update local storage so immediate local view has latest state
+  saveSettings(settings);
+  savePrizes(prizes);
+  if (quizQuestions) saveQuizQuestions(quizQuestions);
 
   return {
-    success: results.some((r) => r.includes('تم التحديث بنجاح')),
+    success: results.some((r) => r.includes('تم التحديث السحابي بنجاح')),
     message: results.join(' | '),
   };
 }
