@@ -46,6 +46,7 @@ import {
   syncConfigToGitHub,
   updateClaimStatus,
 } from '../services/storageService';
+import { labLogo } from '../assets/images';
 import { playReceptionAlertChime } from '../utils/audio';
 import { AdminBookingConfirmModal } from './AdminBookingConfirmModal';
 
@@ -351,8 +352,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         {!isAuthenticated ? (
           /* Authentication Screen */
           <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center max-w-md mx-auto my-auto">
-            <div className="h-16 w-16 rounded-2xl bg-rose-50 border border-rose-200 text-[#8B1E2D] flex items-center justify-center mb-4 shadow-sm">
-              <Lock className="h-8 w-8 text-[#8B1E2D]" />
+            <div className="h-20 w-20 rounded-2xl overflow-hidden border border-rose-200 bg-white p-1.5 shadow-md mb-4">
+              <img
+                src={labLogo}
+                alt="معامل د. رامي مختار RT Labs"
+                className="h-full w-full object-contain"
+              />
             </div>
 
             <h4 className="text-xl font-black text-slate-900">تسجيل الدخول لإدارة المعمل</h4>
