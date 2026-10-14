@@ -55,6 +55,7 @@ import { BranchesModal } from './components/BranchesModal';
 import { PolicyModal } from './components/PolicyModal';
 import { LockoutBanner } from './components/LockoutBanner';
 import { PatientShareModal } from './components/PatientShareModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
 
 export default function App() {
   const [prizes, setPrizes] = useState<Prize[]>(() => getPrizes());
@@ -248,7 +249,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1">
+      <main className="flex-1 pb-20 md:pb-0">
         {/* Hero Section */}
         <Hero
           slogan={settings.sloganAr}
@@ -588,6 +589,15 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Floating Bottom Navigation for Mobile Devices */}
+      <MobileBottomNav
+        settings={settings}
+        onScrollToGames={scrollToGames}
+        onOpenBranches={() => setShowBranches(true)}
+        onOpenPatientShare={() => setShowPatientShare(true)}
+        onOpenPolicy={() => setShowPolicy(true)}
+      />
     </div>
   );
 }
