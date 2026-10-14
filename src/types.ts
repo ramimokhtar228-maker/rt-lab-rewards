@@ -25,6 +25,18 @@ export interface Prize {
   terms: string;
 }
 
+export interface BookingDetails {
+  selectedBranch: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  prepInstructions?: string;
+  isHomeVisit?: boolean;
+  confirmedBy?: string;
+  confirmedAt?: string;
+  whatsappSentAt?: string;
+  adminNotes?: string;
+}
+
 export interface PatientClaim {
   id: string;
   couponCode: string;
@@ -39,8 +51,9 @@ export interface PatientClaim {
   createdAtTimestamp: number;
   expiresAt: string;
   expiresAtTimestamp: number; // 24 hours strictly
-  status: 'pending' | 'verified' | 'redeemed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'redeemed' | 'cancelled';
   notes?: string;
+  bookingDetails?: BookingDetails;
 }
 
 export interface LabSettings {
@@ -52,8 +65,9 @@ export interface LabSettings {
   hotline: string;
   adminPin: string;
   branches: Branch[];
-  couponValidityHours: number; // 24 hours by rule
+  couponValidityHours: number; // 24 hours strictly
   autoOpenWhatsApp: boolean;
+  enableNotificationSound: boolean;
   termsAndConditions: string[];
 }
 
