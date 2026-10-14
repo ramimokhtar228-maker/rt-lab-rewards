@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Award,
   Bell,
+  Building2,
   CheckCircle2,
   Clock,
   ExternalLink,
@@ -37,6 +38,7 @@ import {
   saveSettings,
 } from './services/storageService';
 import { playReceptionAlertChime } from './utils/audio';
+import { labHero, labLogo, labReception, medicalTeam } from './assets/images';
 
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
@@ -260,7 +262,11 @@ export default function App() {
       )}
 
       {/* Hero Section */}
-      <Hero settings={settings} onScrollToGames={scrollToGames} />
+      <Hero
+        settings={settings}
+        onScrollToGames={scrollToGames}
+        onOpenBranches={() => setShowBranches(true)}
+      />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto py-8 space-y-8">
@@ -315,6 +321,141 @@ export default function App() {
                 disabled={!restriction.canPlay}
               />
             )}
+          </div>
+        </section>
+
+        {/* Branches, Reception Photos & Contact Info Section */}
+        <section className="px-4 space-y-6">
+          <div className="text-center max-w-2xl mx-auto">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-[#8B1E2D] font-bold text-xs border border-rose-200 mb-2">
+              <MapPin className="h-3.5 w-3.5 text-[#8B1E2D]" />
+              <span>فروعنا المعتمدة وصالات الاستقبال المجهزة</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900">
+              أهلاً بكم في فروع معمل د. رامي مختار للتحاليل (RT Labs)
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              يسعدنا استقبالكم في أي من فروعنا الأربعة، أو حجز موعد سحب عينة منزلي فوري
+            </p>
+          </div>
+
+          {/* Photos Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative rounded-3xl overflow-hidden border border-slate-200 shadow-sm group bg-slate-900 h-60">
+              <img
+                src={labReception}
+                alt="صالة استقبال معامل رامي مختار"
+                className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-4 text-right">
+                <div>
+                  <span className="text-[10px] font-bold bg-amber-400 text-slate-950 px-2 py-0.5 rounded">
+                    صالة الاستقبال الرئيسية
+                  </span>
+                  <h4 className="text-sm font-bold text-white mt-1">
+                    أعلى معايير النظافة والراحة للمرضى
+                  </h4>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative rounded-3xl overflow-hidden border border-slate-200 shadow-sm group bg-slate-900 h-60">
+              <img
+                src={medicalTeam}
+                alt="الفريق الطبي والاستشاري"
+                className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-4 text-right">
+                <div>
+                  <span className="text-[10px] font-bold bg-emerald-400 text-slate-950 px-2 py-0.5 rounded">
+                    الكادر الطبي
+                  </span>
+                  <h4 className="text-sm font-bold text-white mt-1">
+                    نخبة من أطباء واستشاريي قصر العيني
+                  </h4>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative rounded-3xl overflow-hidden border border-slate-200 shadow-sm group bg-slate-900 h-60">
+              <img
+                src={labHero}
+                alt="أحدث التجهيزات المخبرية"
+                className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-4 text-right">
+                <div>
+                  <span className="text-[10px] font-bold bg-rose-400 text-white px-2 py-0.5 rounded">
+                    التجهيزات والأجهزة
+                  </span>
+                  <h4 className="text-sm font-bold text-white mt-1">
+                    أدق أجهزة التحاليل التلقائية في مصر
+                  </h4>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 4 Branches Contact Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {settings.branches.map((b) => (
+              <div
+                key={b.id}
+                className={`rounded-2xl p-4 border transition flex flex-col justify-between text-right ${
+                  b.isHomeVisit
+                    ? 'border-purple-200 bg-gradient-to-br from-purple-50/70 to-white shadow-xs'
+                    : 'border-slate-200 bg-white hover:border-[#8B1E2D]/40 shadow-xs'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div
+                      className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 ${
+                        b.isHomeVisit ? 'bg-purple-100 text-purple-700' : 'bg-rose-50 text-[#8B1E2D]'
+                      }`}
+                    >
+                      {b.isHomeVisit ? <Home className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
+                    </div>
+                    {b.isHomeVisit ? (
+                      <span className="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+                        خدمة 24/7
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                        {b.hours.includes('24') ? 'متاح 24 ساعة' : 'طوال الأسبوع'}
+                      </span>
+                    )}
+                  </div>
+
+                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm mb-1">{b.name}</h4>
+                  <p className="text-[11px] text-slate-600 mb-2 leading-relaxed">{b.address}</p>
+                  <p className="text-[10px] text-slate-500 mb-3 flex items-center gap-1">
+                    <Clock className="h-3 w-3 text-amber-600" />
+                    <span>{b.hours}</span>
+                  </p>
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                  <a
+                    href={`tel:${b.phone}`}
+                    className="flex-1 py-1.5 px-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-900 font-mono font-bold text-[11px] flex items-center justify-center gap-1 dir-ltr transition"
+                  >
+                    <Phone className="h-3 w-3 text-[#8B1E2D]" />
+                    <span>{b.phone}</span>
+                  </a>
+
+                  <a
+                    href={`https://wa.me/${b.phone.replace(/\D/g, '').startsWith('0') ? '20' + b.phone.replace(/\D/g, '').substring(1) : b.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`مرحباً ${settings.labNameAr}، أود الاستفسار عن مواعيد وحجز فرع (${b.name}).`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center justify-center"
+                    title="مراسلة عبر واتساب"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
