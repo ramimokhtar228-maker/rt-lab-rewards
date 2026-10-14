@@ -13,6 +13,15 @@
     "createdAtTimestamp": 1791986809024,
     "expiresAt": "١٥‏/١٠‏/٢٠٢٦، ٥:٠٦ م",
     "expiresAtTimestamp": 1792073209024,
-    "status": "pending"
+    "status": "confirmed",
+    "bookingDetails": {
+      "selectedBranch": "الفرع الرئيسي (بهتيم - شبرا الخيمة)",
+      "appointmentDate": "2026-10-15",
+      "appointmentTime": "10:00 صباحاً",
+      "prepInstructions": "صيام من 10 إلى 12 ساعة كاملة قبل سحب العينة (يسمح بشرب الماء فقط).",
+      "isHomeVisit": false,
+      "confirmedAt": "١٤‏/١٠‏/٢٠٢٦، ٦:٠٩ م",
+      "whatsappSentAt": "١٤‏/١٠‏/٢٠٢٦، ٦:٠٩ م"
+    }
   }
 ]
