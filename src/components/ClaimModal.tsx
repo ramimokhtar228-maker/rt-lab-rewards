@@ -25,6 +25,7 @@ import {
   saveClaim,
 } from '../services/storageService';
 import { VoucherCard } from './VoucherCard';
+import { labLogo } from '../assets/images';
 
 interface ClaimModalProps {
   prize: Prize;
@@ -166,8 +167,15 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
               {/* Header */}
               <div className="text-center mb-5">
                 <div className="flex items-center justify-center gap-2.5 mb-2.5">
-                  <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-rose-50 text-[#8B1E2D] border border-rose-200 shadow-sm flex items-center justify-center shrink-0">
-                    <Gift className="h-7 w-7 sm:h-8 sm:w-8 text-[#8B1E2D]" />
+                  <div className="h-14 w-14 rounded-2xl overflow-hidden border border-rose-200 bg-white p-1 shadow-sm shrink-0">
+                    <img
+                      src={labLogo}
+                      alt="معامل د. رامي مختار RT Labs"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                  <div className="h-14 w-14 rounded-2xl bg-rose-50 text-[#8B1E2D] border border-rose-200 shadow-sm flex items-center justify-center shrink-0">
+                    <Gift className="h-7 w-7 text-[#8B1E2D]" />
                   </div>
                 </div>
 
