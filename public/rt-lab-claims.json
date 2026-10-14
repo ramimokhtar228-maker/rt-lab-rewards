@@ -1,5 +1,22 @@
 [
   {
+    "id": "claim-1792014109668",
+    "couponCode": "RT-3346",
+    "patientName": "اسماء محمد عبد المتعال",
+    "phone": "01127514753",
+    "branch": "الفرع الرئيسي (بهتيم - شبرا الخيمة)",
+    "prizeId": "prize-2",
+    "prizeTitle": "فحص سكر عشوائي (RBS) مجاناً بالكامل",
+    "discountValue": "مجاناً 100%",
+    "gameType": "scratch",
+    "createdAt": "١٥‏/١٠‏/٢٠٢٦، ١٢:٤١ ص",
+    "createdAtTimestamp": 1792014109668,
+    "expiresAt": "١٦‏/١٠‏/٢٠٢٦، ١٢:٤١ ص",
+    "expiresAtTimestamp": 1792100509668,
+    "status": "pending",
+    "notes": "مقاومه الانسولين"
+  },
+  {
     "id": "claim-1792003657552",
     "couponCode": "RT-9081",
     "patientName": "منه اشرف محمد",
