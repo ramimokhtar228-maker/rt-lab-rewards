@@ -1,139 +1,128 @@
 import React from 'react';
-import { Gift, Lock, Phone } from 'lucide-react';
+import {
+  Bell,
+  Building2,
+  Clock,
+  HeartPulse,
+  Key,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Shield,
+  Sparkles,
+  Volume2,
+} from 'lucide-react';
 import { LabSettings } from '../types';
-import { labLogo } from '../assets/images';
-import { PWAInstallButton } from './PWAInstallButton';
+import { playReceptionAlertChime } from '../utils/audio';
 
 interface HeaderProps {
   settings: LabSettings;
+  pendingClaimsCount: number;
   onOpenAdmin: () => void;
-  onSelectGame: (game: 'wheel' | 'scratch' | 'quiz' | 'box') => void;
-  activeGame: 'wheel' | 'scratch' | 'quiz' | 'box';
   onOpenBranches: () => void;
   onOpenPolicy: () => void;
-  onOpenPatientShare?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   settings,
+  pendingClaimsCount,
   onOpenAdmin,
-  onSelectGame,
-  activeGame,
   onOpenBranches,
   onOpenPolicy,
-  onOpenPatientShare,
 }) => {
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 h-15 sm:h-16 flex items-center justify-between gap-2 sm:gap-6">
-        {/* Zone 1: Lab Emblem + Wordmark */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
-          <div className="h-9 w-9 sm:h-11 sm:w-11 overflow-hidden rounded-xl border border-rose-200 shadow-xs bg-white shrink-0">
-            <img
-              src={labLogo}
-              alt="معامل رامي مختار RT Labs"
-              className="h-full w-full object-contain"
-              referrerPolicy="no-referrer"
-            />
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+      {/* Top micro info banner */}
+      <div className="bg-gradient-to-r from-[#8B1E2D] via-[#a32839] to-[#0F2B5C] text-white px-3 sm:px-6 py-1.5 text-[11px] sm:text-xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 font-bold">
+              <Clock className="h-3 w-3 text-amber-300" />
+              <span>فترة صلاحية الكوبونات: 24 ساعة فقط من وقت المكسب</span>
+            </span>
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-xs sm:text-base font-black text-[#0F2B5C] tracking-tight truncate">
-              معامل رامي مختار <span className="text-[#8B1E2D]">RT Labs</span>
-            </span>
-            <span className="text-[9px] sm:text-[11px] text-[#8B1E2D] font-bold truncate">
-              {settings.sloganAr || 'التشخيص الصحيح يبدأ معنا'}
-            </span>
+
+          <div className="flex items-center gap-4 text-[11px] font-bold">
+            <a
+              href={`tel:${settings.hotline}`}
+              className="flex items-center gap-1 hover:text-amber-200 transition"
+            >
+              <Phone className="h-3 w-3 text-amber-300" />
+              <span>الخط الساخن: {settings.hotline}</span>
+            </a>
+            <a
+              href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1 text-emerald-300 hover:text-emerald-200 transition"
+            >
+              <MessageCircle className="h-3 w-3" />
+              <span>واتساب المعمل</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Main navigation bar */}
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-3">
+        {/* Logo and Brand */}
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl bg-gradient-to-br from-[#8B1E2D] to-rose-700 text-white flex items-center justify-center font-black text-xl shadow-md shadow-rose-900/20 border border-white/30 shrink-0">
+            <HeartPulse className="h-6 w-6 text-amber-300" />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
+                {settings.labNameAr}
+              </h1>
+              <span className="hidden md:inline-block text-[10px] bg-rose-50 text-[#8B1E2D] px-2 py-0.5 rounded-full font-bold border border-rose-200">
+                قصر العيني
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium truncate max-w-xs sm:max-w-md">
+              {settings.sloganAr}
+            </p>
           </div>
         </div>
 
-        {/* Zone 2: Navigation links (Desktop only) */}
-        <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold text-slate-600 shrink-0">
-          <button
-            onClick={() => onSelectGame('wheel')}
-            className={`transition whitespace-nowrap ${
-              activeGame === 'wheel'
-                ? 'text-[#8B1E2D] font-bold border-b-2 border-[#8B1E2D] pb-0.5'
-                : 'hover:text-slate-900'
-            }`}
-          >
-            عجلة الحظ
-          </button>
-          <button
-            onClick={() => onSelectGame('scratch')}
-            className={`transition whitespace-nowrap ${
-              activeGame === 'scratch'
-                ? 'text-[#8B1E2D] font-bold border-b-2 border-[#8B1E2D] pb-0.5'
-                : 'hover:text-slate-900'
-            }`}
-          >
-            كارت الخدش
-          </button>
-          <button
-            onClick={() => onSelectGame('quiz')}
-            className={`transition whitespace-nowrap ${
-              activeGame === 'quiz'
-                ? 'text-[#8B1E2D] font-bold border-b-2 border-[#8B1E2D] pb-0.5'
-                : 'hover:text-slate-900'
-            }`}
-          >
-            تحدي المعلومات
-          </button>
-          <button
-            onClick={() => onSelectGame('box')}
-            className={`transition whitespace-nowrap ${
-              activeGame === 'box'
-                ? 'text-[#8B1E2D] font-bold border-b-2 border-[#8B1E2D] pb-0.5'
-                : 'hover:text-slate-900'
-            }`}
-          >
-            صناديق المفاجآت
-          </button>
-          <button
-            onClick={onOpenPolicy}
-            className="hover:text-slate-900 transition whitespace-nowrap text-amber-800 font-bold"
-          >
-            الشروط
-          </button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          {/* Branches button */}
           <button
             onClick={onOpenBranches}
-            className="hover:text-slate-900 transition whitespace-nowrap text-slate-600"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-xs"
           >
-            الفروع ({settings.branches.length})
+            <MapPin className="h-3.5 w-3.5 text-[#8B1E2D]" />
+            <span>الفروع (4)</span>
           </button>
-        </nav>
 
-        {/* Zone 3: Mobile & Desktop Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {onOpenPatientShare && (
-            <button
-              onClick={onOpenPatientShare}
-              className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition shadow-xs whitespace-nowrap"
-              title="إرسال رابط مسابقة مفعّل للمريض"
-            >
-              <Gift className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-              <span className="hidden sm:inline">إرسال الرابط لمريض</span>
-              <span className="sm:hidden">إرسال 🎁</span>
-            </button>
-          )}
-
-          <div className="hidden sm:block">
-            <PWAInstallButton />
-          </div>
-
-          <a
-            href={`tel:${settings.hotline}`}
-            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#0F2B5C] bg-blue-50 hover:bg-blue-100 rounded-xl transition whitespace-nowrap"
+          {/* Policy / Terms button */}
+          <button
+            onClick={onOpenPolicy}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-xs"
           >
-            <Phone className="h-3.5 w-3.5" />
-            <span className="font-mono">{settings.hotline}</span>
-          </a>
+            <Shield className="h-3.5 w-3.5 text-[#0F2B5C]" />
+            <span>الشروط والقواعد</span>
+          </button>
 
+          {/* Reception & Admin Dashboard Button with Alert Badge */}
           <button
             onClick={onOpenAdmin}
-            className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold text-white bg-[#8B1E2D] hover:bg-[#731925] rounded-xl shadow-xs transition whitespace-nowrap"
+            className={`relative flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-black shadow-sm transition ${
+              pendingClaimsCount > 0
+                ? 'bg-[#8B1E2D] hover:bg-[#731925] text-white shadow-rose-900/30'
+                : 'border border-slate-300 bg-slate-900 text-white hover:bg-slate-800'
+            }`}
+            title="لوحة الإدارة والاستقبال ومتابعة الحجوزات"
           >
-            <Lock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-            <span>الإدارة</span>
+            <Key className="h-3.5 w-3.5 text-amber-300" />
+            <span className="hidden xs:inline">إدارة المعمل</span>
+            {pendingClaimsCount > 0 && (
+              <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded-full animate-pulse mr-0.5">
+                {pendingClaimsCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
