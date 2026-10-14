@@ -13,10 +13,10 @@
   "dir": "rtl",
   "icons": [
     {
-      "src": "./src/assets/images/rt_lab_logo_1791920408886.jpg",
+      "src": "./rt-logo.jpg",
       "sizes": "192x192 512x512",
       "type": "image/jpeg",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ]
 }
