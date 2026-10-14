@@ -48,6 +48,7 @@ import { SpinWheel } from './components/SpinWheel';
 import { ScratchCard } from './components/ScratchCard';
 import { MysteryBox } from './components/MysteryBox';
 import { HealthQuiz } from './components/HealthQuiz';
+import { MedicalMemoryMatch } from './components/MedicalMemoryMatch';
 import { ClaimModal } from './components/ClaimModal';
 import { AdminPanel } from './components/AdminPanel';
 import { BranchesModal } from './components/BranchesModal';
@@ -99,7 +100,8 @@ export default function App() {
     const sessionInfo = checkPatientUrlForNewSession();
     if (sessionInfo.isPatientLink) {
       resetPlaySessionAdmin();
-      setRestriction(check24HourRestriction());
+      setRestriction({ canPlay: true, remainingTimeFormatted: '', remainingMs: 0 });
+      setWonPrize(null);
       if (sessionInfo.game) setActiveGame(sessionInfo.game);
       setPatientGreeting({
         show: true,
@@ -308,6 +310,14 @@ export default function App() {
 
             {activeGame === 'box' && (
               <MysteryBox
+                prizes={prizes}
+                onWin={handlePrizeWon}
+                disabled={!restriction.canPlay}
+              />
+            )}
+
+            {activeGame === 'match' && (
+              <MedicalMemoryMatch
                 prizes={prizes}
                 onWin={handlePrizeWon}
                 disabled={!restriction.canPlay}

@@ -1,5 +1,4 @@
-import React from 'react';
-import { Award, Compass, Gift, HelpCircle, Package, Sparkles } from 'lucide-react';
+import { Award, Compass, Dna, Gift, HelpCircle, Layers, Package, Sparkles } from 'lucide-react';
 import { GameType } from '../types';
 
 interface GameSelectorProps {
@@ -37,9 +36,16 @@ export const GameSelector: React.FC<GameSelectorProps> = ({
     {
       id: 'box',
       title: 'صناديق المفاجآت',
-      description: 'اختر أحد الصناديق الثلاثة لفتح هديتك الحصرية',
+      description: 'اختر أحد الصناديق لفتح هديتك الحصرية',
       badge: 'مفاجآت كبرى',
       icon: <Package className="h-5 w-5" />,
+    },
+    {
+      id: 'match',
+      title: 'كروت الذاكرة الطبية',
+      description: 'طابق الرموز الصحية والأيقونات واكشف جائزتك',
+      badge: 'جديد وحصري',
+      icon: <Dna className="h-5 w-5" />,
     },
     {
       id: 'quiz',
@@ -51,7 +57,7 @@ export const GameSelector: React.FC<GameSelectorProps> = ({
   ];
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4">
+    <div className="w-full max-w-5xl mx-auto px-4">
       <div className="text-center mb-5">
         <h3 className="text-lg sm:text-xl font-black text-slate-900">
           اختر وسيلة الترفيه المفضلة لديك 🎮
@@ -61,7 +67,7 @@ export const GameSelector: React.FC<GameSelectorProps> = ({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
         {games.map((g) => {
           const isActive = activeGame === g.id;
           return (

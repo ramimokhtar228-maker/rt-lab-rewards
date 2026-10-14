@@ -185,3 +185,6 @@ export function playCorrectSound() {
     // ignore
   }
 }
+
+export const playClickTone = playTickSound;
+export const playVictoryChime = playWinFanfare;

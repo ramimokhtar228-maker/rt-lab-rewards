@@ -589,6 +589,9 @@ export function generatePatientPlayUrl(
   const cleanBase = baseUrl.split('?')[0];
   const params = new URLSearchParams();
   params.set('ref', 'patient_invite');
+  const uniqueSid = `RT-${Date.now().toString(36)}-${Math.floor(1000 + Math.random() * 9000)}`;
+  params.set('sid', uniqueSid);
+  params.set('fresh', '1');
   params.set('t', Date.now().toString());
   if (pName?.trim()) params.set('pname', pName.trim());
   if (pPhone?.trim()) params.set('pphone', pPhone.trim());
@@ -626,7 +629,7 @@ export function buildPatientInviteWhatsAppUrl(
   const greeting = patientName ? `أهلاً بك يا أستاذ/ة ${patientName} 🌸\n` : `أهلاً بك عميلنا العزيز 🌸\n`;
   const message = `${greeting}يسعد إدارة ${labName} (${slogan}) إهداءك فرصة حصرية للمشاركة في مسابقات وجوائز المرضى! 🎁🩺
 
-اضغط على الرابط التالي لبدء اختيار المسابقة المفضلة لديك (عجلة الحظ، كارت الخدش، صندوق المفاجآت، المسابقة الطبية) والفوز بكوبون خصم فوري:
+اضغط على الرابط التالي لبدء اختيار المسابقة المفضلة لديك (عجلة الحظ، كارت الخدش، صناديق المفاجآت، بطاقات الذاكرة الطبية، المسابقة التثقيفية) والفوز بكوبون خصم فوري:
 👉 ${playUrl}
 
 ⚠️ الكوبون ساري لمدة 24 ساعة في جميع الفروع ومع خدمة السحب المنزلي.
@@ -641,20 +644,31 @@ export function checkPatientUrlForNewSession(): {
   patientName?: string;
   patientPhone?: string;
   game?: GameType;
+  sessionId?: string;
 } {
   try {
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
-    const isPatientLink = ref === 'patient_invite' || ref === 'wa' || ref === 'sms';
+    const sid = params.get('sid');
+    const fresh = params.get('fresh');
+    const isPatientLink =
+      Boolean(sid) ||
+      fresh === '1' ||
+      ref === 'patient_invite' ||
+      ref === 'wa' ||
+      ref === 'sms' ||
+      ref === 'invite' ||
+      params.has('pname') ||
+      params.has('pphone');
     const patientName = params.get('pname') || undefined;
     const patientPhone = params.get('pphone') || undefined;
     const rawGame = params.get('game');
     const game =
-      rawGame === 'wheel' || rawGame === 'scratch' || rawGame === 'quiz' || rawGame === 'box'
+      rawGame === 'wheel' || rawGame === 'scratch' || rawGame === 'quiz' || rawGame === 'box' || rawGame === 'match'
         ? rawGame
         : undefined;
 
-    return { isPatientLink, patientName, patientPhone, game };
+    return { isPatientLink, patientName, patientPhone, game, sessionId: sid || undefined };
   } catch {
     return { isPatientLink: false };
   }

@@ -17,6 +17,7 @@ import {
   EyeOff,
   FileText,
   Gift,
+  Globe,
   HelpCircle,
   Home,
   Key,
@@ -82,6 +83,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSettingsPin, setShowSettingsPin] = useState(false);
 
   // Tabs
   const [activeTab, setActiveTab] = useState<
@@ -160,6 +162,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Patient Link Dispatcher State
   const [patientNameInput, setPatientNameInput] = useState('');
   const [patientPhoneInput, setPatientPhoneInput] = useState('');
+  const [inviteGame, setInviteGame] = useState<GameType | 'all'>('all');
+  const [inviteUseGitHub, setInviteUseGitHub] = useState(true);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   // Claims search & filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -169,7 +174,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput.trim() === settings.adminPin || pinInput.trim() === '1234') {
+    const targetPin = settings.adminPin?.trim() || '1234';
+    if (pinInput.trim() === targetPin) {
       setIsAuthenticated(true);
       setPinError(false);
     } else {
@@ -594,7 +600,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <h4 className="text-xl font-black text-slate-900">تسجيل الدخول لإدارة المعمل</h4>
             <p className="text-xs text-slate-600 mt-1 mb-6 leading-relaxed">
-              هذه المنطقة مخصصة حصرياً لإدارة معمل د. رامي مختار وموظفي الاستقبال. أدخل رمز المرور السري (الافتراضي: 1234).
+              هذه المنطقة مخصصة حصرياً لإدارة معمل د. رامي مختار وموظفي الاستقبال. يرجى إدخال رمز المرور السري الخاص بالإدارة.
             </p>
 
             <form onSubmit={handleLogin} className="w-full space-y-4">
@@ -1006,21 +1012,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                     <div className="text-amber-700 font-semibold">{claim.expiresAt}</div>
                                   </td>
 
-                                  {/* Status */}
+                                   {/* Status Selector */}
                                   <td className="p-3 whitespace-nowrap">
-                                    {isRedeemed ? (
-                                      <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                                        <CheckCircle2 className="h-3 w-3" /> تم الصرف
-                                      </span>
-                                    ) : isConfirmed ? (
-                                      <span className="inline-flex items-center gap-1 rounded bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800">
-                                        <Check className="h-3 w-3" /> مؤكد واتساب
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 animate-pulse">
-                                        <Clock className="h-3 w-3" /> جديد غير مؤكد
-                                      </span>
-                                    )}
+                                    <select
+                                      value={claim.status}
+                                      onChange={async (e) => {
+                                        const newStatus = e.target.value as PatientClaim['status'];
+                                        await updateClaimStatus(claim.id, newStatus);
+                                        onRefreshClaims();
+                                      }}
+                                      className={`text-[11px] font-bold rounded-lg px-2.5 py-1 border outline-none cursor-pointer transition shadow-2xs ${
+                                        isRedeemed
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                          : isConfirmed
+                                          ? 'bg-blue-50 text-blue-800 border-blue-300'
+                                          : claim.status === 'cancelled'
+                                          ? 'bg-slate-100 text-slate-600 border-slate-300'
+                                          : 'bg-amber-50 text-amber-800 border-amber-300 font-black'
+                                      }`}
+                                    >
+                                      <option value="pending">⏳ قيد الانتظار</option>
+                                      <option value="confirmed">✅ مؤكد ومجدول</option>
+                                      <option value="redeemed">🎉 تم الصرف</option>
+                                      <option value="cancelled">❌ ملغي</option>
+                                    </select>
                                   </td>
 
                                   {/* ACTION & EDIT BUTTONS */}
@@ -1043,39 +1058,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                       {/* EDIT CLAIM BUTTON */}
                                       <button
                                         onClick={() => handleOpenEditClaim(claim)}
-                                        className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold flex items-center gap-1 transition"
+                                        className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold flex items-center gap-1 transition"
                                         title="تعديل بيانات الكوبون والمريض"
                                       >
                                         <Edit className="h-3.5 w-3.5 text-amber-700" />
                                         <span>تعديل</span>
                                       </button>
 
-                                      {/* Mark Redeemed */}
-                                      {!isRedeemed && (
-                                        <button
-                                          onClick={async () => {
-                                            await updateClaimStatus(claim.id, 'redeemed');
-                                            onRefreshClaims();
-                                          }}
-                                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[10px] font-bold transition"
-                                          title="صرف الكوبون"
-                                        >
-                                          صرف
-                                        </button>
-                                      )}
-
                                       {/* Delete */}
                                       <button
                                         onClick={async () => {
-                                          if (confirm(`هل أنت متأكد من حذف كود الكوبون ${claim.couponCode}؟`)) {
+                                          if (confirm(`هل أنت متأكد من حذف كود الكوبون ${claim.couponCode} للمريض (${claim.patientName}) نهائياً؟`)) {
                                             await deleteClaim(claim.id);
                                             onRefreshClaims();
                                           }
                                         }}
-                                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                        title="حذف"
+                                        className="px-2 py-1 text-red-600 hover:bg-red-50 hover:border-red-300 border border-transparent rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                                        title="حذف الكوبون نهائياً"
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
+                                        <span>حذف</span>
                                       </button>
                                     </div>
                                   </td>
@@ -1296,10 +1298,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                             <button
                               onClick={() => handleDeletePrize(p.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                              className="px-2.5 py-1 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition"
                               title="حذف الجائزة"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>حذف</span>
                             </button>
                           </div>
                         </div>
@@ -1471,10 +1474,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                           <button
                             onClick={() => handleDeleteBranch(b.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            className="px-2.5 py-1.5 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition"
                             title="حذف الفرع"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>حذف الفرع</span>
                           </button>
                         </div>
                       </div>
@@ -1646,10 +1650,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                             <button
                               onClick={() => handleDeleteQuestion(q.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                              className="px-2.5 py-1 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition"
                               title="حذف السؤال"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>حذف</span>
                             </button>
                           </div>
                         </div>
@@ -1789,9 +1794,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                             <button
                               onClick={() => handleDeleteTerm(idx)}
-                              className="p-1 text-slate-400 hover:text-red-600 rounded"
+                              className="px-2 py-1 text-red-600 hover:bg-red-50 border border-red-200 rounded text-xs font-bold flex items-center gap-1 transition"
+                              title="حذف الشرط"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-3 w-3" />
+                              <span>حذف</span>
                             </button>
                           </div>
                         )}
@@ -1802,67 +1809,209 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               )}
 
               {/* ========================================================= */}
-              {/* TAB 6: PATIENT INVITATION SENDER */}
+              {/* TAB 6: PATIENT INVITATION SENDER (CLEAN SESSION GUARANTEE) */}
               {/* ========================================================= */}
-              {activeTab === 'patient_links' && (
-                <div className="max-w-2xl mx-auto space-y-4">
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm">
-                        إرسال دعوة للمريض للمشاركة عبر الواتساب
-                      </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        أنشئ رابطاً مخصصاً باسم المريض ورقم هاتفه وأرسله بنقرة واحدة عبر الواتساب
-                      </p>
+              {activeTab === 'patient_links' && (() => {
+                const activeBaseUrl = inviteUseGitHub
+                  ? 'https://ramimokhtar228-maker.github.io/rt-lab-rewards/'
+                  : (typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : 'https://ramimokhtar228-maker.github.io/rt-lab-rewards/');
+
+                const activePlayUrl = generatePatientPlayUrl({
+                  customBaseUrl: activeBaseUrl,
+                  patientName: patientNameInput.trim() || undefined,
+                  patientPhone: patientPhoneInput.trim() || undefined,
+                  game: inviteGame === 'all' ? undefined : inviteGame,
+                });
+
+                const waInviteUrl = buildPatientInviteWhatsAppUrl(
+                  patientPhoneInput || '',
+                  patientNameInput.trim() || '',
+                  activePlayUrl,
+                  settings.labNameAr,
+                  settings.sloganAr
+                );
+
+                const handleCopyInviteLink = () => {
+                  navigator.clipboard.writeText(activePlayUrl);
+                  setInviteCopied(true);
+                  setTimeout(() => setInviteCopied(false), 2500);
+                };
+
+                return (
+                  <div className="max-w-2xl mx-auto space-y-4">
+                    {/* Reassurance Banner */}
+                    <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 rounded-2xl p-4 text-xs text-emerald-950 flex items-start gap-3 shadow-xs">
+                      <Sparkles className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-black text-emerald-900 mb-0.5">
+                          تزامن لحظي وجلسة لعب نظيفة وفارغة لكل مريض (Clean Unused Session)
+                        </div>
+                        <p className="text-emerald-800 leading-relaxed">
+                          الروابط المولدة هنا تتضمن رمز جلسة فريد (Unique Token) بحيث تفتح عند العميل فارغة ونظيفة تماماً وبدون أي أقفال أو حظر 24 ساعة من الأجهزة الأخرى.
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">اسم المريض</label>
-                        <input
-                          type="text"
-                          placeholder="مثال: أ/ أحمد محمد"
-                          value={patientNameInput}
-                          onChange={(e) => setPatientNameInput(e.target.value)}
-                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
-                        />
+                        <h4 className="font-bold text-slate-900 text-sm">
+                          إنشاء وإرسال رابط مسابقة مخصص للعميل
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          أدخل اسم المريض ورقم هاتفه لاختيار الرابط ومشاركته عبر الواتساب بنقرة واحدة
+                        </p>
                       </div>
 
+                      {/* Domain source toggle */}
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">رقم هاتف المريض</label>
-                        <input
-                          type="tel"
-                          placeholder="مثال: 01012345678"
-                          value={patientPhoneInput}
-                          onChange={(e) => setPatientPhoneInput(e.target.value)}
-                          className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D] font-mono text-right"
-                        />
-                      </div>
-                    </div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          مصدر الرابط (الرابط المستهدف):
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setInviteUseGitHub(true)}
+                            className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                              inviteUseGitHub
+                                ? 'bg-rose-50 border-[#8B1E2D] text-[#8B1E2D] shadow-xs'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            <span>رابط GitHub Pages الرسمي</span>
+                          </button>
 
-                    {patientPhoneInput.trim().length >= 8 && (
-                      <div className="space-y-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setInviteUseGitHub(false)}
+                            className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                              !inviteUseGitHub
+                                ? 'bg-rose-50 border-[#8B1E2D] text-[#8B1E2D] shadow-xs'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            <Globe className="h-3.5 w-3.5" />
+                            <span>رابط المنصة الحالي</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Inputs */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">اسم المريض (اختياري)</label>
+                          <input
+                            type="text"
+                            placeholder="مثال: أ/ أحمد محمد"
+                            value={patientNameInput}
+                            onChange={(e) => setPatientNameInput(e.target.value)}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">رقم هاتف المريض (للواتساب)</label>
+                          <input
+                            type="tel"
+                            placeholder="مثال: 01012345678"
+                            value={patientPhoneInput}
+                            onChange={(e) => setPatientPhoneInput(e.target.value)}
+                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 outline-none focus:border-[#8B1E2D] font-mono text-right"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Game choice */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          توجيه المريض للعبة معينة:
+                        </label>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center">
+                          {[
+                            { id: 'all', label: 'الكل (حر)' },
+                            { id: 'wheel', label: 'عجلة الحظ' },
+                            { id: 'scratch', label: 'كارت الخدش' },
+                            { id: 'box', label: 'صندوق الهدايا' },
+                            { id: 'match', label: 'كروت الذاكرة' },
+                            { id: 'quiz', label: 'المسابقة' },
+                          ].map((g) => (
+                            <button
+                              key={g.id}
+                              type="button"
+                              onClick={() => setInviteGame(g.id as any)}
+                              className={`py-1.5 px-2 rounded-lg text-[11px] font-bold border transition ${
+                                inviteGame === g.id
+                                  ? 'bg-[#8B1E2D] text-white border-[#8B1E2D]'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {g.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Live Generated Link Box */}
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <label className="block text-xs font-bold text-slate-700">الرابط المولد المخصص للمريض:</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={activePlayUrl}
+                            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-mono text-slate-700 dir-ltr text-left select-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCopyInviteLink}
+                            className={`px-4 py-2.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shrink-0 ${
+                              inviteCopied
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-slate-800 hover:bg-slate-900 text-white'
+                            }`}
+                          >
+                            <Copy className="h-4 w-4" />
+                            <span>{inviteCopied ? 'تم النسخ بنجاح!' : 'نسخ الرابط'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                         <a
-                          href={buildPatientInviteWhatsAppUrl(
-                            patientPhoneInput,
-                            patientNameInput,
-                            generatePatientPlayUrl(window.location.origin + window.location.pathname, patientNameInput, patientPhoneInput),
-                            settings.labNameAr,
-                            settings.sloganAr
-                          )}
+                          href={activePlayUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2"
+                          className="py-2.5 px-4 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-xs transition flex items-center justify-center gap-2"
+                        >
+                          <ExternalLink className="h-4 w-4 text-slate-500" />
+                          <span>فتح واختبار الرابط (جولة نظيفة جديدة)</span>
+                        </a>
+
+                        <a
+                          href={patientPhoneInput.trim().length >= 8 ? waInviteUrl : '#'}
+                          onClick={(e) => {
+                            if (patientPhoneInput.trim().length < 8) {
+                              e.preventDefault();
+                              alert('يرجى كتابة رقم هاتف المريض لإرسال الدعوة عبر الواتساب مباشرة.');
+                            }
+                          }}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`py-2.5 px-4 rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center gap-2 ${
+                            patientPhoneInput.trim().length >= 8
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
+                              : 'bg-emerald-100 text-emerald-800 opacity-60 cursor-not-allowed'
+                          }`}
                         >
                           <MessageCircle className="h-4 w-4" />
-                          <span>إرسال دعوة المسابقة للمريض عبر الواتساب ({patientPhoneInput})</span>
-                          <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+                          <span>إرسال دعوة المسابقة عبر الواتساب</span>
                         </a>
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* ========================================================= */}
               {/* TAB 7: LAB SETTINGS & CLOUD SYNC (EDIT ALL FIELDS) */}
@@ -1931,13 +2080,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">رمز مرور لوحة الإدارة (PIN)</label>
-                          <input
-                            type="text"
-                            value={settingsForm.adminPin}
-                            onChange={(e) => setSettingsForm({ ...settingsForm, adminPin: e.target.value })}
-                            className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-center tracking-widest"
-                          />
+                          <label className="block font-bold text-slate-700 mb-1">
+                            رمز مرور لوحة الإدارة (PIN)
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showSettingsPin ? 'text' : 'password'}
+                              value={settingsForm.adminPin}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, adminPin: e.target.value })}
+                              placeholder="أدخل رمز المرور السري..."
+                              className="w-full rounded-xl border border-slate-300 p-2.5 text-xs font-mono text-center tracking-widest pl-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowSettingsPin(!showSettingsPin)}
+                              className="absolute left-2.5 top-2.5 text-slate-400 hover:text-slate-600 transition"
+                              title={showSettingsPin ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                            >
+                              {showSettingsPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            🔒 يمكن تعديل كلمة المرور في أي وقت، واضغط &quot;حفظ الإعدادات والمزامنة&quot; بالأسفل لتفعيلها.
+                          </p>
                         </div>
 
                         <div>
