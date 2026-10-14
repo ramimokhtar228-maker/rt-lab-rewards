@@ -16,7 +16,7 @@
     <meta http-equiv="Expires" content="0" />
 
     <!-- PWA & Mobile Web App Meta Tags -->
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#8B1E2D" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -26,8 +26,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-LGVVNVH-.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CaW3aGQH.css">
+    <script type="module" crossorigin src="./assets/index-Dhjk14Yg.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CaW3aGQH.css">
   </head>
   <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-rose-900 selection:text-white">
     <div id="root"></div>
@@ -35,7 +35,7 @@
       // Service worker registration with update checking
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js?v=' + Date.now()).then((reg) => {
+          navigator.serviceWorker.register('./sw.js?v=' + Date.now()).then((reg) => {
             reg.update().catch(() => {});
           }).catch(() => {});
         });
