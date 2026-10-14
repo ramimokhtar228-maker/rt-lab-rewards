@@ -1,88 +1,72 @@
 import React from 'react';
-import { Gift, Home, MapPin, MessageCircle, Phone, Sparkles } from 'lucide-react';
+import { Building2, Compass, Key, MessageCircle, Phone, Shield } from 'lucide-react';
 import { LabSettings } from '../types';
 
 interface MobileBottomNavProps {
   settings: LabSettings;
-  onScrollToGames: () => void;
+  pendingCount: number;
+  onOpenAdmin: () => void;
   onOpenBranches: () => void;
-  onOpenPatientShare: () => void;
   onOpenPolicy: () => void;
+  onScrollToGames: () => void;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   settings,
-  onScrollToGames,
+  pendingCount,
+  onOpenAdmin,
   onOpenBranches,
-  onOpenPatientShare,
+  onOpenPolicy,
+  onScrollToGames,
 }) => {
-  const cleanPhone = (settings.whatsappNumber || '201100874444').replace(/\D/g, '');
-
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-2 py-1.5 safe-bottom">
-      <div className="max-w-md mx-auto grid grid-cols-5 gap-1">
-        {/* Game Arena Action */}
-        <button
-          type="button"
-          onClick={onScrollToGames}
-          className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-slate-700 hover:text-[#8B1E2D] active:scale-95 transition"
-        >
-          <div className="h-8 w-8 rounded-lg bg-rose-50 text-[#8B1E2D] flex items-center justify-center mb-0.5">
-            <Sparkles className="h-4 w-4" />
-          </div>
-          <span className="text-[10px] font-bold">الألعاب</span>
-        </button>
+    <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex items-center justify-around text-[10px] font-bold text-slate-600 shadow-lg">
+      <button
+        onClick={onScrollToGames}
+        className="flex flex-col items-center gap-1 hover:text-[#8B1E2D] transition"
+      >
+        <Compass className="h-4 w-4 text-[#8B1E2D]" />
+        <span>الألعاب</span>
+      </button>
 
-        {/* Share Link to Patient */}
-        <button
-          type="button"
-          onClick={onOpenPatientShare}
-          className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-emerald-800 hover:text-emerald-900 active:scale-95 transition"
-        >
-          <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-0.5">
-            <Gift className="h-4 w-4" />
-          </div>
-          <span className="text-[10px] font-bold">رابط مريض</span>
-        </button>
+      <button
+        onClick={onOpenBranches}
+        className="flex flex-col items-center gap-1 hover:text-[#8B1E2D] transition"
+      >
+        <Building2 className="h-4 w-4 text-slate-700" />
+        <span>الفروع</span>
+      </button>
 
-        {/* Branches */}
-        <button
-          type="button"
-          onClick={onOpenBranches}
-          className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-slate-700 hover:text-[#0F2B5C] active:scale-95 transition"
-        >
-          <div className="h-8 w-8 rounded-lg bg-blue-50 text-[#0F2B5C] flex items-center justify-center mb-0.5">
-            <MapPin className="h-4 w-4" />
-          </div>
-          <span className="text-[10px] font-bold">الفروع</span>
-        </button>
+      <a
+        href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex flex-col items-center gap-1 text-emerald-600"
+      >
+        <MessageCircle className="h-4 w-4" />
+        <span>واتساب</span>
+      </a>
 
-        {/* Lab WhatsApp Direct */}
-        <a
-          href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-            `مرحباً معامل د. رامي مختار (${settings.sloganAr})، أود الاستفسار عن كروت الخصم وباقات التحاليل.`
-          )}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-slate-700 hover:text-emerald-700 active:scale-95 transition"
-        >
-          <div className="h-8 w-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mb-0.5">
-            <MessageCircle className="h-4 w-4" />
-          </div>
-          <span className="text-[10px] font-bold">واتساب</span>
-        </a>
+      <button
+        onClick={onOpenPolicy}
+        className="flex flex-col items-center gap-1 hover:text-[#8B1E2D] transition"
+      >
+        <Shield className="h-4 w-4 text-slate-700" />
+        <span>الشروط</span>
+      </button>
 
-        {/* Hotline Call */}
-        <a
-          href={`tel:${settings.hotline}`}
-          className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-slate-700 hover:text-blue-900 active:scale-95 transition"
-        >
-          <div className="h-8 w-8 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center mb-0.5">
-            <Phone className="h-4 w-4" />
-          </div>
-          <span className="text-[10px] font-bold">الخط الساخن</span>
-        </a>
-      </div>
+      <button
+        onClick={onOpenAdmin}
+        className="relative flex flex-col items-center gap-1 text-[#8B1E2D]"
+      >
+        <Key className="h-4 w-4 text-amber-500" />
+        <span>الإدارة</span>
+        {pendingCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full text-[9px] h-3.5 w-3.5 flex items-center justify-center font-black animate-pulse">
+            {pendingCount}
+          </span>
+        )}
+      </button>
     </div>
   );
 };
