@@ -1,7 +1,6 @@
 import React from 'react';
-import { Award, CheckCircle2, Clock, FileText, ShieldAlert, ShieldCheck, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, ShieldCheck, X } from 'lucide-react';
 import { LabSettings } from '../types';
-import { labLogo } from '../assets/images';
 
 interface PolicyModalProps {
   settings: LabSettings;
@@ -10,113 +9,58 @@ interface PolicyModalProps {
 
 export const PolicyModal: React.FC<PolicyModalProps> = ({ settings, onClose }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto backdrop-blur-sm">
-      <div className="relative w-full max-w-2xl rounded-3xl bg-white shadow-2xl overflow-hidden my-6 border border-slate-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 overflow-y-auto backdrop-blur-sm animate-fade-in text-right">
+      <div className="relative w-full max-w-xl rounded-2xl sm:rounded-3xl bg-white shadow-2xl overflow-hidden my-4 border border-slate-200 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-900 text-white">
+        <div className="bg-gradient-to-r from-[#8B1E2D] to-[#0F2B5C] p-4 sm:p-5 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-xl overflow-hidden border border-rose-300/40 bg-white p-0.5 shadow shrink-0">
-              <img
-                src={labLogo}
-                alt="لوجو معامل رامي مختار"
-                className="h-full w-full object-contain"
-                referrerPolicy="no-referrer"
-              />
+            <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
+              <ShieldCheck className="h-5 w-5 text-amber-300" />
             </div>
             <div>
-              <h3 className="font-bold text-base">سياسة المكافآت والجوائز الرسمية</h3>
-              <p className="text-xs text-rose-300 font-medium">{settings.sloganAr}</p>
+              <h3 className="text-base sm:text-lg font-bold">شروط وقواعد استخدام كوبونات الجوائز</h3>
+              <p className="text-xs text-rose-100">معامل د. رامي مختار للتحاليل الطبية (RT Labs)</p>
             </div>
           </div>
-
           <button
             onClick={onClose}
-            className="rounded-full p-1 text-slate-300 hover:text-white transition"
+            className="rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white transition"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4 max-h-[72vh] overflow-y-auto text-xs sm:text-sm text-slate-700 leading-relaxed">
-          {/* Key 24-hour Rule Highlight Box */}
-          <div className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-4.5">
-            <div className="flex items-center gap-2 text-rose-900 font-bold mb-1.5">
-              <Clock className="h-5 w-5 text-[#8B1E2D]" />
-              <span>قاعدة الـ 24 ساعة الإلزامية للمصداقية والشفافية:</span>
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs text-slate-700 leading-relaxed">
+          {/* 24-hr rule highlight */}
+          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-amber-950 font-medium">
+            <Clock className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+            <div>
+              <strong className="block text-amber-900 font-bold mb-0.5">
+                قاعدة الصلاحية الصارمة (24 ساعة):
+              </strong>
+              يسري مفعول أي كوبون يتم الفوز به لمدة 24 ساعة فقط تبدأ فوراً من لحظة إصدار الكود. في حال عدم الحجز أو الزيارة خلال الـ 24 ساعة يسقط حق المطالبة بالخصم تلقائياً.
             </div>
-            <p className="text-rose-950 font-medium leading-relaxed">
-              • يُسمح لكل مريض بمحاولة واحدة فقط كل 24 ساعة، ولا يجوز اختيار أكثر من وسيلة ترفيهية واحدة في
-              اليوم نفسه.<br />
-              • في حال عدم استخدام الجائزة أو حجز موعد التحاليل خلال <strong>24 ساعة</strong> من لحظة الفوز،
-              يتم <strong>إلغاء الكوبون تلقائياً وبشكل نهائي</strong> دون أدنى مسؤولية على المعمل، لإتاحة
-              الفرصة لمرضى آخرين.
-            </p>
           </div>
 
-          <div className="space-y-3 pt-2">
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-emerald-600" />
-              <span>شروط وأحكام تفعيل واستخدام الكوبونات:</span>
-            </h4>
-
-            <ul className="space-y-2.5">
-              <li className="flex items-start gap-2">
+          <div className="space-y-2.5">
+            <h4 className="font-bold text-slate-900 text-sm">البنود والشروط التنظيمية:</h4>
+            {settings.termsAndConditions.map((term, idx) => (
+              <div key={idx} className="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>
-                  <strong>تأكيد الحجز الفوري:</strong> فور ظهور الكوبون، يجب إرسال الرسالة التلقائية إلى رقم
-                  واتساب المعمل المسجل ليتم تسجيل كود الكوبون في ملف المريض وتثبيت الخصم.
-                </span>
-              </li>
-
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>
-                  <strong>نطاق السريان:</strong> الكوبونات سارية في جميع فروع معامل رامي مختار الرسمية وكذلك
-                  مع خدمة السحب المنزلي المريح.
-                </span>
-              </li>
-
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>
-                  <strong>عدم الجمع بين العروض:</strong> لا يجوز الجمع بين كود الخصم المكتسب من المسابقة وأي
-                  عروض ترويجية أخرى أو أسعار التعاقدات والتأمين الطبي.
-                </span>
-              </li>
-
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>
-                  <strong>الاستخدام الشخصي أو العائلي:</strong> الكوبون صالح للاستخدام مرة واحدة للمريض نفسه
-                  أو لأي من أفراد أسرته من الدرجة الأولى.
-                </span>
-              </li>
-
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>
-                  <strong>إثبات الهوية والكوبون:</strong> يُلزم المريض بإبراز صورة الكوبون الرقمي أو رسالة
-                  الواتساب لموظف الاستقبال عند سحب العينة.
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Slogan closing banner */}
-          <div className="mt-6 p-4 rounded-2xl bg-slate-900 text-white text-center">
-            <div className="text-xs text-rose-300 font-bold mb-0.5">{settings.labNameAr}</div>
-            <div className="text-base font-black tracking-wide text-white">{settings.sloganAr}</div>
-            <div className="text-[11px] text-slate-400 mt-1">الخط الساخن: {settings.hotline}</div>
+                <span>{term}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+        {/* Footer */}
+        <div className="border-t border-slate-200 bg-slate-50 p-3 sm:p-4 flex justify-end shrink-0">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow transition"
+            className="px-5 py-2 rounded-xl bg-[#8B1E2D] hover:bg-[#731925] text-white font-bold text-xs shadow transition"
           >
-            فهمت الشروط وموافق
+            فهمت وموافق
           </button>
         </div>
       </div>
