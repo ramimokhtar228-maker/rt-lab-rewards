@@ -1,84 +1,115 @@
 import React from 'react';
-import { Brain, Disc, Gift, Package, Sparkles } from 'lucide-react';
+import { Award, Compass, Gift, HelpCircle, Package, Sparkles } from 'lucide-react';
 import { GameType } from '../types';
 
 interface GameSelectorProps {
-  selectedGame: GameType;
+  activeGame: GameType;
   onSelectGame: (game: GameType) => void;
   disabled?: boolean;
 }
 
 export const GameSelector: React.FC<GameSelectorProps> = ({
-  selectedGame,
+  activeGame,
   onSelectGame,
-  disabled = false,
+  disabled,
 }) => {
-  const games: { id: GameType; title: string; subtitle: string; icon: React.ReactNode }[] = [
+  const games: {
+    id: GameType;
+    title: string;
+    description: string;
+    badge: string;
+    icon: React.ReactNode;
+  }[] = [
     {
       id: 'wheel',
       title: 'عجلة الحظ الطبية',
-      subtitle: 'دوّر العجلة واكسب خصمك',
-      icon: <Disc className="h-4.5 w-4.5 sm:h-5 sm:w-5" />,
+      description: 'دوّر العجلة واربح خصومات وباقات فحص فوري',
+      badge: 'الأكثر شعبية',
+      icon: <Compass className="h-5 w-5" />,
     },
     {
       id: 'scratch',
       title: 'كارت الخدش الفوري',
-      subtitle: 'امسح البطاقة واكتشف هديتك',
-      icon: <Gift className="h-4.5 w-4.5 sm:h-5 sm:w-5" />,
-    },
-    {
-      id: 'quiz',
-      title: 'تحدي المعلومات الطبية',
-      subtitle: '3 أسئلة طبية وجائزة مضمونة',
-      icon: <Brain className="h-4.5 w-4.5 sm:h-5 sm:w-5" />,
+      description: 'امسح الطبقة الذهبية بيدك واكتشف هديتك',
+      badge: 'فوز فوري',
+      icon: <Sparkles className="h-5 w-5" />,
     },
     {
       id: 'box',
-      title: 'صندوق المفاجآت الطبي',
-      subtitle: 'اختر كبسولة الحظ وافتح هديتك',
-      icon: <Package className="h-4.5 w-4.5 sm:h-5 sm:w-5" />,
+      title: 'صناديق المفاجآت',
+      description: 'اختر أحد الصناديق الثلاثة لفتح هديتك الحصرية',
+      badge: 'مفاجآت كبرى',
+      icon: <Package className="h-5 w-5" />,
+    },
+    {
+      id: 'quiz',
+      title: 'المسابقة الطبية',
+      description: 'أجب عن أسئلة صحية سريعة واحصل على كوبونك',
+      badge: 'تثقيف وجائزة',
+      icon: <HelpCircle className="h-5 w-5" />,
     },
   ];
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-2 sm:px-6">
-      {/* 4-Card Grid Selector */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+    <div className="w-full max-w-4xl mx-auto px-4">
+      <div className="text-center mb-5">
+        <h3 className="text-lg sm:text-xl font-black text-slate-900">
+          اختر وسيلة الترفيه المفضلة لديك 🎮
+        </h3>
+        <p className="text-xs text-slate-500 mt-0.5">
+          يمكنك اختيار لعبة واحدة للمشاركة وربح كوبون الخصم الساري لمدة 24 ساعة
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {games.map((g) => {
-          const isSelected = selectedGame === g.id;
+          const isActive = activeGame === g.id;
           return (
             <button
               key={g.id}
-              disabled={disabled}
               onClick={() => onSelectGame(g.id)}
-              className={`p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border text-right transition-all flex flex-col justify-between ${
-                isSelected
-                  ? 'border-[#8B1E2D] bg-rose-50/70 shadow-md ring-2 ring-rose-500/20'
-                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 shadow-xs'
-              } ${disabled ? 'opacity-60 cursor-not-allowed' : 'active:scale-98'}`}
+              disabled={disabled}
+              className={`relative rounded-2xl p-3.5 sm:p-4 text-right transition-all border-2 flex flex-col justify-between ${
+                isActive
+                  ? 'border-[#8B1E2D] bg-white shadow-lg shadow-rose-900/10 ring-2 ring-rose-500/20'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80 shadow-xs'
+              } ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
             >
-              <div className="flex items-center justify-between mb-2 sm:mb-3">
+              {/* Badge */}
+              <div className="flex items-center justify-between mb-2">
                 <div
-                  className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl flex items-center justify-center transition shrink-0 ${
-                    isSelected
-                  ? 'bg-[#8B1E2D] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700'
+                  className={`h-9 w-9 rounded-xl flex items-center justify-center transition ${
+                    isActive
+                      ? 'bg-gradient-to-br from-[#8B1E2D] to-rose-700 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-700'
                   }`}
                 >
                   {g.icon}
                 </div>
-                {isSelected && (
-                  <span className="text-[10px] sm:text-[11px] font-bold text-[#8B1E2D] flex items-center gap-0.5">
-                    <Sparkles className="h-3 w-3" /> تم الاختيار
-                  </span>
-                )}
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isActive
+                      ? 'bg-rose-100 text-[#8B1E2D]'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {g.badge}
+                </span>
               </div>
+
               <div>
-                <h3 className="font-bold text-slate-900 text-xs sm:text-sm">{g.title}</h3>
-                <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 line-clamp-1">
-                  {g.subtitle}
+                <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{g.title}</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                  {g.description}
                 </p>
               </div>
+
+              {isActive && (
+                <div className="mt-2 text-[10px] font-black text-[#8B1E2D] flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#8B1E2D] animate-ping" />
+                  <span>اللعبة المحددة حالياً</span>
+                </div>
+              )}
             </button>
           );
         })}
