@@ -35,6 +35,7 @@ import {
   PlayRestrictionStatus,
   resetPlaySessionAdmin,
   savePrizes,
+  saveQuizQuestions,
   saveSettings,
 } from './services/storageService';
 import { playReceptionAlertChime } from './utils/audio';
@@ -545,6 +546,11 @@ export default function App() {
           onRefreshClaims={async () => {
             const latest = await fetchClaimsFromCloud();
             setClaims(latest);
+          }}
+          quizQuestions={quizQuestions}
+          onUpdateQuizQuestions={(newQuestions) => {
+            setQuizQuestions(newQuestions);
+            saveQuizQuestions(newQuestions);
           }}
           onClose={() => setShowAdmin(false)}
         />
