@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-10-14T10:51:55.092Z",
+  "updatedAt": "2026-10-14T11:12:38.183Z",
   "settings": {
-    "labNameAr": "معامل د. رامي مختار للتحاليل الطبية (RT Labs)",
+    "labNameAr": "معامل رامي مختار للتحاليل الطبية (RT Labs)",
     "sloganAr": "التشخيص الصحيح يبدأ معنا · دقة، سرعة، وأمان تشخيصي",
     "labSubtitleAr": "RT Labs · تحت إشراف أطباء واستشاريو قصر العيني",
     "labNameEn": "Rami Mokhtar Diagnostic Laboratories (RT Labs)",
@@ -27,6 +27,14 @@
       "address": "ميدان بهتيم · برج صيدلية العزبي · الدور الثالث (فوق جيم موسى · أمام الأسانسير) · شبرا الخيمة",
       "hours": "يومياً على مدار 24 ساعة (استقبال وسحب عينات وطوارئ)",
       "phone": "01013242777",
+      "isHomeVisit": false
+    },
+    {
+      "id": "branch-2",
+      "name": "فرع شبرا الخيمة (الشارع الجديد)",
+      "address": "تقاطع الشارع الجديد مع شارع 15 مايو · بجوار محطة المترو · شبرا الخيمة",
+      "hours": "يومياً من 8:30 صباحاً حتى 11:30 مساءً",
+      "phone": "01100046841",
       "isHomeVisit": false
     },
     {
@@ -124,6 +132,58 @@
       "weight": 10,
       "active": true,
       "terms": "صالح عند إجراء تحاليل بقيمة 200 جنيه أو أكثر."
+    },
+    {
+      "id": "prize-1791975764548",
+      "title": "خصم 40% على تحليل جرثومة المعدة ",
+      "shortTitle": "خصم 40%",
+      "description": "صالح لمده ٢٤ ساعه فقط داخل معامل رامي مختار ",
+      "discountType": "percentage",
+      "discountValue": "40%",
+      "color": "#00ff00",
+      "textColor": "#FFFFFF",
+      "weight": 15,
+      "active": true,
+      "terms": "صالح لمدة 24 ساعة فقط في كافة الفروع"
+    },
+    {
+      "id": "prize-1791975869040",
+      "title": "تحليل انيميا مجانا عند حجز اى تحاليل بقيمه ٣٠٠ جنيه ",
+      "shortTitle": "تحليل انيميا مجانا ",
+      "description": "تحليل نسبه انيميا لو عملت تحاليل بقيمه ٣٠٠ جنيه أو أكثر ",
+      "discountType": "percentage",
+      "discountValue": "100%",
+      "color": "#ffff00",
+      "textColor": "#FFFFFF",
+      "weight": 20,
+      "active": true,
+      "terms": "صالح لمدة 24 ساعة فقط في كافة الفروع"
+    },
+    {
+      "id": "prize-1791975976238",
+      "title": "خصم 50% على تحاليل متابعه الحمل ",
+      "shortTitle": "خصم 50%",
+      "description": "خصم 50% على تحاليل متابعه الحمل ",
+      "discountType": "percentage",
+      "discountValue": "50%",
+      "color": "#0000ff",
+      "textColor": "#FFFFFF",
+      "weight": 17,
+      "active": true,
+      "terms": "صالح لمدة 24 ساعة فقط في كافة الفروع"
+    },
+    {
+      "id": "prize-1791976067025",
+      "title": "خصم 60% على تحليل فيتامين د ",
+      "shortTitle": "60%",
+      "description": "خصم فورى 60% على تحليل فيتامين د",
+      "discountType": "percentage",
+      "discountValue": "60%",
+      "color": "#ff0000",
+      "textColor": "#FFFFFF",
+      "weight": 19,
+      "active": true,
+      "terms": "صالح لمدة 24 ساعة فقط في كافة الفروع"
     }
   ],
   "quizQuestions": [
