@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "id": "claim-1791986809026",
+    "couponCode": "RT-2500",
+    "patientName": "Shahi",
+    "phone": "01115800006",
+    "branch": "الفرع الرئيسي (بهتيم - شبرا الخيمة)",
+    "prizeId": "prize-2",
+    "prizeTitle": "فحص سكر عشوائي (RBS) مجاناً بالكامل",
+    "discountValue": "مجاناً 100%",
+    "gameType": "wheel",
+    "createdAt": "١٤‏/١٠‏/٢٠٢٦، ٥:٠٦ م",
+    "createdAtTimestamp": 1791986809024,
+    "expiresAt": "١٥‏/١٠‏/٢٠٢٦، ٥:٠٦ م",
+    "expiresAtTimestamp": 1792073209024,
+    "status": "pending"
+  }
+]
