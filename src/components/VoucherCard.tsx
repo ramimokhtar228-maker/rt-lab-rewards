@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { LabSettings, PatientClaim } from '../types';
+import { labLogo } from '../assets/images';
 
 interface VoucherCardProps {
   claim: PatientClaim;
@@ -22,9 +23,9 @@ export const VoucherCard: React.FC<VoucherCardProps> = ({ claim, settings }) => 
     <div className="relative overflow-hidden rounded-2xl border-2 border-dashed border-[#8B1E2D]/40 bg-gradient-to-br from-rose-50/80 via-white to-amber-50/60 p-5 shadow-sm text-right">
       {/* Top Banner */}
       <div className="flex items-center justify-between border-b border-rose-200/80 pb-3 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-xl bg-[#8B1E2D] text-white flex items-center justify-center font-black shadow-sm">
-            <Gift className="h-5 w-5" />
+        <div className="flex items-center gap-2.5">
+          <div className="h-10 w-10 rounded-xl overflow-hidden bg-white border border-rose-200 p-0.5 shadow-sm shrink-0">
+            <img src={labLogo} alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <h4 className="font-bold text-[#8B1E2D] text-sm">{settings.labNameAr}</h4>
