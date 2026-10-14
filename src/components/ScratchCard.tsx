@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Gift, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
+import { Gift, RotateCcw, Sparkles } from 'lucide-react';
 import { Prize } from '../types';
-import { sounds } from '../utils/audio';
+import { playScratchSound, playWinFanfare } from '../utils/audio';
 
 interface ScratchCardProps {
   prizes: Prize[];
@@ -9,37 +9,33 @@ interface ScratchCardProps {
   disabled?: boolean;
 }
 
-export const ScratchCard: React.FC<ScratchCardProps> = ({ prizes, onWin, disabled = false }) => {
+export const ScratchCard: React.FC<ScratchCardProps> = ({ prizes, onWin, disabled }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [selectedPrize, setSelectedPrize] = useState<Prize | null>(null);
   const [isRevealed, setIsRevealed] = useState(false);
-  const [scratchPercent, setScratchPercent] = useState(0);
-  const [currentPrize, setCurrentPrize] = useState<Prize | null>(null);
+  const [scratchedPercent, setScratchedPercent] = useState(0);
   const isDrawingRef = useRef(false);
-  const hasWonRef = useRef(false);
 
-  // Pick random prize from active ones
-  const initCard = () => {
-    const active = prizes.filter((p) => p.active);
-    if (active.length === 0) return;
-    const randomPrize = active[Math.floor(Math.random() * active.length)];
-    setCurrentPrize(randomPrize);
-    setIsRevealed(false);
-    setScratchPercent(0);
-    hasWonRef.current = false;
-
-    // Reset canvas cover
-    setTimeout(() => {
-      drawCover();
-    }, 50);
-  };
-
+  // Pick random prize once on mount
   useEffect(() => {
-    initCard();
+    const active = prizes.filter((p) => p.active);
+    if (active.length > 0) {
+      const totalWeight = active.reduce((sum, p) => sum + (p.weight || 10), 0);
+      let rand = Math.random() * totalWeight;
+      let chosen = active[0];
+      for (const p of active) {
+        if (rand < (p.weight || 10)) {
+          chosen = p;
+          break;
+        }
+        rand -= p.weight || 10;
+      }
+      setSelectedPrize(chosen);
+    }
   }, [prizes]);
 
-  // Draw the silver/crimson metallic scratch cover
-  const drawCover = () => {
+  // Setup Canvas
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -48,231 +44,123 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({ prizes, onWin, disable
     const width = canvas.width;
     const height = canvas.height;
 
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.clearRect(0, 0, width, height);
-
-    // Luxury metallic silver & subtle crimson gradient
+    // Draw metallic scratch surface
     const grad = ctx.createLinearGradient(0, 0, width, height);
-    grad.addColorStop(0, '#94A3B8');
-    grad.addColorStop(0.3, '#CBD5E1');
-    grad.addColorStop(0.5, '#E2E8F0');
-    grad.addColorStop(0.7, '#CBD5E1');
-    grad.addColorStop(1, '#64748B');
+    grad.addColorStop(0, '#B45309');
+    grad.addColorStop(0.5, '#F59E0B');
+    grad.addColorStop(1, '#92400E');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, width, height);
 
-    // Subtle pattern overlay
-    ctx.fillStyle = 'rgba(139, 30, 45, 0.08)';
-    for (let x = 0; x < width; x += 24) {
-      for (let y = 0; y < height; y += 24) {
-        ctx.fillRect(x, y, 12, 12);
-      }
-    }
-
-    // Border
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = '#8B1E2D';
-    ctx.strokeRect(3, 3, width - 6, height - 6);
-
-    // Inner dashed gold border
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#D97706';
-    ctx.setLineDash([6, 4]);
-    ctx.strokeRect(10, 10, width - 20, height - 20);
-    ctx.setLineDash([]);
-
-    // Text on scratch foil
+    // Decorative pattern
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 15px Cairo, sans-serif';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.fillText('🎁 امسح هنا لاكتشاف هديتك الطبية 🎁', width / 2, height / 2 - 10);
+    ctx.font = '12px Cairo, sans-serif';
+    ctx.fillText('معامل د. رامي مختار للتحاليل', width / 2, height / 2 + 15);
+  }, []);
 
-    // Badge icon text
-    ctx.fillStyle = '#8B1E2D';
-    ctx.font = 'bold 16px Cairo, sans-serif';
-    ctx.fillText('معامل د. رامي مختار · RT Labs', width / 2, height / 2 - 32);
-
-    ctx.fillStyle = '#0F2B5C';
-    ctx.font = '900 22px Cairo, sans-serif';
-    ctx.fillText('اكشط هنا لاكتشاف هديتك 🎁', width / 2, height / 2 + 2);
-
-    ctx.fillStyle = '#475569';
-    ctx.font = 'bold 12px Cairo, sans-serif';
-    ctx.fillText('حرّك إصبعك أو مؤشر الماوس للمسح', width / 2, height / 2 + 34);
-  };
-
-  // Scratch action at coordinate
   const scratch = (clientX: number, clientY: number) => {
-    if (isRevealed || hasWonRef.current || disabled) return;
+    if (disabled || isRevealed) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    const x = (clientX - rect.left) * scaleX;
-    const y = (clientY - rect.top) * scaleY;
+    const x = ((clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((clientY - rect.top) / rect.height) * canvas.height;
 
     ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();
     ctx.arc(x, y, 22, 0, Math.PI * 2);
     ctx.fill();
 
-    // Occasional audio scratch sound
-    if (Math.random() < 0.25) {
-      sounds.playScratch();
-    }
-
-    checkProgress();
+    playScratchSound();
+    checkScratchProgress();
   };
 
-  // Calculate percentage scratched
-  const checkProgress = () => {
+  const checkScratchProgress = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || isRevealed) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    try {
-      // Sample pixels
-      const width = canvas.width;
-      const height = canvas.height;
-      const imgData = ctx.getImageData(0, 0, width, height);
-      const data = imgData.data;
-      let transparentCount = 0;
-      const step = 32; // Sample every 32 bytes (8 pixels) for speed
+    // Sample pixels
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imgData.data;
+    let transparent = 0;
+    const sampleStep = 32;
 
-      for (let i = 3; i < data.length; i += step) {
-        if (data[i] === 0) {
-          transparentCount++;
-        }
-      }
-
-      const totalSampled = data.length / step;
-      const percent = Math.round((transparentCount / totalSampled) * 100);
-      setScratchPercent(percent);
-
-      // Reveal completely when scratched >= 35%
-      if (percent >= 35 && !hasWonRef.current && currentPrize) {
-        hasWonRef.current = true;
-        setIsRevealed(true);
-        // Clear canvas
-        ctx.clearRect(0, 0, width, height);
-        sounds.playVictory();
-        setTimeout(() => {
-          onWin(currentPrize);
-        }, 900);
-      }
-    } catch {
-      // ignore
+    for (let i = 3; i < pixels.length; i += 4 * sampleStep) {
+      if (pixels[i] === 0) transparent++;
     }
-  };
 
-  // Auto-reveal for accessibility or quick tap
-  const handleAutoReveal = () => {
-    if (isRevealed || hasWonRef.current || !currentPrize || disabled) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const totalSampled = pixels.length / (4 * sampleStep);
+    const percent = Math.round((transparent / totalSampled) * 100);
+    setScratchedPercent(percent);
 
-    hasWonRef.current = true;
-    setIsRevealed(true);
-    setScratchPercent(100);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    sounds.playVictory();
-    setTimeout(() => {
-      onWin(currentPrize);
-    }, 700);
+    if (percent > 45 && !isRevealed && selectedPrize) {
+      setIsRevealed(true);
+      playWinFanfare();
+      setTimeout(() => {
+        onWin(selectedPrize);
+      }, 700);
+    }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm flex items-center justify-between mb-4 text-xs text-slate-500">
-        <span className="font-semibold text-slate-700">كارت الخدش الفوري الممغنط</span>
-        <span className="text-rose-800 font-bold">تم المسح: {scratchPercent}%</span>
-      </div>
-
-      {/* Interactive Card Frame */}
-      <div
-        ref={containerRef}
-        className="relative w-full max-w-sm h-56 rounded-2xl overflow-hidden shadow-2xl border-4 border-[#0F2B5C] bg-white select-none touch-none"
-      >
-        {/* Underlying Prize Card (Revealed upon scratching) */}
-        {currentPrize && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-rose-50 via-white to-blue-50">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[#8B1E2D] mb-1">
-              <Sparkles className="h-4 w-4" />
-              <span>مبروك! كارت الهدية الرابح</span>
-            </div>
-            <h3 className="text-xl font-black text-slate-900 leading-tight">
-              {currentPrize.title}
-            </h3>
-            <div className="mt-2 rounded-xl bg-gradient-to-r from-[#8B1E2D] to-[#0F2B5C] px-4 py-1.5 text-white font-extrabold text-lg shadow">
-              {currentPrize.discountValue}
-            </div>
-            <p className="text-xs text-slate-600 mt-2 max-w-xs">{currentPrize.description}</p>
-            <div className="mt-2 text-[11px] font-semibold text-emerald-700">
-              ✓ جاهز للتسجيل والإرسال إلى رقم المعمل
-            </div>
+    <div className="flex flex-col items-center justify-center py-4">
+      <div className="relative w-80 sm:w-96 h-52 sm:h-56 rounded-2xl overflow-hidden shadow-2xl border-4 border-amber-300 bg-gradient-to-br from-rose-900 via-[#8B1E2D] to-slate-900 flex items-center justify-center p-4">
+        {/* Underneath Revealed Prize */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 bg-white">
+          <div className="h-12 w-12 rounded-full bg-rose-100 text-[#8B1E2D] flex items-center justify-center mb-1">
+            <Gift className="h-6 w-6 text-[#8B1E2D]" />
           </div>
-        )}
+          <span className="text-[11px] font-bold text-slate-500">مبارك! ربحت معنا:</span>
+          <h3 className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+            {selectedPrize?.title || 'خصم مميز'}
+          </h3>
+          <div className="mt-1 bg-[#8B1E2D] text-white px-3 py-1 rounded-full text-xs font-black shadow-sm">
+            {selectedPrize?.discountValue || 'خصم 25%'}
+          </div>
+        </div>
 
-        {/* HTML5 Canvas Foil Cover */}
+        {/* Scratchable Canvas Overlay */}
         <canvas
           ref={canvasRef}
           width={380}
           height={220}
-          className={`absolute inset-0 w-full h-full cursor-pointer transition-opacity duration-500 ${
-            isRevealed ? 'pointer-events-none opacity-0' : 'opacity-100'
-          }`}
-          onMouseDown={(e) => {
+          onMouseDown={() => {
             isDrawingRef.current = true;
-            scratch(e.clientX, e.clientY);
-          }}
-          onMouseMove={(e) => {
-            if (isDrawingRef.current) {
-              scratch(e.clientX, e.clientY);
-            }
           }}
           onMouseUp={() => {
             isDrawingRef.current = false;
           }}
-          onMouseLeave={() => {
-            isDrawingRef.current = false;
+          onMouseMove={(e) => {
+            if (isDrawingRef.current) scratch(e.clientX, e.clientY);
           }}
-          onTouchStart={(e) => {
+          onTouchStart={() => {
             isDrawingRef.current = true;
-            if (e.touches[0]) {
-              scratch(e.touches[0].clientX, e.touches[0].clientY);
-            }
+          }}
+          onTouchEnd={() => {
+            isDrawingRef.current = false;
           }}
           onTouchMove={(e) => {
             if (isDrawingRef.current && e.touches[0]) {
               scratch(e.touches[0].clientX, e.touches[0].clientY);
             }
           }}
-          onTouchEnd={() => {
-            isDrawingRef.current = false;
-          }}
+          className={`absolute inset-0 w-full h-full cursor-pointer touch-none transition-opacity duration-500 ${
+            isRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
         />
       </div>
 
-      {/* Control Buttons below card */}
-      <div className="mt-6 flex flex-col items-center gap-3 w-full max-w-xs">
-        <button
-          onClick={handleAutoReveal}
-          disabled={isRevealed || disabled}
-          className="w-full py-3 px-5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 font-bold text-xs text-slate-700 shadow-sm transition flex items-center justify-center gap-2 active:scale-95"
-        >
-          <Wand2 className="h-4 w-4 text-amber-600" />
-          <span>كشف البطاقة فوراً بنقرة واحدة</span>
-        </button>
-
-        <p className="text-center text-xs text-slate-500">
-          امسح بإصبعك على البطاقة الفضية أعلاه حتى تتجاوز 35% ليتم كشف هديتك واعتمادها فوراً.
-        </p>
+      <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-slate-600">
+        <Sparkles className="h-4 w-4 text-amber-500" />
+        <span>امسح بإصبعك أو الماوس لكشط الطبقة الذهبية وإظهار الهدية! ({scratchedPercent}%)</span>
       </div>
     </div>
   );
