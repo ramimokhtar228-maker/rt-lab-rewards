@@ -2,29 +2,44 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>معامل د. رامي مختار للتحاليل الطبية | مسابقات وجوائز RT Labs</title>
-    <meta name="description" content="منظومة مسابقات وجوائز معامل رامي مختار للتحاليل الطبية - تسجيل الكوبونات وتأكيد الحجز الفوري وإرسال رسائل الواتساب للمرضى تلقائياً" />
-    <meta property="og:title" content="معامل د. رامي مختار للتحاليل الطبية | مسابقات وجوائز RT Labs" />
-    <meta property="og:description" content="منظومة مسابقات وجوائز معامل رامي مختار للتحاليل الطبية - تسجيل الكوبونات وتأكيد الحجز الفوري وإرسال رسائل الواتساب للمرضى تلقائياً" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>منصة مكافآت وجوائز معامل رامي مختار RT Labs</title>
+    <meta name="description" content="منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs - التشخيص الصحيح يبدأ معنا" />
+    <meta property="og:title" content="منصة مكافآت وجوائز معامل رامي مختار RT Labs" />
+    <meta property="og:description" content="منصة ألعاب ومكافآت وخصومات المرضى التفاعلية لمعامل د. رامي مختار للتحاليل الطبية RT Labs - التشخيص الصحيح يبدأ معنا" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    
+    <!-- Anti-cache meta headers so patients always receive the newest update -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#8B1E2D" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="RT Labs" />
-    <link rel="manifest" href="./manifest.json" />
-    <link rel="icon" type="image/jpeg" href="./rt-logo.jpg" />
-    <link rel="apple-touch-icon" href="./rt-logo.jpg" />
-    <!-- Cairo Arabic Google Font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-    <style>body{font-family:Cairo,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}</style>
-    <script type="module" crossorigin src="./assets/index-2_CA9p30.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DD4PnSp9.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="./assets/index-CDgV0k82.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BD7FsfDF.css">
   </head>
-  <body class="bg-slate-50 text-slate-900 antialiased selection:bg-rose-100 selection:text-rose-900">
+  <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-rose-900 selection:text-white">
     <div id="root"></div>
+    <script>
+      // Service worker registration with update checking
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js?v=' + Date.now()).then((reg) => {
+            reg.update().catch(() => {});
+          }).catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>
