@@ -1,5 +1,21 @@
 [
   {
+    "id": "claim-1792065993829",
+    "couponCode": "RT-2026-WZ6A",
+    "patientName": "ايه شريف السيد",
+    "phone": "01141292839",
+    "branch": "الفرع الرئيسي (بهتيم - شبرا الخيمة)",
+    "prizeId": "prize-1791976067025",
+    "prizeTitle": "خصم 60% على تحليل فيتامين د ",
+    "discountValue": "60%",
+    "gameType": "wheel",
+    "createdAt": "١٥‏/١٠‏/٢٠٢٦، ٣:٠٦ م",
+    "createdAtTimestamp": 1792065993829,
+    "expiresAt": "١٦‏/١٠‏/٢٠٢٦، ٣:٠٦ م",
+    "expiresAtTimestamp": 1792152393829,
+    "status": "pending"
+  },
+  {
     "id": "ref-1792035843643",
     "couponCode": "RT-REF-1970",
     "patientName": "عبدالرحمن بدر ابراهيم فولى",
