@@ -26,9 +26,11 @@ import {
   resetAllPatients,
   resetAppForNewPatients,
   recordOrUpdatePatient,
+  updatePatientRecord,
   getPrizeClaims,
   addPrizeClaim,
   updateClaimStatus,
+  updatePrizeClaim,
   deletePrizeClaim,
   fetchCloudStatus,
   fetchCloudData,
@@ -380,6 +382,12 @@ export default function App() {
     broadcastToCloud();
   };
 
+  const handleUpdatePatientRecord = (updatedPatient: PatientRecord) => {
+    updatePatientRecord(updatedPatient);
+    setPatients(getRegisteredPatients());
+    broadcastToCloud();
+  };
+
   const handleResetPatients = () => {
     resetAllPatients();
     setPatients(getRegisteredPatients());
@@ -397,6 +405,12 @@ export default function App() {
 
   const handleUpdateClaimStatus = (id: string, status: PrizeClaimBooking['status']) => {
     updateClaimStatus(id, status);
+    setClaims(getPrizeClaims());
+    broadcastToCloud();
+  };
+
+  const handleUpdateClaim = (updatedClaim: PrizeClaimBooking) => {
+    updatePrizeClaim(updatedClaim);
     setClaims(getPrizeClaims());
     broadcastToCloud();
   };
@@ -654,9 +668,11 @@ export default function App() {
         onSaveSlices={handleSaveSlices}
         onSaveSettings={handleSaveSettings}
         onDeletePatient={handleDeletePatient}
+        onUpdatePatient={handleUpdatePatientRecord}
         onResetPatients={handleResetPatients}
         onResetAppForNewPatients={handleResetAppForNewPatients}
         onUpdateClaimStatus={handleUpdateClaimStatus}
+        onUpdateClaim={handleUpdateClaim}
         onDeleteClaim={handleDeleteClaim}
         onResetDefaults={handleResetDefaults}
         onExportBackup={handleExportBackup}

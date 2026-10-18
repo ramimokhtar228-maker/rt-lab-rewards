@@ -133,7 +133,8 @@ export interface PrizeClaimBooking {
   prizeValue: string;
   points: number;
   createdAt: string;
-  status: 'pending' | 'confirmed' | 'completed';
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  notes?: string;
 }
 
 export interface PlayerProfile {

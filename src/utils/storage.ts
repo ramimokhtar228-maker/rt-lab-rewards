@@ -772,6 +772,17 @@ export function resetAllPatients(): void {
   saveRegisteredPatients([]);
 }
 
+export function updatePatientRecord(patient: PatientRecord): void {
+  const all = getRegisteredPatients();
+  const idx = all.findIndex((p) => p.id === patient.id);
+  if (idx >= 0) {
+    all[idx] = patient;
+  } else {
+    all.unshift(patient);
+  }
+  saveRegisteredPatients([...all]);
+}
+
 export function recordOrUpdatePatient(profile: PlayerProfile, couponsCount: number): void {
   if (!profile.name || profile.name === 'عميل معامل RT') return;
   const all = getRegisteredPatients();
@@ -878,6 +889,12 @@ export function addPrizeClaim(claimData: Omit<PrizeClaimBooking, 'id' | 'created
 export function updateClaimStatus(id: string, status: PrizeClaimBooking['status']): void {
   const all = getPrizeClaims();
   const updated = all.map((c) => (c.id === id ? { ...c, status } : c));
+  savePrizeClaims(updated);
+}
+
+export function updatePrizeClaim(claim: PrizeClaimBooking): void {
+  const all = getPrizeClaims();
+  const updated = all.map((c) => (c.id === claim.id ? claim : c));
   savePrizeClaims(updated);
 }
 

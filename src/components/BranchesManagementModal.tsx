@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   Building,
@@ -49,6 +49,10 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toastNotice, setToastNotice] = useState<string | null>(null);
+
+  // Form refs for smooth scrolling on edit
+  const branchFormRef = useRef<HTMLFormElement | null>(null);
+  const memberFormRef = useRef<HTMLFormElement | null>(null);
 
   // Branch CRUD states
   const [isAddingBranch, setIsAddingBranch] = useState(false);
@@ -178,6 +182,9 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
       notes: branch.notes || '',
     });
     setIsAddingBranch(true);
+    setTimeout(() => {
+      branchFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   };
 
   const handleSaveBranch = (e: React.FormEvent) => {
@@ -252,6 +259,9 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
       bio: member.bio || '',
     });
     setIsAddingMember(true);
+    setTimeout(() => {
+      memberFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   };
 
   const handleSaveMember = (e: React.FormEvent) => {
@@ -473,13 +483,14 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
               {/* Add / Edit Branch Form */}
               {isAddingBranch && (
                 <form
+                  ref={branchFormRef}
                   onSubmit={handleSaveBranch}
                   className="p-4 sm:p-5 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-2xl"
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
                       <Building className="w-4 h-4" />
-                      <span>{editingBranch ? 'تعديل بيانات فرع المعمل' : 'إضافة فرع جديد للمعمل'}</span>
+                      <span>{editingBranch ? `تعديل بيانات الفرع: "${editingBranch.name}"` : 'إضافة فرع جديد للمعمل'}</span>
                     </h5>
                     <button
                       type="button"
@@ -492,6 +503,25 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
                       إلغاء
                     </button>
                   </div>
+
+                  {editingBranch && (
+                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-bold">
+                      <span className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>أنت الآن في وضع تعديل بيانات الفرع: <strong>{editingBranch.name}</strong></span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingBranch(false);
+                          setEditingBranch(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]"
+                      >
+                        إلغاء التعديل
+                      </button>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-1">
@@ -786,13 +816,14 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
               {/* Add / Edit Team Member Form */}
               {isAddingMember && (
                 <form
+                  ref={memberFormRef}
                   onSubmit={handleSaveMember}
                   className="p-4 sm:p-5 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-2xl"
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
                       <Users className="w-4 h-4" />
-                      <span>{editingMember ? 'تعديل بيانات المسؤول / الطبيب' : 'إضافة مسؤول جديد للإدارة'}</span>
+                      <span>{editingMember ? `تعديل بيانات المسؤول: "${editingMember.name}"` : 'إضافة مسؤول جديد للإدارة'}</span>
                     </h5>
                     <button
                       type="button"
@@ -805,6 +836,25 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
                       إلغاء
                     </button>
                   </div>
+
+                  {editingMember && (
+                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-bold">
+                      <span className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>أنت الآن في وضع تعديل بيانات المسؤول: <strong>{editingMember.name}</strong></span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingMember(false);
+                          setEditingMember(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]"
+                      >
+                        إلغاء التعديل
+                      </button>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">

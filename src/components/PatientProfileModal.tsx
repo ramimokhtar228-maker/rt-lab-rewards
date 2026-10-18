@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, User, Phone, Award, Sparkles, Check, Gift } from 'lucide-react';
 import { PlayerProfile } from '../types';
 import { soundManager } from '../utils/audio';
@@ -19,6 +19,14 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
   const [name, setName] = useState(player.name);
   const [phone, setPhone] = useState(player.phone);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setName(player.name || '');
+      setPhone(player.phone || '');
+      setSavedSuccess(false);
+    }
+  }, [isOpen, player]);
 
   if (!isOpen) return null;
 
