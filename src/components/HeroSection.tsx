@@ -20,6 +20,7 @@ interface HeroSectionProps {
   player: PlayerProfile;
   onNavigate: (tab: string) => void;
   onOpenSync: () => void;
+  onOpenInvite: () => void;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
@@ -27,6 +28,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   player,
   onNavigate,
   onOpenSync,
+  onOpenInvite,
 }) => {
   return (
     <div className="space-y-8">
@@ -139,6 +141,31 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Friend Referral & Share Banner */}
+      <div className="bg-gradient-to-r from-teal-950/60 via-slate-900 to-emerald-950/60 border border-teal-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+        <div className="flex items-center gap-3 text-right">
+          <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 shrink-0">
+            <Gift className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm sm:text-base font-bold text-white">
+              شارك التحدي مع أصدقائك وعائلتك واكسب <span className="text-amber-400 font-black">+50 نقطة فورية</span>!
+            </h4>
+            <p className="text-xs text-slate-400 mt-0.5">
+              أرسل رابط معامل RT لأي صديق على واتساب ليدخل يلعب ويكسب تحاليل مجانية معك.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={onOpenInvite}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-md shadow-teal-950 transition-all hover:scale-105 shrink-0"
+        >
+          <Sparkles className="w-4 h-4 text-amber-300" />
+          <span>مشاركة الرابط وكسب 50 نقطة</span>
+        </button>
       </div>
 
       {/* 4 Feature Cards / Direct Gateways */}

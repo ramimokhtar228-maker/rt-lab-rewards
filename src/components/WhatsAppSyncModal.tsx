@@ -152,6 +152,36 @@ export const WhatsAppSyncModal: React.FC<WhatsAppSyncModalProps> = ({
             </div>
           </div>
 
+          {/* Lab Reply Preview & Direct Template */}
+          <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>رسالة التأكيد التي يستلمها المريض من المعمل:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const replyText = `🎉 *أهلاً بك يا ${player.name} في ${settings.labName}!*
+✅ تم اعتماد وتأكيد جائزتك: *${voucherTitle}*
+🔢 كود التحقق الرسمي: *[${voucherCode}]*
+⭐ رصيد نقاطك: *${player.points} نقطة* (${player.levelTitle})
+🩺 تم تسجيل طلبك (${requestHomeVisit ? 'سحب عينة منزلي' : 'حجز فرع'}). فريق خدمة العملاء سيتواصل معك لتأكيد الميعاد.
+🎁 استمر باللعب يومياً لتدوير عجلة الحظ وكسب المزيد من التحاليل المجانية!`;
+                  navigator.clipboard.writeText(replyText);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold"
+              >
+                {copied ? 'تم نسخ الرد!' : 'نسخ رد المعمل'}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+              «أهلاً بك يا {player.name} في {settings.labName}! تم اعتماد وتأكيد جائزتك: {voucherTitle} بكود {voucherCode} ورصيد نقاطك {player.points}. يمكنك الاستفادة منها فوراً في الفرع أو بالسحب المنزلي...»
+            </p>
+          </div>
+
           {/* Quick Lab Contact Information */}
           <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
             <div className="flex items-center gap-2 p-2 bg-slate-950/40 rounded-lg">

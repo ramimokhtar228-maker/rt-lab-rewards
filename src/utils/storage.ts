@@ -6,6 +6,7 @@ import {
   LabSettings,
   PlayerProfile,
   LeaderboardUser,
+  PatientRecord,
 } from '../types';
 
 export const INITIAL_QUESTIONS: Question[] = [
@@ -154,6 +155,76 @@ export const INITIAL_QUESTIONS: Question[] = [
     points: 30,
     difficulty: 'easy',
   },
+  {
+    id: 'q15',
+    category: 'medical',
+    question: 'ما هو العضو في جسم الإنسان المسؤول عن إفراز هرمون الأنسولين لتنظيم السكر في الدم؟',
+    options: ['الكبد', 'البنكرياس', 'الغدة الدرقية', 'المعدة'],
+    correctIndex: 1,
+    explanation: 'تفرز خلايا بيتا في جزر لانجرهانز بالبنكرياس هرمون الأنسولين لخفض الجلوكوز بعد الوجبات.',
+    points: 45,
+    difficulty: 'easy',
+  },
+  {
+    id: 'q16',
+    category: 'medical',
+    question: 'ما هو التحليل الطبي المعتمد للكشف عن ترسبات حمض اليوريك وتشخيص داء النقرس وآلام المفاصل؟',
+    options: ['حمض اليوريك (Uric Acid)', 'سرعة الترسيب (ESR)', 'الكالسيوم الكلي', 'الكرياتينين'],
+    correctIndex: 0,
+    explanation: 'ارتفاع حمض البوليك (Uric Acid) في الدم قد يسبب تبلور أملاح اليورات في المفاصل مسبباً النقرس.',
+    points: 50,
+    difficulty: 'medium',
+  },
+  {
+    id: 'q17',
+    category: 'medical',
+    question: 'ما هو التحليل المخبري الأساسي للاطمئنان على كفاءة فلترة الكليتين قبل تناول أدوية معينة؟',
+    options: ['إنزيمات القلب', 'الكرياتينين ووظائف الكلى (Creatinine)', 'فيتامين C', 'فصائل الدم'],
+    correctIndex: 1,
+    explanation: 'الكرياتينين هو ناتج أيض العضلات وتفرزه الكلى السليمة بانتظام، ويعد مؤشراً دقيقاً لسلامة الكليتين.',
+    points: 50,
+    difficulty: 'medium',
+  },
+  {
+    id: 'q18',
+    category: 'puzzle',
+    question: 'لغز ذكاء سريع: كم شهراً في السنة الميلادية يحتوي على 28 يوماً على الأقل؟',
+    options: ['شهر واحد فقط (فبراير)', '6 أشهر', 'جميع الشهور الـ 12', '10 أشهر'],
+    correctIndex: 2,
+    explanation: 'جميع شهور السنة الـ 12 تحتوي على 28 يوماً، فبعضها يحتوي 30 وبعضها 31 وفبراير 28 أو 29!',
+    points: 70,
+    difficulty: 'hard',
+  },
+  {
+    id: 'q19',
+    category: 'puzzle',
+    question: 'شيء يخصك أنت وحدك، ولكن الناس يستخدمونه أكثر منك دون إذنك.. فما هو؟',
+    options: ['حذاؤك', 'اسمك', 'صوتك', 'ظلك'],
+    correctIndex: 1,
+    explanation: 'اسمك ملكك ويناديك به الآخرون ويتداولونه طوال اليوم أكثر مما تنطق به أنت لنفسك!',
+    points: 40,
+    difficulty: 'easy',
+  },
+  {
+    id: 'q20',
+    category: 'culture',
+    question: 'في الحكمة العربية الشهيرة: "الصحة تاج على رؤوس الأصحاء، لا يراه إلا ..."',
+    options: ['الأطباء', 'الحكماء', 'المرضى', 'الأغنياء'],
+    correctIndex: 2,
+    explanation: 'المثل يؤكد نعمة العافية وأن الشخص المريض هو الأكثر إدراكاً لقيمة الصحة الغالية.',
+    points: 35,
+    difficulty: 'easy',
+  },
+  {
+    id: 'q21',
+    category: 'medical',
+    question: 'ما هو الفحص الطبي الأشهر لتقييم نشاط الغدة الدرقية المنظمة لمعدل الحرق والطاقة؟',
+    options: ['هرمون TSH', 'فيتامين B12', 'صورة دم CBC', 'تحليل بول'],
+    correctIndex: 0,
+    explanation: 'هرمون TSH المحفز للدرقية تفرزه الغدة النخامية ويعد الحساس الأول لأي خمول أو نشاط في الدرقية.',
+    points: 55,
+    difficulty: 'medium',
+  },
 ];
 
 export const INITIAL_REWARDS: RewardItem[] = [
@@ -229,6 +300,42 @@ export const INITIAL_REWARDS: RewardItem[] = [
     terms: 'متاح للحجز الفوري مع التقرير في نفس اليوم.',
     isActive: true,
   },
+  {
+    id: 'rew_7',
+    code: 'RT-URIC-FREE',
+    title: 'فحص حمض اليوريك (نقرس) مجاناً 100%',
+    description: 'اطمئن على سلامة مفاصلك ومعدل حمض البوليك بالدم مجاناً بالكامل.',
+    type: 'free_test',
+    value: 'تحليل مجاني 100%',
+    pointsCost: 280,
+    badge: 'مفاصل وعظام 🦴',
+    terms: 'صالح في جميع الفروع وخدمة السحب المنزلي.',
+    isActive: true,
+  },
+  {
+    id: 'rew_8',
+    code: 'RT-CREAT-FREE',
+    title: 'تحليل وظائف كلى كرياتينين مجاناً',
+    description: 'فحص دقيق لكفاءة تصفية الكلى بالمعمل.',
+    type: 'free_test',
+    value: 'فحص مجاني 100%',
+    pointsCost: 300,
+    badge: 'صحة وحماية 🛡️',
+    terms: 'يتم تسليم التقرير الطبي خلال ساعات معدودة.',
+    isActive: true,
+  },
+  {
+    id: 'rew_9',
+    code: 'RT-KIDS-40',
+    title: 'خصم 40% على باقة نمو وصحة الطفل',
+    description: 'تشمل صورة دم، كالسيوم، حديد، وتحاليل نمو متكاملة لطفلك بخصم استثنائي.',
+    type: 'package_deal',
+    value: 'خصم 40%',
+    pointsCost: 400,
+    badge: 'باقة الأطفال 👶',
+    terms: 'فريق متخصص في سحب عينات الأطفال بلطف تام.',
+    isActive: true,
+  },
 ];
 
 export const INITIAL_SPIN_SLICES: SpinSlice[] = [
@@ -253,6 +360,7 @@ export const INITIAL_LAB_SETTINGS: LabSettings = {
   announcement: '🎉 مرحباً بكم في تحدي ومكافآت معامل RT! العب الآن، جاوب أسئلة الذكاء، دور عجلة الحظ، واكسب تحاليل مجانية وخصومات فورية!',
   quizPointsPerCorrect: 50,
   dailyStreakBonus: 25,
+  adminPin: '7788', // رمز الحماية الافتراضي للوحة الإدارة
 };
 
 export const INITIAL_LEADERBOARD: LeaderboardUser[] = [
@@ -272,6 +380,7 @@ const STORAGE_KEYS = {
   COUPONS: 'rt_lab_user_coupons_v2',
   LEADERBOARD: 'rt_lab_leaderboard_v2',
   LAST_SPIN_TIME: 'rt_lab_last_spin_time',
+  PATIENTS: 'rt_lab_registered_patients_v2',
 };
 
 // Safe LocalStorage helpers
@@ -508,4 +617,110 @@ export function importDatabaseBackup(jsonString: string): boolean {
     console.error('Import error:', err);
     return false;
   }
+}
+
+// Initial Registered Patients (for Admin Demo and management)
+export const INITIAL_PATIENTS: PatientRecord[] = [
+  {
+    id: 'pat_1',
+    name: 'أحمد محمود النجار',
+    phone: '01023456542',
+    points: 1850,
+    levelTitle: 'سفير التميز لمعامل RT 👑',
+    joinedAt: '2026-10-10',
+    lastActive: '2026-10-18',
+    couponsWon: 7,
+    gamesPlayed: 24,
+  },
+  {
+    id: 'pat_2',
+    name: 'د. سارة عبد الرحمن',
+    phone: '01239876918',
+    points: 1620,
+    levelTitle: 'خبير الصحة والذكاء 🌟',
+    joinedAt: '2026-10-12',
+    lastActive: '2026-10-17',
+    couponsWon: 5,
+    gamesPlayed: 19,
+  },
+  {
+    id: 'pat_3',
+    name: 'محمد كمال رضوان',
+    phone: '01145678330',
+    points: 1440,
+    levelTitle: 'بطل التحدي الفضي 🥈',
+    joinedAt: '2026-10-14',
+    lastActive: '2026-10-18',
+    couponsWon: 4,
+    gamesPlayed: 16,
+  },
+  {
+    id: 'pat_4',
+    name: 'مروة الشاذلي',
+    phone: '01556789774',
+    points: 1290,
+    levelTitle: 'بطل التحدي الفضي 🥈',
+    joinedAt: '2026-10-15',
+    lastActive: '2026-10-18',
+    couponsWon: 3,
+    gamesPlayed: 12,
+  },
+];
+
+export function getRegisteredPatients(): PatientRecord[] {
+  return safeGet<PatientRecord[]>(STORAGE_KEYS.PATIENTS, INITIAL_PATIENTS);
+}
+
+export function saveRegisteredPatients(patients: PatientRecord[]): void {
+  safeSet(STORAGE_KEYS.PATIENTS, patients);
+}
+
+export function deletePatientRecord(id: string): void {
+  const all = getRegisteredPatients();
+  const updated = all.filter((p) => p.id !== id);
+  saveRegisteredPatients(updated);
+}
+
+export function resetAllPatients(): void {
+  saveRegisteredPatients([]);
+}
+
+export function recordOrUpdatePatient(profile: PlayerProfile, couponsCount: number): void {
+  if (!profile.name || profile.name === 'عميل معامل RT') return;
+  const all = getRegisteredPatients();
+  const existingIdx = all.findIndex((p) => (profile.phone && p.phone === profile.phone) || p.name === profile.name);
+  const nowStr = new Date().toLocaleDateString('ar-EG');
+
+  if (existingIdx >= 0) {
+    all[existingIdx] = {
+      ...all[existingIdx],
+      name: profile.name,
+      phone: profile.phone || all[existingIdx].phone,
+      points: profile.points,
+      levelTitle: profile.levelTitle,
+      lastActive: nowStr,
+      couponsWon: couponsCount,
+      gamesPlayed: profile.quizzesCompleted + profile.wheelSpinsCount + profile.scratchCardsCount,
+    };
+    saveRegisteredPatients([...all]);
+  } else {
+    const newRecord: PatientRecord = {
+      id: 'pat_' + Date.now(),
+      name: profile.name,
+      phone: profile.phone || 'غير مسجل',
+      points: profile.points,
+      levelTitle: profile.levelTitle,
+      joinedAt: nowStr,
+      lastActive: nowStr,
+      couponsWon: couponsCount,
+      gamesPlayed: profile.quizzesCompleted + profile.wheelSpinsCount + profile.scratchCardsCount,
+    };
+    saveRegisteredPatients([newRecord, ...all]);
+  }
+}
+
+// Reset the entire app data for testing with new fresh patients
+export function resetAppForNewPatients(): void {
+  localStorage.removeItem(STORAGE_KEYS.PLAYER);
+  localStorage.removeItem(STORAGE_KEYS.COUPONS);
 }

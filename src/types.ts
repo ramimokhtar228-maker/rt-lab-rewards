@@ -62,6 +62,19 @@ export interface LabSettings {
   announcement: string;
   quizPointsPerCorrect: number;
   dailyStreakBonus: number;
+  adminPin: string; // رمز دخول الإدارة السري
+}
+
+export interface PatientRecord {
+  id: string;
+  name: string;
+  phone: string;
+  points: number;
+  levelTitle: string;
+  joinedAt: string;
+  lastActive: string;
+  couponsWon: number;
+  gamesPlayed: number;
 }
 
 export interface PlayerProfile {

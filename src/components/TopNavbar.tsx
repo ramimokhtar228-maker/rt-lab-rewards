@@ -8,6 +8,7 @@ interface TopNavbarProps {
   points: number;
   onOpenAdmin: () => void;
   onOpenProfile: () => void;
+  onOpenInvite: () => void;
   playerName: string;
 }
 
@@ -17,6 +18,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   points,
   onOpenAdmin,
   onOpenProfile,
+  onOpenInvite,
   playerName,
 }) => {
   const [muted, setMuted] = React.useState(soundManager.getMuted());
@@ -87,6 +89,16 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             title={muted ? 'تشغيل المؤثرات الصوتية' : 'كتم الصوت'}
           >
             {muted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+          </button>
+
+          {/* Invite Friend Button */}
+          <button
+            onClick={onOpenInvite}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-300 font-semibold text-xs transition-colors"
+            title="مشاركة الرابط ودعوة صديق (+50 نقطة)"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+            <span>دعوة صديق (+50)</span>
           </button>
 
           {/* Points & Profile Trigger */}
