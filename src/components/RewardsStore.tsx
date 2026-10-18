@@ -22,6 +22,7 @@ interface RewardsStoreProps {
   onUpdatePlayer: (updated: Partial<PlayerProfile>) => void;
   onRedeemReward: (reward: RewardItem) => UserCoupon;
   onOpenSyncWithCoupon: (coupon: UserCoupon) => void;
+  onClaimPrize: (coupon: UserCoupon) => void;
 }
 
 export const RewardsStore: React.FC<RewardsStoreProps> = ({
@@ -30,6 +31,7 @@ export const RewardsStore: React.FC<RewardsStoreProps> = ({
   player,
   onRedeemReward,
   onOpenSyncWithCoupon,
+  onClaimPrize,
 }) => {
   const [activeTab, setActiveTab] = useState<'store' | 'my_coupons'>('store');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -198,7 +200,7 @@ export const RewardsStore: React.FC<RewardsStoreProps> = ({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
                       <button
                         onClick={() => handleCopy(coupon.couponCode)}
                         className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
@@ -212,11 +214,20 @@ export const RewardsStore: React.FC<RewardsStoreProps> = ({
                       </button>
 
                       <button
+                        onClick={() => onClaimPrize(coupon)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-xs transition-colors"
+                        title="تأكيد بياناتك والتسجيل في دوري أبطال المعمل"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>تفعيل الجائزة ودوري الأبطال</span>
+                      </button>
+
+                      <button
                         onClick={() => onOpenSyncWithCoupon(coupon)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
-                        <span>تأكيد عبر واتساب</span>
+                        <span>واتساب المعمل</span>
                       </button>
                     </div>
                   </div>

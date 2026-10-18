@@ -7,6 +7,7 @@ import {
   PlayerProfile,
   LeaderboardUser,
   PatientRecord,
+  PrizeClaimBooking,
 } from '../types';
 
 export const INITIAL_QUESTIONS: Question[] = [
@@ -381,6 +382,7 @@ const STORAGE_KEYS = {
   LEADERBOARD: 'rt_lab_leaderboard_v2',
   LAST_SPIN_TIME: 'rt_lab_last_spin_time',
   PATIENTS: 'rt_lab_registered_patients_v2',
+  CLAIMS_LOG: 'rt_lab_claims_log_v2',
 };
 
 // Safe LocalStorage helpers
@@ -717,6 +719,114 @@ export function recordOrUpdatePatient(profile: PlayerProfile, couponsCount: numb
     };
     saveRegisteredPatients([newRecord, ...all]);
   }
+
+  // Also dynamically register in Leaderboard (دوري أبطال المعمل)
+  syncPatientToLeaderboard(profile, couponsCount);
+}
+
+// Sync patient to the real-time Leaderboard
+export function syncPatientToLeaderboard(profile: PlayerProfile, couponsCount: number): void {
+  if (!profile.name || profile.name === 'عميل معامل RT') return;
+  const board = getLeaderboard();
+  const maskedPhone = profile.phone
+    ? profile.phone.substring(0, 3) + '****' + profile.phone.slice(-3)
+    : '010****' + Math.floor(100 + Math.random() * 900);
+
+  const existing = board.find((u) => u.name === profile.name);
+  let updatedBoard: LeaderboardUser[];
+
+  if (existing) {
+    updatedBoard = board.map((u) =>
+      u.name === profile.name
+        ? {
+            ...u,
+            points: profile.points,
+            phoneMasked: maskedPhone,
+            couponsWon: couponsCount,
+            badge: profile.points >= 1500 ? '👑 بطل RT الماسي' : profile.points >= 800 ? '🌟 بطل التحدي الذهبي' : '🥈 متسابق مميز',
+          }
+        : u
+    );
+  } else {
+    const newUser: LeaderboardUser = {
+      id: 'lb_user_' + Date.now(),
+      name: profile.name,
+      phoneMasked: maskedPhone,
+      points: profile.points,
+      rank: board.length + 1,
+      badge: '🌟 متسابق جديد في الدوري',
+      couponsWon: couponsCount,
+    };
+    updatedBoard = [...board, newUser];
+  }
+
+  // Sort by points descending and reassign ranks
+  updatedBoard.sort((a, b) => b.points - a.points);
+  updatedBoard = updatedBoard.map((u, idx) => ({ ...u, rank: idx + 1 }));
+  safeSet(STORAGE_KEYS.LEADERBOARD, updatedBoard);
+}
+
+// Initial Sample Claims Log
+export const INITIAL_CLAIMS_LOG: PrizeClaimBooking[] = [
+  {
+    id: 'clm_1',
+    patientName: 'أحمد محمود النجار',
+    patientPhone: '01023456542',
+    address: 'مدينة نصر - الحي السابع، شارع الطيران',
+    serviceType: 'home_visit',
+    preferredTime: 'صباحاً (9 - 12)',
+    couponCode: 'RT-CBC-FREE',
+    prizeTitle: 'تحليل صورة دم كاملة (CBC) مجاناً 100%',
+    prizeValue: 'مجاني 100%',
+    points: 1850,
+    createdAt: '2026-10-18',
+    status: 'confirmed',
+  },
+  {
+    id: 'clm_2',
+    patientName: 'د. سارة عبد الرحمن',
+    patientPhone: '01239876918',
+    address: 'مصر الجديدة - بالقرب من ميدان الحجاز',
+    serviceType: 'branch_visit',
+    preferredTime: 'مساءً (5 - 8)',
+    couponCode: 'RT-DISC-25',
+    prizeTitle: 'خصم 25% على إجمالي فاتورة التحاليل',
+    prizeValue: 'خصم 25%',
+    points: 1620,
+    createdAt: '2026-10-17',
+    status: 'completed',
+  },
+];
+
+export function getPrizeClaims(): PrizeClaimBooking[] {
+  return safeGet<PrizeClaimBooking[]>(STORAGE_KEYS.CLAIMS_LOG, INITIAL_CLAIMS_LOG);
+}
+
+export function savePrizeClaims(claims: PrizeClaimBooking[]): void {
+  safeSet(STORAGE_KEYS.CLAIMS_LOG, claims);
+}
+
+export function addPrizeClaim(claimData: Omit<PrizeClaimBooking, 'id' | 'createdAt' | 'status'>): PrizeClaimBooking {
+  const all = getPrizeClaims();
+  const newClaim: PrizeClaimBooking = {
+    ...claimData,
+    id: 'clm_' + Date.now(),
+    createdAt: new Date().toLocaleDateString('ar-EG'),
+    status: 'pending',
+  };
+  savePrizeClaims([newClaim, ...all]);
+  return newClaim;
+}
+
+export function updateClaimStatus(id: string, status: PrizeClaimBooking['status']): void {
+  const all = getPrizeClaims();
+  const updated = all.map((c) => (c.id === id ? { ...c, status } : c));
+  savePrizeClaims(updated);
+}
+
+export function deletePrizeClaim(id: string): void {
+  const all = getPrizeClaims();
+  savePrizeClaims(all.filter((c) => c.id !== id));
 }
 
 // Reset the entire app data for testing with new fresh patients

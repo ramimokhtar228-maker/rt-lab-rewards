@@ -14,6 +14,7 @@ import {
 import { LabSettings, PlayerProfile } from '../types';
 import heroBanner from '../assets/images/rt_lab_hero_banner_1792323974869.jpg';
 import doctorMascot from '../assets/images/rt_lab_doctor_mascot_1792323975479.jpg';
+import { PatientJourneyGuide } from './PatientJourneyGuide';
 
 interface HeroSectionProps {
   settings: LabSettings;
@@ -167,6 +168,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <span>مشاركة الرابط وكسب 50 نقطة</span>
         </button>
       </div>
+
+      {/* Patient Journey 4-Step Roadmap */}
+      <PatientJourneyGuide
+        onStartPlay={() => onNavigate('quiz')}
+        onOpenInvite={onOpenInvite}
+      />
 
       {/* 4 Feature Cards / Direct Gateways */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

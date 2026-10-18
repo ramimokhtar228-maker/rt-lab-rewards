@@ -27,6 +27,10 @@ import {
   resetAllPatients,
   resetAppForNewPatients,
   recordOrUpdatePatient,
+  getPrizeClaims,
+  addPrizeClaim,
+  updateClaimStatus,
+  deletePrizeClaim,
 } from './utils/storage';
 import {
   PlayerProfile,
@@ -37,6 +41,7 @@ import {
   UserCoupon,
   LeaderboardUser,
   PatientRecord,
+  PrizeClaimBooking,
 } from './types';
 import { TopNavbar } from './components/TopNavbar';
 import { HeroSection } from './components/HeroSection';
@@ -49,6 +54,7 @@ import { WhatsAppSyncModal } from './components/WhatsAppSyncModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { PatientProfileModal } from './components/PatientProfileModal';
 import { InviteShareModal } from './components/InviteShareModal';
+import { PrizeClaimModal } from './components/PrizeClaimModal';
 import { LabConnectBar } from './components/LabConnectBar';
 
 export default function App() {
@@ -63,6 +69,7 @@ export default function App() {
   const [userCoupons, setUserCoupons] = useState<UserCoupon[]>(() => getUserCoupons());
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>(() => getLeaderboard());
   const [patients, setPatients] = useState<PatientRecord[]>(() => getRegisteredPatients());
+  const [claims, setClaims] = useState<PrizeClaimBooking[]>(() => getPrizeClaims());
 
   // Modals
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -73,10 +80,15 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
+  // Prize Claim & League Registration Modal
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [claimTargetCoupon, setClaimTargetCoupon] = useState<UserCoupon | null>(null);
+
   // Sync active player to registered patients list
   useEffect(() => {
     recordOrUpdatePatient(player, userCoupons.length);
     setPatients(getRegisteredPatients());
+    setLeaderboard(getLeaderboard());
   }, [player.points, player.name, player.phone, userCoupons.length]);
 
   // Update Player Profile Handler
@@ -91,6 +103,20 @@ export default function App() {
   // Award Bonus Points (e.g. from sharing or special actions)
   const handleAwardBonusPoints = (amount: number) => {
     handleUpdatePlayer({ points: player.points + amount });
+  };
+
+  // Open Claim Modal for a coupon
+  const handleOpenClaimModal = (coupon: UserCoupon) => {
+    setClaimTargetCoupon(coupon);
+    setIsClaimModalOpen(true);
+  };
+
+  // Add new claim booking
+  const handleAddClaimBooking = (claimData: Omit<PrizeClaimBooking, 'id' | 'createdAt' | 'status'>) => {
+    addPrizeClaim(claimData);
+    setClaims(getPrizeClaims());
+    setLeaderboard(getLeaderboard());
+    setPatients(getRegisteredPatients());
   };
 
   // Award Coupon Handler (called from Quiz, Wheel, Scratch)
@@ -174,6 +200,17 @@ export default function App() {
     setPlayer(freshProfile);
     setUserCoupons(getUserCoupons());
     setPatients(getRegisteredPatients());
+    setLeaderboard(getLeaderboard());
+  };
+
+  const handleUpdateClaimStatus = (id: string, status: PrizeClaimBooking['status']) => {
+    updateClaimStatus(id, status);
+    setClaims(getPrizeClaims());
+  };
+
+  const handleDeleteClaim = (id: string) => {
+    deletePrizeClaim(id);
+    setClaims(getPrizeClaims());
   };
 
   const handleResetDefaults = () => {
@@ -183,6 +220,8 @@ export default function App() {
     setSlices(getSpinSlices());
     setSettings(getLabSettings());
     setPatients(getRegisteredPatients());
+    setLeaderboard(getLeaderboard());
+    setClaims(getPrizeClaims());
   };
 
   const handleExportBackup = () => {
@@ -204,6 +243,7 @@ export default function App() {
       setSlices(getSpinSlices());
       setSettings(getLabSettings());
       setPatients(getRegisteredPatients());
+      setLeaderboard(getLeaderboard());
     }
     return ok;
   };
@@ -250,6 +290,7 @@ export default function App() {
             onUpdatePlayer={handleUpdatePlayer}
             onAwardCoupon={handleAwardCoupon}
             onOpenSyncWithCoupon={handleOpenSyncWithCoupon}
+            onClaimPrize={handleOpenClaimModal}
           />
         )}
 
@@ -259,6 +300,7 @@ export default function App() {
             onUpdatePlayer={handleUpdatePlayer}
             onAwardCoupon={handleAwardCoupon}
             onOpenSyncWithCoupon={handleOpenSyncWithCoupon}
+            onClaimPrize={handleOpenClaimModal}
           />
         )}
 
@@ -270,6 +312,7 @@ export default function App() {
             onUpdatePlayer={handleUpdatePlayer}
             onRedeemReward={handleRedeemReward}
             onOpenSyncWithCoupon={handleOpenSyncWithCoupon}
+            onClaimPrize={handleOpenClaimModal}
           />
         )}
 
@@ -294,7 +337,18 @@ export default function App() {
         customMessage={customSyncMessage}
       />
 
-      {/* Admin Panel Modal (Protected with PIN, Patient Management, CRUD) */}
+      {/* Prize Claim & League Registration Modal */}
+      <PrizeClaimModal
+        isOpen={isClaimModalOpen}
+        onClose={() => setIsClaimModalOpen(false)}
+        coupon={claimTargetCoupon}
+        player={player}
+        settings={settings}
+        onSavePlayer={handleUpdatePlayer}
+        onAddClaimBooking={handleAddClaimBooking}
+      />
+
+      {/* Admin Panel Modal (Protected with PIN, Patient Management, CRUD, Bookings Log) */}
       <AdminPanelModal
         isOpen={isAdminModalOpen}
         onClose={() => setIsAdminModalOpen(false)}
@@ -303,6 +357,7 @@ export default function App() {
         slices={slices}
         settings={settings}
         patients={patients}
+        claims={claims}
         onSaveQuestions={handleSaveQuestions}
         onSaveRewards={handleSaveRewards}
         onSaveSlices={handleSaveSlices}
@@ -310,6 +365,8 @@ export default function App() {
         onDeletePatient={handleDeletePatient}
         onResetPatients={handleResetPatients}
         onResetAppForNewPatients={handleResetAppForNewPatients}
+        onUpdateClaimStatus={handleUpdateClaimStatus}
+        onDeleteClaim={handleDeleteClaim}
         onResetDefaults={handleResetDefaults}
         onExportBackup={handleExportBackup}
         onImportBackup={handleImportBackup}

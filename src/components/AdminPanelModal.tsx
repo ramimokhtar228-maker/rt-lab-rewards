@@ -24,6 +24,11 @@ import {
   Copy,
   AlertTriangle,
   UserX,
+  CalendarCheck,
+  Clock,
+  Home,
+  Building,
+  MapPin,
 } from 'lucide-react';
 import {
   Question,
@@ -32,6 +37,7 @@ import {
   LabSettings,
   QuestionCategory,
   PatientRecord,
+  PrizeClaimBooking,
 } from '../types';
 import { soundManager } from '../utils/audio';
 
@@ -43,6 +49,7 @@ interface AdminPanelModalProps {
   slices: SpinSlice[];
   settings: LabSettings;
   patients: PatientRecord[];
+  claims: PrizeClaimBooking[];
   onSaveQuestions: (q: Question[]) => void;
   onSaveRewards: (r: RewardItem[]) => void;
   onSaveSlices: (s: SpinSlice[]) => void;
@@ -50,6 +57,8 @@ interface AdminPanelModalProps {
   onDeletePatient: (id: string) => void;
   onResetPatients: () => void;
   onResetAppForNewPatients: () => void;
+  onUpdateClaimStatus: (id: string, status: PrizeClaimBooking['status']) => void;
+  onDeleteClaim: (id: string) => void;
   onResetDefaults: () => void;
   onExportBackup: () => void;
   onImportBackup: (jsonStr: string) => boolean;
@@ -63,6 +72,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   slices,
   settings,
   patients,
+  claims,
   onSaveQuestions,
   onSaveRewards,
   onSaveSlices,
@@ -70,6 +80,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onDeletePatient,
   onResetPatients,
   onResetAppForNewPatients,
+  onUpdateClaimStatus,
+  onDeleteClaim,
   onResetDefaults,
   onExportBackup,
   onImportBackup,
@@ -81,8 +93,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    'patients' | 'questions' | 'rewards' | 'wheel' | 'contact' | 'backup'
-  >('patients');
+    'claims' | 'patients' | 'questions' | 'rewards' | 'wheel' | 'contact' | 'backup'
+  >('claims');
 
   // Question editing / adding state
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
@@ -417,6 +429,7 @@ ${appUrl}
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 px-6 py-3 bg-slate-900 border-b border-slate-800 overflow-x-auto no-scrollbar">
           {[
+            { id: 'claims', label: `تفعيلات وحجوزات الجوائز (${claims.length})`, icon: CalendarCheck },
             { id: 'patients', label: `سجل المرضى (${patients.length})`, icon: Users },
             { id: 'questions', label: `إدارة الأسئلة (${questions.length})`, icon: HelpCircle },
             { id: 'rewards', label: `إدارة الجوائز (${rewards.length})`, icon: Gift },
@@ -446,6 +459,127 @@ ${appUrl}
         {/* Body Content */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-200">
           
+          {/* TAB: CLAIMS & BOOKINGS LOG */}
+          {activeTab === 'claims' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-base font-bold text-white">سجل تفعيلات الجوائز وحجوزات المرضى</h4>
+                  <p className="text-xs text-slate-400">
+                    متابعة المرضى الذين فازوا بالتحاليل المجانية وسجلوا بياناتهم لطلب السحب المنزلي أو زيارة الفرع
+                  </p>
+                </div>
+              </div>
+
+              {claims.length === 0 ? (
+                <div className="bg-slate-950 p-8 rounded-2xl border border-slate-800 text-center text-slate-500 text-xs">
+                  لا توجد طلبات حجز أو تفعيل جوائز مسجلة حتى الآن.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {claims.map((clm) => (
+                    <div
+                      key={clm.id}
+                      className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-emerald-500/40 transition-all"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-base text-white">{clm.patientName}</span>
+                          <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                            {clm.patientPhone}
+                          </span>
+                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+                            {clm.prizeTitle} ({clm.prizeValue})
+                          </span>
+                          <span
+                            className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                              clm.status === 'confirmed'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : clm.status === 'completed'
+                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            {clm.status === 'confirmed' ? 'تم التأكيد ✅' : clm.status === 'completed' ? 'تم إجراء التحليل 🩺' : 'قيد الانتظار ⏳'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-slate-400">
+                          <span className="flex items-center gap-1">
+                            {clm.serviceType === 'home_visit' ? <Home className="w-3.5 h-3.5 text-emerald-400" /> : <Building className="w-3.5 h-3.5 text-emerald-400" />}
+                            <strong>{clm.serviceType === 'home_visit' ? 'سحب عينة منزلي' : 'زيارة فرع'}</strong>
+                          </span>
+                          <span>كود الكوبون: <strong className="font-mono text-slate-300">{clm.couponCode}</strong></span>
+                          <span>الموعد: {clm.preferredTime}</span>
+                        </div>
+
+                        {clm.address && (
+                          <div className="text-xs text-slate-400 flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span>العنوان: {clm.address}</span>
+                            <span>· بتاريخ: {clm.createdAt}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
+                        {/* Copy WhatsApp confirmation reply */}
+                        <button
+                          onClick={() => {
+                            const confirmationMsg = `🎉 *أهلاً بك يا أستاذ/ة ${clm.patientName} في ${settings.labName}!*
+
+✅ *تم اعتماد وتأكيد طلب تفعيل جائزتك بنجاح:*
+🎁 *الجائزة:* ${clm.prizeTitle} (${clm.prizeValue})
+🔢 *كود التحقق المعتمد:* [${clm.couponCode}]
+📍 *الخدمة المطلوبة:* ${clm.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}
+⏰ *الميعاد:* ${clm.preferredTime}
+⭐ *رصيد نقاطك الحالي:* ${clm.points} نقطة
+🏆 *تم تسجيلك رسمياً في دوري أبطال RT!*
+
+فريق التمريض وخدمة العملاء سيتواصل معك للتنسيق النهائي. نسعد بخدمتك دائماً 💚`;
+                            navigator.clipboard.writeText(confirmationMsg);
+                            soundManager.playSuccess();
+                            alert(`تم نسخ رسالة تأكيد الحجز للمريض "${clm.patientName}" لإرسالها بالواتساب!`);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition-colors"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>نسخ رد تأكيد الحجز</span>
+                        </button>
+
+                        {/* Status Toggle */}
+                        <button
+                          onClick={() =>
+                            onUpdateClaimStatus(
+                              clm.id,
+                              clm.status === 'pending' ? 'confirmed' : clm.status === 'confirmed' ? 'completed' : 'pending'
+                            )
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                        >
+                          تغيير الحالة
+                        </button>
+
+                        {/* Delete Claim */}
+                        <button
+                          onClick={() => {
+                            if (confirm(`هل أنت متأكد من حذف حجز المريض "${clm.patientName}"؟`)) {
+                              onDeleteClaim(clm.id);
+                            }
+                          }}
+                          className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB 0: PATIENTS MANAGEMENT & RESET */}
           {activeTab === 'patients' && (
             <div className="space-y-6">

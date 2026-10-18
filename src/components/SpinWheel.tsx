@@ -10,6 +10,7 @@ interface SpinWheelProps {
   onUpdatePlayer: (updated: Partial<PlayerProfile>) => void;
   onAwardCoupon: (title: string, description: string, value: string, wonFrom: string) => UserCoupon;
   onOpenSyncWithCoupon: (coupon: UserCoupon) => void;
+  onClaimPrize: (coupon: UserCoupon) => void;
 }
 
 export const SpinWheel: React.FC<SpinWheelProps> = ({
@@ -18,6 +19,7 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({
   onUpdatePlayer,
   onAwardCoupon,
   onOpenSyncWithCoupon,
+  onClaimPrize,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -281,18 +283,34 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({
           </div>
 
           {createdCoupon && (
-            <div className="max-w-md mx-auto p-3 bg-slate-950/80 rounded-xl border border-slate-800 flex items-center justify-between gap-3 text-right">
-              <div>
-                <span className="text-[10px] text-slate-500 block">كود الكوبون المعتمد:</span>
-                <span className="font-mono font-bold text-sm text-emerald-400">{createdCoupon.couponCode}</span>
+            <div className="max-w-md mx-auto p-4 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-3 text-right">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-500 block">كود الكوبون المعتمد:</span>
+                  <span className="font-mono font-bold text-sm text-emerald-400">{createdCoupon.couponCode}</span>
+                </div>
+                <span className="text-xs text-amber-300 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md">
+                  جاهز للتفعيل والحجز
+                </span>
               </div>
-              <button
-                onClick={() => onOpenSyncWithCoupon(createdCoupon)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>مطالبة عبر واتساب المعمل</span>
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onClaimPrize(createdCoupon)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md shadow-amber-950"
+                >
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span>تفعيل الجائزة ودوري الأبطال</span>
+                </button>
+
+                <button
+                  onClick={() => onOpenSyncWithCoupon(createdCoupon)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>واتساب المعمل</span>
+                </button>
+              </div>
             </div>
           )}
 

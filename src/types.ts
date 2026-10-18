@@ -77,6 +77,21 @@ export interface PatientRecord {
   gamesPlayed: number;
 }
 
+export interface PrizeClaimBooking {
+  id: string;
+  patientName: string;
+  patientPhone: string;
+  address: string;
+  serviceType: 'home_visit' | 'branch_visit';
+  preferredTime: string;
+  couponCode: string;
+  prizeTitle: string;
+  prizeValue: string;
+  points: number;
+  createdAt: string;
+  status: 'pending' | 'confirmed' | 'completed';
+}
+
 export interface PlayerProfile {
   name: string;
   phone: string;

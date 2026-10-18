@@ -9,6 +9,7 @@ interface ScratchCardGameProps {
   onUpdatePlayer: (updated: Partial<PlayerProfile>) => void;
   onAwardCoupon: (title: string, description: string, value: string, wonFrom: string) => UserCoupon;
   onOpenSyncWithCoupon: (coupon: UserCoupon) => void;
+  onClaimPrize: (coupon: UserCoupon) => void;
 }
 
 const POSSIBLE_SCRATCH_PRIZES = [
@@ -24,6 +25,7 @@ export const ScratchCardGame: React.FC<ScratchCardGameProps> = ({
   onUpdatePlayer,
   onAwardCoupon,
   onOpenSyncWithCoupon,
+  onClaimPrize,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -253,18 +255,32 @@ export const ScratchCardGame: React.FC<ScratchCardGameProps> = ({
 
         {/* Awarded Voucher Action */}
         {awardedCoupon && (
-          <div className="w-full max-w-md mt-5 p-4 bg-slate-950 border border-emerald-500/30 rounded-xl space-y-3 animate-in fade-in">
+          <div className="w-full max-w-md mt-5 p-4 bg-slate-950 border border-emerald-500/30 rounded-2xl space-y-3 animate-in fade-in">
             <div className="flex items-center justify-between text-right">
               <div>
                 <span className="text-[11px] text-emerald-400 font-bold block">كود الكوبون الفوري الخاص بك:</span>
                 <span className="font-mono text-base font-extrabold text-white">{awardedCoupon.couponCode}</span>
               </div>
+              <span className="text-xs text-amber-300 font-bold bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30">
+                {currentPrize.value}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onClaimPrize(awardedCoupon)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md shadow-amber-950"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>تفعيل الجائزة ودوري الأبطال</span>
+              </button>
+
               <button
                 onClick={() => onOpenSyncWithCoupon(awardedCoupon)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
-                <span>مزامنة مع واتساب المعمل</span>
+                <span>واتساب</span>
               </button>
             </div>
           </div>
