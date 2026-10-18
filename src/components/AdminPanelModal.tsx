@@ -53,6 +53,7 @@ import {
   WhatsAppTemplate,
 } from '../types';
 import { soundManager } from '../utils/audio';
+import { saveGitHubToken, getGitHubToken } from '../utils/storage';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -82,6 +83,7 @@ interface AdminPanelModalProps {
   onTriggerCloudPush: () => Promise<void>;
   onTriggerCloudPull: () => Promise<void>;
   onTriggerGitHubSync: () => Promise<{ success: boolean; message: string }>;
+  onTriggerGitHubPull?: () => Promise<{ success: boolean; message: string }>;
 }
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
@@ -112,6 +114,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onTriggerCloudPush,
   onTriggerCloudPull,
   onTriggerGitHubSync,
+  onTriggerGitHubPull,
 }) => {
   // Authentication PIN state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -196,6 +199,21 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // Patients Search & Filter
   const [patientSearch, setPatientSearch] = useState('');
   const [copiedTextNotice, setCopiedTextNotice] = useState<string | null>(null);
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
+    type: string;
+    id: string;
+    name: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const [gitHubTokenInput, setGitHubTokenInput] = useState<string>(() => {
+    return getGitHubToken();
+  });
+
+  const showNotice = (msg: string) => {
+    setCopiedTextNotice(msg);
+    setTimeout(() => setCopiedTextNotice(null), 3000);
+  };
 
   // Cloud & GitHub Sync Action States
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
@@ -317,11 +335,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   const handleDeleteBranch = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا الفرع؟')) {
-      const branches = (settings.branches || []).filter((b) => b.id !== id);
-      onSaveSettings({ ...settings, branches });
-      soundManager.playSuccess();
-    }
+    const target = (settings.branches || []).find((b) => b.id === id);
+    setDeleteConfirmTarget({
+      type: 'فرع',
+      id,
+      name: target?.name || 'الفرع',
+      onConfirm: () => {
+        const branches = (settings.branches || []).filter((b) => b.id !== id);
+        onSaveSettings({ ...settings, branches });
+        soundManager.playSuccess();
+        showNotice('تم حذف الفرع بنجاح.');
+      },
+    });
   };
 
   // ================= ADMIN TEAM CRUD =================
@@ -380,14 +405,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setIsAddingMember(false);
     setEditingMember(null);
     soundManager.playSuccess();
+    showNotice(editingMember ? 'تم تحديث بيانات المسؤول بنجاح!' : 'تمت إضافة المسؤول بنجاح!');
   };
 
   const handleDeleteMember = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا العضو من فريق الإدارة؟')) {
-      const team = (settings.adminTeam || []).filter((m) => m.id !== id);
-      onSaveSettings({ ...settings, adminTeam: team });
-      soundManager.playSuccess();
-    }
+    const target = (settings.adminTeam || []).find((m) => m.id === id);
+    setDeleteConfirmTarget({
+      type: 'عضو إدارة',
+      id,
+      name: target?.name || 'المسؤول',
+      onConfirm: () => {
+        const team = (settings.adminTeam || []).filter((m) => m.id !== id);
+        onSaveSettings({ ...settings, adminTeam: team });
+        soundManager.playSuccess();
+        showNotice('تم حذف العضو من فريق الإدارة بنجاح.');
+      },
+    });
   };
 
   // ================= WHATSAPP TEMPLATES CRUD =================
@@ -441,11 +474,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   const handleDeleteTemplate = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا القالب؟')) {
-      const templates = (settings.whatsappTemplates || []).filter((t) => t.id !== id);
-      onSaveSettings({ ...settings, whatsappTemplates: templates });
-      soundManager.playSuccess();
-    }
+    const target = (settings.whatsappTemplates || []).find((t) => t.id === id);
+    setDeleteConfirmTarget({
+      type: 'قالب رسالة',
+      id,
+      name: target?.title || 'القالب',
+      onConfirm: () => {
+        const templates = (settings.whatsappTemplates || []).filter((t) => t.id !== id);
+        onSaveSettings({ ...settings, whatsappTemplates: templates });
+        soundManager.playSuccess();
+        showNotice('تم حذف قالب الرسالة بنجاح.');
+      },
+    });
   };
 
   // ================= QUESTIONS CRUD =================
@@ -468,6 +508,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           : q
       );
       onSaveQuestions(updated);
+      showNotice('تم تحديث السؤال بنجاح!');
     } else {
       const newQ: Question = {
         id: 'q_' + Date.now(),
@@ -480,6 +521,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         difficulty: 'medium',
       };
       onSaveQuestions([newQ, ...questions]);
+      showNotice('تمت إضافة السؤال بنجاح!');
     }
 
     setIsAddingQuestion(false);
@@ -502,10 +544,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   const handleDeleteQuestion = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا السؤال؟')) {
-      onSaveQuestions(questions.filter((q) => q.id !== id));
-      soundManager.playSuccess();
-    }
+    const target = questions.find((q) => q.id === id);
+    setDeleteConfirmTarget({
+      type: 'سؤال المسابقة',
+      id,
+      name: target?.question.slice(0, 35) || 'السؤال',
+      onConfirm: () => {
+        onSaveQuestions(questions.filter((q) => q.id !== id));
+        soundManager.playSuccess();
+        showNotice('تم حذف السؤال بنجاح.');
+      },
+    });
   };
 
   // ================= REWARDS CRUD =================
@@ -531,13 +580,21 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setNewRTitle('');
     setNewRDesc('');
     soundManager.playSuccess();
+    showNotice('تمت إضافة الجائزة إلى المتجر بنجاح!');
   };
 
   const handleDeleteReward = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذه المكافأة من المتجر؟')) {
-      onSaveRewards(rewards.filter((r) => r.id !== id));
-      soundManager.playSuccess();
-    }
+    const target = rewards.find((r) => r.id === id);
+    setDeleteConfirmTarget({
+      type: 'جائزة المتجر',
+      id,
+      name: target?.title || 'الجائزة',
+      onConfirm: () => {
+        onSaveRewards(rewards.filter((r) => r.id !== id));
+        soundManager.playSuccess();
+        showNotice('تم حذف الجائزة من المتجر بنجاح.');
+      },
+    });
   };
 
   // ================= GENERAL SETTINGS SUBMIT =================
@@ -556,7 +613,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       cloudSyncRoomId: contactForm.cloudSyncRoomId,
     });
     soundManager.playSuccess();
-    alert('✅ تم حفظ بيانات وهوية المعمل وإعدادات المزامنة والرمز السري بنجاح!');
+    showNotice('✅ تم حفظ بيانات وهوية المعمل وإعدادات المزامنة والرمز السري بنجاح!');
   };
 
   // Handle Cloud Sync Actions
@@ -565,9 +622,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     try {
       await onTriggerCloudPush();
       soundManager.playSuccess();
-      alert('☁️ تم رفع وتحديث أحدث بيانات المعمل والفروع والجوائز إلى السحابة بنجاح!');
+      showNotice('☁️ تم رفع وتحديث أحدث بيانات المعمل والفروع والجوائز إلى السحابة بنجاح!');
     } catch {
-      alert('حدث خطأ أثناء الرفع للسحابة.');
+      showNotice('حدث خطأ أثناء الرفع للسحابة.');
     } finally {
       setIsSyncingCloud(false);
     }
@@ -578,9 +635,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     try {
       await onTriggerCloudPull();
       soundManager.playSuccess();
-      alert('🔄 تم جلب ومزامنة أحدث البيانات من السحابة بنجاح!');
+      showNotice('🔄 تم جلب ومزامنة أحدث البيانات من السحابة بنجاح!');
     } catch {
-      alert('حدث خطأ أثناء السحب من السحابة.');
+      showNotice('حدث خطأ أثناء السحب من السحابة.');
     } finally {
       setIsSyncingCloud(false);
     }
@@ -594,11 +651,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       if (res.success) {
         soundManager.playSuccess();
         setGitHubStatusMsg('✅ تم رفع وحفظ قاعدة بيانات المعمل بنجاح على GitHub!');
+        showNotice('✅ تم رفع وحفظ قاعدة بيانات المعمل بنجاح على GitHub!');
       } else {
         setGitHubStatusMsg('⚠️ ' + (res.message || 'فشل الاتصال بـ GitHub'));
+        showNotice('⚠️ ' + (res.message || 'فشل الاتصال بـ GitHub'));
       }
     } catch (err: any) {
       setGitHubStatusMsg('❌ خطأ: ' + err.message);
+      showNotice('❌ خطأ: ' + err.message);
     } finally {
       setIsSyncingGitHub(false);
     }
@@ -615,10 +675,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         const ok = onImportBackup(content);
         if (ok) {
           soundManager.playSuccess();
-          alert('✅ تم استيراد وتحديث قاعدة البيانات بنجاح!');
+          showNotice('✅ تم استيراد وتحديث قاعدة البيانات بنجاح!');
         } else {
           soundManager.playWrong();
-          alert('❌ فشل استيراد الملف. تأكد من صحة صيغة الـ JSON.');
+          showNotice('❌ فشل استيراد الملف. تأكد من صحة صيغة الـ JSON.');
         }
       }
     };
@@ -732,11 +792,47 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           </button>
         </div>
 
-        {/* Notice Alert if copied */}
+        {/* Notice Alert if copied or action performed */}
         {copiedTextNotice && (
           <div className="bg-emerald-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 animate-in fade-in shrink-0">
             <CheckCircle2 className="w-4 h-4" />
             <span>{copiedTextNotice}</span>
+          </div>
+        )}
+
+        {/* Safe Deletion Confirmation Modal Overlay */}
+        {deleteConfirmTarget && (
+          <div className="mx-4 my-2 p-3 sm:p-4 bg-rose-950/95 border border-rose-500/60 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in shrink-0 text-white shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold">
+                  تأكيد الحذف: هل أنت متأكد من حذف {deleteConfirmTarget.type}{' '}
+                  <span className="text-amber-300 font-black">"{deleteConfirmTarget.name}"</span>؟
+                </p>
+                <p className="text-[11px] text-rose-200">هذا الإجراء سيقوم بتحديث وحفظ البيانات فوراً.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setDeleteConfirmTarget(null)}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => {
+                  deleteConfirmTarget.onConfirm();
+                  setDeleteConfirmTarget(null);
+                }}
+                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-rose-950"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>تأكيد الحذف</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -1639,32 +1735,104 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               </div>
 
-              {/* GitHub Repository Cloud Backup Sync */}
+              {/* GitHub Repository Cloud Backup & Live Sync */}
               <div className="p-5 bg-slate-950 border border-slate-800 rounded-3xl space-y-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <Globe className="w-4 h-4 text-cyan-400" />
                       <h5 className="text-sm font-bold text-white">
-                        المزامنة والنسخ الاحتياطي على GitHub Repository
+                        المزامنة والربط المباشر مع مستودع GitHub
                       </h5>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                        متصل ومفعل 🟢
+                      </span>
                     </div>
                     <p className="text-xs text-slate-400">
-                      المستودع المربوط:{' '}
+                      المستودع:{' '}
                       <strong className="text-slate-200 font-mono">
                         {settings.githubRepo || 'ramimokhtar228-maker/rt-lab-rewards'}
                       </strong>
+                      {' · '}
+                      رابط الموقع المباشر:{' '}
+                      <a
+                        href="https://ramimokhtar228-maker.github.io/rt-lab-rewards/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-cyan-400 underline font-mono hover:text-cyan-300"
+                      >
+                        rt-lab-rewards (GitHub Pages) 🔗
+                      </a>
                     </p>
                   </div>
 
-                  <button
-                    onClick={handleManualGitHubSync}
-                    disabled={isSyncingGitHub}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-bold transition-all shadow-md disabled:opacity-50"
-                  >
-                    <Upload className={`w-4 h-4 ${isSyncingGitHub ? 'animate-bounce' : ''}`} />
-                    <span>{isSyncingGitHub ? 'جاري المزامنة...' : 'مزامنة ورفع مباشر لـ GitHub 🚀'}</span>
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {onTriggerGitHubPull && (
+                      <button
+                        onClick={async () => {
+                          setIsSyncingGitHub(true);
+                          setGitHubStatusMsg(null);
+                          try {
+                            const res = await onTriggerGitHubPull();
+                            if (res.success) {
+                              soundManager.playSuccess();
+                              setGitHubStatusMsg('✅ تم استيراد وتحديث أحدث بيانات المعمل من GitHub بنجاح!');
+                              showNotice('✅ تم استيراد وتحديث البيانات من GitHub!');
+                            } else {
+                              setGitHubStatusMsg('⚠️ ' + (res.message || 'فشل السحب من GitHub'));
+                            }
+                          } catch (err: any) {
+                            setGitHubStatusMsg('❌ خطأ: ' + err.message);
+                          } finally {
+                            setIsSyncingGitHub(false);
+                          }
+                        }}
+                        disabled={isSyncingGitHub}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700 disabled:opacity-50"
+                        title="سحب واستيراد أحدث نسخة من GitHub"
+                      >
+                        <Download className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>سحب وتحديث من GitHub</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={handleManualGitHubSync}
+                      disabled={isSyncingGitHub}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-950 disabled:opacity-50"
+                    >
+                      <Upload className={`w-4 h-4 ${isSyncingGitHub ? 'animate-bounce' : ''}`} />
+                      <span>{isSyncingGitHub ? 'جاري المزامنة...' : 'مزامنة ورفع مباشر لـ GitHub 🚀'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Token Configuration Field */}
+                <div className="pt-3 border-t border-slate-900 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-400 block">
+                      رمز تفويض GitHub (Personal Access Token):
+                    </label>
+                    <input
+                      type="password"
+                      value={gitHubTokenInput}
+                      onChange={(e) => setGitHubTokenInput(e.target.value)}
+                      placeholder="رمز تفويض GitHub الشخصي..."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => {
+                        saveGitHubToken(gitHubTokenInput);
+                        soundManager.playSuccess();
+                        showNotice('تم حفظ رمز الوصول الخاص بـ GitHub بنجاح!');
+                      }}
+                      className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 transition-colors"
+                    >
+                      حفظ التوكن
+                    </button>
+                  </div>
                 </div>
 
                 {gitHubStatusMsg && (
@@ -1792,9 +1960,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                           <button
                             onClick={() => {
-                              if (confirm('حذف هذا الحجز؟')) onDeleteClaim(clm.id);
+                              setDeleteConfirmTarget({
+                                type: 'حجز جائزة',
+                                id: clm.id,
+                                name: `${clm.patientName} (${clm.prizeTitle})`,
+                                onConfirm: () => {
+                                  onDeleteClaim(clm.id);
+                                  showNotice('تم حذف الحجز بنجاح.');
+                                },
+                              });
                             }}
                             className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400"
+                            title="حذف الحجز"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1875,9 +2052,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                           <button
                             onClick={() => {
-                              if (confirm(`حذف سجل المريض "${p.name}"؟`)) {
-                                onDeletePatient(p.id);
-                              }
+                              setDeleteConfirmTarget({
+                                type: 'سجل مريض',
+                                id: p.id,
+                                name: p.name,
+                                onConfirm: () => {
+                                  onDeletePatient(p.id);
+                                  showNotice(`تم حذف سجل المريض "${p.name}".`);
+                                },
+                              });
                             }}
                             className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400"
                             title="حذف السجل"
@@ -2398,10 +2581,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   </div>
                   <button
                     onClick={() => {
-                      if (confirm('هل أنت متأكد من استعادة بيانات المصنع الأصلية؟')) {
-                        onResetDefaults();
-                        alert('تمت استعادة البيانات الافتراضية بنجاح!');
-                      }
+                      setDeleteConfirmTarget({
+                        type: 'إعادة ضبط المصنع',
+                        id: 'reset_defaults',
+                        name: 'استعادة كافة بيانات وفروع وجوائز معامل RT الافتراضية',
+                        onConfirm: () => {
+                          onResetDefaults();
+                          showNotice('تمت استعادة البيانات الافتراضية بنجاح!');
+                        },
+                      });
                     }}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-900/50 text-rose-300 text-xs font-bold transition-colors"
                   >

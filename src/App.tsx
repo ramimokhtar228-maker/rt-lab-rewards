@@ -35,6 +35,8 @@ import {
   pushCloudData,
   sendCloudHeartbeat,
   pushBackupToGitHub,
+  pullBackupFromGitHub,
+  getGitHubToken,
   CloudSyncPayload,
 } from './utils/storage';
 import {
@@ -477,11 +479,32 @@ export default function App() {
 
   // GitHub Direct Sync
   const handleTriggerGitHubSync = async () => {
-    const token = localStorage.getItem('rt_lab_github_token') || '';
+    const token = getGitHubToken();
     return await pushBackupToGitHub(
       token,
-      settings.githubRepo || 'rt-lab-rewards'
+      settings.githubRepo || 'ramimokhtar228-maker/rt-lab-rewards'
     );
+  };
+
+  // GitHub Direct Restore / Pull
+  const handleTriggerGitHubPull = async () => {
+    const token = getGitHubToken();
+    const res = await pullBackupFromGitHub(
+      token,
+      settings.githubRepo || 'ramimokhtar228-maker/rt-lab-rewards'
+    );
+    if (res.success) {
+      setSettings(getLabSettings());
+      setQuestions(getQuestions());
+      setRewards(getRewards());
+      setSlices(getSpinSlices());
+      setClaims(getPrizeClaims());
+      setPatients(getRegisteredPatients());
+      setLeaderboard(getLeaderboard());
+      setCloudNotice('✅ تم تحديث بيانات المعمل والفروع والجوائز من GitHub بنجاح!');
+      setTimeout(() => setCloudNotice(null), 4000);
+    }
+    return res;
   };
 
   return (
@@ -592,6 +615,9 @@ export default function App() {
         isOpen={isBranchesModalOpen}
         onClose={() => setIsBranchesModalOpen(false)}
         settings={settings}
+        onSaveSettings={handleSaveSettings}
+        onOpenAdmin={() => setIsAdminModalOpen(true)}
+        onTriggerGitHubSync={handleTriggerGitHubSync}
         onSelectBranchForBooking={(branch: LabBranch) => {
           setIsBranchesModalOpen(false);
           handleOpenGeneralSync(`السلام عليكم، أود حجز موعد في ${branch.name}.`);
@@ -638,6 +664,7 @@ export default function App() {
         onTriggerCloudPush={handleTriggerCloudPush}
         onTriggerCloudPull={handleTriggerCloudPull}
         onTriggerGitHubSync={handleTriggerGitHubSync}
+        onTriggerGitHubPull={handleTriggerGitHubPull}
       />
 
       {/* Patient Profile Modal */}

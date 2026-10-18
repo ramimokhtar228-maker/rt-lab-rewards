@@ -1,5 +1,5 @@
 {
-  "name": "تحدي ومكافآت معامل RT | RT Lab Rewards & Cloud Sync",
+  "name": "منصة وتحدي معامل RT للتحاليل الطبية والمكافآت",
   "description": "منصة معامل RT المتطورة للتحاليل الطبية والمسابقات التفاعلية والمكافآت، مع المزامنة السحابية الفورية متعددة الأجهزة وإدارة الفروع والعناوين والتواصل المباشر عبر الواتساب.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
