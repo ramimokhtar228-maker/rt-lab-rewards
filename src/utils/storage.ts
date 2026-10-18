@@ -986,22 +986,55 @@ export async function fetchCloudData(): Promise<{
   lastUpdated: string;
   data: CloudSyncPayload;
 } | null> {
+  // 1. Try local Express cloud sync API endpoint first (when running on server/preview)
   try {
     const res = await fetch('/api/cloud-sync/data');
-    if (!res.ok) return null;
-    const body = await res.json();
-    if (body.success && body.data) {
-      return {
-        revision: body.revision,
-        lastUpdated: body.lastUpdated,
-        data: body.data,
-      };
+    if (res.ok) {
+      const body = await res.json();
+      if (body.success && body.data) {
+        return {
+          revision: body.revision,
+          lastUpdated: body.lastUpdated,
+          data: body.data,
+        };
+      }
     }
-    return null;
-  } catch (err) {
-    console.error('Fetch cloud data error:', err);
-    return null;
+  } catch {
+    // Server not available, proceed to GitHub fallback
   }
+
+  // 2. Direct GitHub Raw Fallback (Essential for GitHub Pages and standalone clients)
+  try {
+    const ghRes = await fetch(
+      'https://raw.githubusercontent.com/ramimokhtar228-maker/rt-lab-rewards/main/data/lab_cloud_backup.json?t=' + Date.now()
+    );
+    if (ghRes.ok) {
+      let backup = await ghRes.json();
+      if (typeof backup === 'string') backup = JSON.parse(backup);
+      if (backup && (backup.settings || backup.questions)) {
+        return {
+          revision: backup.version || 1,
+          lastUpdated: backup.exportDate || new Date().toISOString(),
+          data: {
+            settings: backup.settings,
+            branches: backup.settings?.branches || [],
+            adminTeam: backup.settings?.adminTeam || [],
+            whatsappTemplates: backup.settings?.whatsappTemplates || [],
+            questions: backup.questions || [],
+            rewards: backup.rewards || [],
+            slices: backup.spinSlices || [],
+            claims: backup.claims || [],
+            patients: backup.patients || [],
+            leaderboard: backup.leaderboard || [],
+          },
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('GitHub raw fallback error:', err);
+  }
+
+  return null;
 }
 
 export async function pushCloudData(payload: CloudSyncPayload): Promise<{

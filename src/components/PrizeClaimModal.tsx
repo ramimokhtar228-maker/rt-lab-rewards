@@ -20,6 +20,7 @@ import {
 import { UserCoupon, PlayerProfile, LabSettings, PrizeClaimBooking } from '../types';
 import { soundManager } from '../utils/audio';
 import { triggerConfetti } from '../utils/confetti';
+import { getWhatsAppUrl, cleanWhatsAppNumber, formatPhoneDisplay } from '../utils/phone';
 
 interface PrizeClaimModalProps {
   isOpen: boolean;
@@ -66,14 +67,16 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
   const branches = settings.branches || [];
   const chosenBranch = branches.find((b) => b.id === selectedBranchId) || branches[0];
   const targetPhone = chosenBranch?.whatsappNumber || settings.whatsappNumber;
-  const cleanLabPhone = targetPhone.replace(/\D/g, '');
+
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!patientName.trim() || !patientPhone.trim()) {
-      alert('برجاء كتابة الاسم ورقم الهاتف لإتمام تسجيل الجائزة.');
+      setFormError('برجاء كتابة الاسم ورقم الهاتف لإتمام تسجيل الجائزة.');
       return;
     }
+    setFormError(null);
 
     // Save profile
     onSavePlayer({
@@ -116,7 +119,7 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
 ---------------------------------------
 برجاء اعتماد الكوبون والتواصل لتأكيد الموعد الطبي. شكراً لمعامل RT!`;
 
-  const whatsappUrl = `https://wa.me/${cleanLabPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+  const whatsappUrl = getWhatsAppUrl(targetPhone, whatsappMessage);
 
   const handleCopyTicket = () => {
     navigator.clipboard.writeText(whatsappMessage);
@@ -171,6 +174,12 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
                 {coupon.value}
               </div>
             </div>
+
+            {formError && (
+              <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold text-center">
+                {formError}
+              </div>
+            )}
 
             {/* Inputs */}
             <div className="space-y-3">

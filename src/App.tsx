@@ -67,6 +67,7 @@ import { InviteShareModal } from './components/InviteShareModal';
 import { PrizeClaimModal } from './components/PrizeClaimModal';
 import { LabConnectBar } from './components/LabConnectBar';
 import { BranchesManagementModal } from './components/BranchesManagementModal';
+import { FloatingLabContactWidget } from './components/FloatingLabContactWidget';
 import { Cloud, CheckCircle2, RefreshCw } from 'lucide-react';
 import { soundManager } from './utils/audio';
 
@@ -544,6 +545,7 @@ export default function App() {
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onOpenInvite={() => setIsInviteModalOpen(true)}
         onOpenBranches={() => setIsBranchesModalOpen(true)}
+        onOpenWhatsAppSync={() => setIsSyncModalOpen(true)}
         onQuickCloudSync={handleTriggerCloudPull}
       />
 
@@ -612,6 +614,7 @@ export default function App() {
         settings={settings}
         onOpenSync={() => handleOpenGeneralSync()}
         onOpenBranches={() => setIsBranchesModalOpen(true)}
+        onOpenInvite={() => setIsInviteModalOpen(true)}
       />
 
       {/* WhatsApp Synchronization Modal */}
@@ -697,6 +700,14 @@ export default function App() {
         onClose={() => setIsInviteModalOpen(false)}
         onAwardBonusPoints={handleAwardBonusPoints}
         labName={settings.labName}
+        settings={settings}
+      />
+
+      {/* Floating Speed-Dial WhatsApp and Lab Contact Widget */}
+      <FloatingLabContactWidget
+        settings={settings}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
+        onOpenBranchesModal={() => setIsBranchesModalOpen(true)}
       />
     </div>
   );

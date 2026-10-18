@@ -10,19 +10,24 @@ import {
   ExternalLink,
   ShieldCheck,
   Radio,
+  Phone,
+  Share2,
 } from 'lucide-react';
 import { LabSettings } from '../types';
+import { getWhatsAppUrl, getTelUrl, formatPhoneDisplay } from '../utils/phone';
 
 interface LabConnectBarProps {
   settings: LabSettings;
   onOpenSync: () => void;
   onOpenBranches: () => void;
+  onOpenInvite?: () => void;
 }
 
 export const LabConnectBar: React.FC<LabConnectBarProps> = ({
   settings,
   onOpenSync,
   onOpenBranches,
+  onOpenInvite,
 }) => {
   const branches = settings.branches || [];
   const mainBranch = branches.find((b) => b.isMainBranch) || branches[0];
@@ -54,6 +59,15 @@ export const LabConnectBar: React.FC<LabConnectBarProps> = ({
               <MessageCircle className="w-4 h-4" />
               <span>محادثة واتساب سريعة</span>
             </button>
+            {onOpenInvite && (
+              <button
+                onClick={onOpenInvite}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-teal-700/60 hover:bg-teal-600 text-teal-200 font-bold text-xs transition-colors border border-teal-500/30"
+              >
+                <Share2 className="w-3.5 h-3.5 text-teal-300" />
+                <span>إرسال الرابط للعميل</span>
+              </button>
+            )}
             <button
               onClick={onOpenBranches}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors"
@@ -83,28 +97,41 @@ export const LabConnectBar: React.FC<LabConnectBarProps> = ({
             {branches.map((b) => (
               <div
                 key={b.id}
-                className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-2 hover:border-emerald-500/30 transition-all"
+                className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-2 hover:border-emerald-500/30 transition-all flex flex-col justify-between"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-white">{b.name}</span>
-                  {b.isMainBranch && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
-                      الرئيسي
-                    </span>
-                  )}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-white">{b.name}</span>
+                    {b.isMainBranch && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
+                        الرئيسي
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                    {b.address}
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                  {b.address}
-                </p>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-800 text-[10px] text-slate-400">
-                  <span className="font-mono text-emerald-400">{b.phone}</span>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[11px] text-slate-400">
                   <a
-                    href={`https://wa.me/${b.whatsappNumber.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-emerald-300 hover:underline flex items-center gap-1 font-semibold"
+                    href={getTelUrl(b.phone)}
+                    className="font-mono text-emerald-400 hover:underline flex items-center gap-1"
+                    title="اتصال هاتفي بالفرع"
                   >
-                    <MessageCircle className="w-2.5 h-2.5" />
+                    <Phone className="w-3 h-3 text-emerald-400" />
+                    <span>{formatPhoneDisplay(b.phone)}</span>
+                  </a>
+                  <a
+                    href={getWhatsAppUrl(
+                      b.whatsappNumber,
+                      `السلام عليكم، أود التواصل مع ${b.name} لمعامل RT`
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-300 hover:text-emerald-200 flex items-center gap-1 font-bold bg-emerald-950/60 hover:bg-emerald-900/80 px-2.5 py-1 rounded-lg border border-emerald-500/30"
+                  >
+                    <MessageCircle className="w-3 h-3 text-emerald-400" />
                     <span>واتساب</span>
                   </a>
                 </div>

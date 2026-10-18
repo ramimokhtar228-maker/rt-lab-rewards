@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { LabSettings, UserCoupon, PlayerProfile, LabBranch, LabAdminMember } from '../types';
 import { soundManager } from '../utils/audio';
+import { getWhatsAppUrl, cleanWhatsAppNumber, formatPhoneDisplay, formatInternationalDisplay } from '../utils/phone';
 
 interface WhatsAppSyncModalProps {
   isOpen: boolean;
@@ -60,8 +61,6 @@ export const WhatsAppSyncModal: React.FC<WhatsAppSyncModalProps> = ({
       ? currentBranch.whatsappNumber
       : settings.whatsappNumber;
 
-  const cleanNumber = targetPhone.replace(/\D/g, '');
-
   const voucherTitle = coupon ? coupon.title : 'طلب استفسار ومكافأة من تطبيق معامل RT';
   const voucherCode = coupon ? coupon.couponCode : `RT-${Math.floor(1000 + Math.random() * 9000)}`;
   const voucherValue = coupon ? coupon.value : 'مكافأة عميل مميز';
@@ -93,7 +92,7 @@ export const WhatsAppSyncModal: React.FC<WhatsAppSyncModalProps> = ({
     }`;
   }
 
-  const encodedUrl = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(messageBody)}`;
+  const encodedUrl = getWhatsAppUrl(targetPhone, messageBody);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(messageBody);

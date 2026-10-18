@@ -25,6 +25,7 @@ interface TopNavbarProps {
   onOpenProfile: () => void;
   onOpenInvite: () => void;
   onOpenBranches: () => void;
+  onOpenWhatsAppSync: () => void;
   onQuickCloudSync: () => void;
 }
 
@@ -40,6 +41,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onOpenProfile,
   onOpenInvite,
   onOpenBranches,
+  onOpenWhatsAppSync,
   onQuickCloudSync,
 }) => {
   const [muted, setMuted] = React.useState(soundManager.getMuted());
@@ -133,6 +135,27 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
         {/* Actions & Controls */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* WhatsApp Direct Chat Trigger */}
+          <button
+            onClick={onOpenWhatsAppSync}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-all shadow-sm"
+            title="مراسلة وتواصل واتساب معامل RT المباشر"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="hidden sm:inline">واتساب وتواصل</span>
+            <span className="sm:hidden">واتساب</span>
+          </button>
+
+          {/* Share / Invite Link Trigger */}
+          <button
+            onClick={onOpenInvite}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-300 text-xs font-bold transition-all"
+            title="إرسال الرابط للعميل أو مشاركته"
+          >
+            <Users className="w-3.5 h-3.5 text-teal-400" />
+            <span className="hidden md:inline">إرسال الرابط</span>
+          </button>
+
           {/* Branches & Locations Shortcut */}
           <button
             onClick={onOpenBranches}

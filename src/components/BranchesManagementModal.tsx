@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { LabSettings, LabBranch, LabAdminMember } from '../types';
 import { soundManager } from '../utils/audio';
+import { getWhatsAppUrl, getTelUrl, formatPhoneDisplay, cleanWhatsAppNumber, formatInternationalDisplay } from '../utils/phone';
 
 interface BranchesManagementModalProps {
   isOpen: boolean;
@@ -676,10 +677,10 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
               {/* Branches Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredBranches.map((branch) => {
-                  const cleanPhone = branch.whatsappNumber.replace(/\D/g, '');
-                  const branchWaUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                  const branchWaUrl = getWhatsAppUrl(
+                    branch.whatsappNumber,
                     `السلام عليكم، أتواصل مع ${branch.name} لمعامل RT بخصوص استفسار أو حجز تحاليل.`
-                  )}`;
+                  );
 
                   return (
                     <div
@@ -978,10 +979,10 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
               {/* Members Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredTeam.map((member) => {
-                  const cleanPhone = member.whatsappNumber.replace(/\D/g, '');
-                  const directWaUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                  const directWaUrl = getWhatsAppUrl(
+                    member.whatsappNumber,
                     `السلام عليكم دكتور/أستاذ ${member.name}، أتواصل معكم عبر تطبيق معامل RT للتحاليل الطبية.`
-                  )}`;
+                  );
 
                   return (
                     <div

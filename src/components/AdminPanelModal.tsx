@@ -57,6 +57,7 @@ import {
 } from '../types';
 import { soundManager } from '../utils/audio';
 import { saveGitHubToken, getGitHubToken } from '../utils/storage';
+import { getWhatsAppUrl, getTelUrl, formatPhoneDisplay, cleanWhatsAppNumber, formatInternationalDisplay } from '../utils/phone';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -1321,10 +1322,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Branches List */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {branches.map((branch) => {
-                  const cleanPhone = branch.whatsappNumber.replace(/\D/g, '');
-                  const branchWaUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                  const branchWaUrl = getWhatsAppUrl(
+                    branch.whatsappNumber,
                     `السلام عليكم، أتواصل مع ${branch.name} لمعامل RT بخصوص استفسار أو حجز تحاليل.`
-                  )}`;
+                  );
 
                   return (
                     <div
@@ -1620,10 +1621,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Members List */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {adminTeam.map((member) => {
-                  const cleanPhone = member.whatsappNumber.replace(/\D/g, '');
-                  const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                  const waUrl = getWhatsAppUrl(
+                    member.whatsappNumber,
                     `السلام عليكم دكتور/أستاذ ${member.name}، أتواصل معك من إدارة معامل RT.`
-                  )}`;
+                  );
 
                   return (
                     <div
@@ -1903,17 +1904,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </button>
 
                       <a
-                        href={`https://wa.me/${settings.whatsappNumber.replace(
-                          /\D/g,
-                          ''
-                        )}?text=${encodeURIComponent(
+                        href={getWhatsAppUrl(
+                          settings.whatsappNumber,
                           tpl.templateText
                             .replace('{patient_name}', 'أحمد محمود')
                             .replace('{coupon_code}', 'RT-CBC-FREE')
                             .replace('{prize_title}', 'تحليل صورة دم كاملة (CBC) مجاناً')
                             .replace('{lab_name}', settings.labName)
                             .replace('{hotline}', settings.hotlineNumber)
-                        )}`}
+                        )}
                         target="_blank"
                         rel="noreferrer"
                         className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1"
@@ -2371,9 +2370,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           </button>
 
                           <a
-                            href={`https://wa.me/${clm.patientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                            href={getWhatsAppUrl(
+                              clm.patientPhone,
                               `أهلاً بك يا أستاذ/ة ${clm.patientName}، نؤكد لك استلام طلب تفعيل جائزة (${clm.prizeTitle}) كود: ${clm.couponCode} من ${settings.labName}.`
-                            )}`}
+                            )}
                             target="_blank"
                             rel="noreferrer"
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm"
@@ -2537,10 +2537,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       p.phone.includes(patientSearch)
                   )
                   .map((p) => {
-                    const cleanPhone = p.phone.replace(/\D/g, '');
-                    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                    const waUrl = getWhatsAppUrl(
+                      p.phone,
                       `أهلاً بك يا أستاذ/ة ${p.name}، معك فريق خدمة عملاء ${settings.labName}.`
-                    )}`;
+                    );
 
                     return (
                       <div
