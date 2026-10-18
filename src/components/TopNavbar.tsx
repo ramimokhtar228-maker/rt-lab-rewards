@@ -1,31 +1,58 @@
 import React from 'react';
-import { Volume2, VolumeX, ShieldCheck, Award, Sparkles } from 'lucide-react';
+import {
+  Volume2,
+  VolumeX,
+  ShieldCheck,
+  Award,
+  Sparkles,
+  Building,
+  Cloud,
+  Users,
+  RefreshCw,
+} from 'lucide-react';
 import { soundManager } from '../utils/audio';
 
 interface TopNavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   points: number;
+  playerName: string;
+  isCloudConnected: boolean;
+  cloudRevision: number;
+  devicesOnlineCount: number;
   onOpenAdmin: () => void;
   onOpenProfile: () => void;
   onOpenInvite: () => void;
-  playerName: string;
+  onOpenBranches: () => void;
+  onQuickCloudSync: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
   activeTab,
   setActiveTab,
   points,
+  playerName,
+  isCloudConnected,
+  cloudRevision,
+  devicesOnlineCount,
   onOpenAdmin,
   onOpenProfile,
   onOpenInvite,
-  playerName,
+  onOpenBranches,
+  onQuickCloudSync,
 }) => {
   const [muted, setMuted] = React.useState(soundManager.getMuted());
+  const [isSyncSpinning, setIsSyncSpinning] = React.useState(false);
 
   const handleToggleSound = () => {
     const isMuted = soundManager.toggleMute();
     setMuted(isMuted);
+  };
+
+  const handleSyncClick = () => {
+    setIsSyncSpinning(true);
+    onQuickCloudSync();
+    setTimeout(() => setIsSyncSpinning(false), 1200);
   };
 
   const navItems = [
@@ -39,28 +66,52 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-6">
-        
-        {/* Zone 1: Brand Wordmark */}
-        <button
-          onClick={() => setActiveTab('home')}
-          className="flex items-center gap-2.5 text-right whitespace-nowrap shrink-0 group focus:outline-none"
-        >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-            <Sparkles className="w-5 h-5 text-amber-200" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-lg font-black tracking-tight text-white group-hover:text-emerald-400 transition-colors">
-              معامل RT
-            </span>
-            <span className="text-[11px] text-slate-400 font-medium -mt-1">
-              مكافآت وتحدي المرضى
-            </span>
-          </div>
-        </button>
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-3 sm:gap-6">
+        {/* Brand Wordmark & Cloud Badge */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setActiveTab('home')}
+            className="flex items-center gap-2.5 text-right whitespace-nowrap shrink-0 group focus:outline-none"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+              <Sparkles className="w-5 h-5 text-amber-200" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-lg font-black tracking-tight text-white group-hover:text-emerald-400 transition-colors">
+                معامل RT
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium -mt-1">
+                التحاليل الطبية & السحابة
+              </span>
+            </div>
+          </button>
 
-        {/* Zone 2: Navigation Links (single-line, clean) */}
-        <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-300">
+          {/* Cloud Sync Status Badge */}
+          <button
+            onClick={handleSyncClick}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/80 hover:bg-slate-800 border border-slate-800 text-[11px] font-bold text-slate-300 transition-all shadow-inner group"
+            title="انقر لتحديث المزامنة السحابية فوراً بين الأجهزة"
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isCloudConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+              }`}
+            ></span>
+            <span className="text-emerald-400">السحابة متصلة</span>
+            <span className="text-slate-500">|</span>
+            <span className="text-slate-400 font-mono text-[10px]">
+              {devicesOnlineCount} {devicesOnlineCount > 1 ? 'أجهزة' : 'جهاز'}
+            </span>
+            <RefreshCw
+              className={`w-3 h-3 text-slate-400 group-hover:text-emerald-400 ${
+                isSyncSpinning ? 'animate-spin text-emerald-400' : ''
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-5 text-xs font-semibold text-slate-300">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -79,45 +130,44 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           })}
         </nav>
 
-        {/* Zone 3: Primary Action & Controls */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        {/* Actions & Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Branches & Locations Shortcut */}
+          <button
+            onClick={onOpenBranches}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700/60"
+            title="عرض فروع وعناوين المعمل وفريق الإدارة والواتساب"
+          >
+            <Building className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">الفروع والإدارة</span>
+            <span className="sm:hidden">الفروع</span>
+          </button>
+
           {/* Sound Toggle */}
           <button
             onClick={handleToggleSound}
             aria-label={muted ? 'تشغيل الصوت' : 'كتم الصوت'}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
             title={muted ? 'تشغيل المؤثرات الصوتية' : 'كتم الصوت'}
           >
-            {muted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
-          </button>
-
-          {/* Invite Friend Button */}
-          <button
-            onClick={onOpenInvite}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-300 font-semibold text-xs transition-colors"
-            title="مشاركة الرابط ودعوة صديق (+50 نقطة)"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-            <span>دعوة صديق (+50)</span>
+            {muted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
           </button>
 
           {/* Points & Profile Trigger */}
           <button
             onClick={onOpenProfile}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 transition-colors text-xs font-bold"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 transition-colors text-xs font-bold"
             title="ملف المريض والنقاط"
           >
-            <Award className="w-4 h-4 text-amber-400" />
-            <span className="tabular-nums font-mono text-sm">{points}</span>
-            <span className="hidden sm:inline text-[11px] text-amber-200">نقطة</span>
-            <span className="hidden md:inline text-slate-400">·</span>
-            <span className="hidden md:inline text-slate-300 max-w-[90px] truncate">{playerName}</span>
+            <Award className="w-3.5 h-3.5 text-amber-400" />
+            <span className="tabular-nums font-mono text-xs sm:text-sm">{points}</span>
+            <span className="hidden md:inline text-[11px] text-amber-200">نقطة</span>
           </button>
 
           {/* Admin Control Access */}
           <button
             onClick={onOpenAdmin}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-sm whitespace-nowrap"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-sm shadow-emerald-950 whitespace-nowrap"
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>لوحة الإدارة</span>
@@ -126,14 +176,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       </div>
 
       {/* Mobile Horizontal Navigation Strip */}
-      <div className="lg:hidden flex items-center gap-2 px-4 py-2 overflow-x-auto no-scrollbar border-t border-slate-800/80 bg-slate-900/60">
+      <div className="lg:hidden flex items-center gap-2 px-3 py-2 overflow-x-auto no-scrollbar border-t border-slate-800/80 bg-slate-900/60">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           return (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${
+              className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${
                 isActive
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700'

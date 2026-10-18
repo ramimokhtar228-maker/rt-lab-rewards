@@ -1,163 +1,309 @@
 import {
   Question,
   RewardItem,
-  UserCoupon,
+  RewardType,
   SpinSlice,
   LabSettings,
   PlayerProfile,
+  UserCoupon,
   LeaderboardUser,
   PatientRecord,
   PrizeClaimBooking,
+  LabBranch,
+  LabAdminMember,
+  WhatsAppTemplate,
+  CloudSyncState,
 } from '../types';
 
+// Storage keys
+const STORAGE_KEYS = {
+  QUESTIONS: 'rt_lab_questions_v3',
+  REWARDS: 'rt_lab_rewards_v3',
+  SPIN_SLICES: 'rt_lab_spin_slices_v3',
+  SETTINGS: 'rt_lab_settings_v3',
+  PLAYER: 'rt_lab_player_profile_v3',
+  COUPONS: 'rt_lab_user_coupons_v3',
+  LEADERBOARD: 'rt_lab_leaderboard_v3',
+  PATIENTS: 'rt_lab_patients_v3',
+  CLAIMS_LOG: 'rt_lab_claims_log_v3',
+  DEVICE_ID: 'rt_lab_device_id_v3',
+  DEVICE_NAME: 'rt_lab_device_name_v3',
+  CLOUD_REVISION: 'rt_lab_cloud_revision_v3',
+};
+
+// Initial Branches
+export const INITIAL_BRANCHES: LabBranch[] = [
+  {
+    id: 'br_main',
+    name: 'الفرع الرئيسي - مدينة نصر',
+    city: 'القاهرة',
+    address: 'شارع الطيران - تقاطع مصطفى النحاس، برج الأطباء والنور - الدور الثالث',
+    phone: '01021487889',
+    whatsappNumber: '201021487889',
+    googleMapsUrl: 'https://maps.google.com/?q=Nasr+City+Cairo',
+    workingHours: 'يومياً من 8:00 صباحاً إلى 11:30 مساءً (طوارئ سحب منزلي 24 ساعة)',
+    managerName: 'د. رامي مختار (استشاري التحاليل الطبية)',
+    isMainBranch: true,
+    homeSamplingCoverage: 'مدينة نصر، مصر الجديدة، التجمع الخامس، النزهة، العباسية',
+    notes: 'معمل مجهز بأحدث أجهزة التحاليل الآلية ووحدة طوارئ سريعة',
+  },
+  {
+    id: 'br_heliopolis',
+    name: 'فرع مصر الجديدة - روكسي',
+    city: 'القاهرة',
+    address: 'شارع الميرغني، أمام محطة مترو الأهرام، عمارة مصر للتأمين - الدور الأول',
+    phone: '01239876918',
+    whatsappNumber: '201239876918',
+    googleMapsUrl: 'https://maps.google.com/?q=Heliopolis+Cairo',
+    workingHours: 'يومياً من 8:30 صباحاً إلى 11:00 مساءً',
+    managerName: 'د. سارة عبد الرحمن',
+    isMainBranch: false,
+    homeSamplingCoverage: 'روكسي، الكوربة، هليوبوليس، جسر السويس، مساكن شيراتون',
+    notes: 'بجوار محطة المترو مباشرة لسهولة الوصول',
+  },
+  {
+    id: 'br_tagamoa',
+    name: 'فرع التجمع الخامس - القاهرة الجديدة',
+    city: 'القاهرة الجديدة',
+    address: 'شارع التسعين الشمالي، ميديكال بارك بريميير - الدور الثاني عيادة 204',
+    phone: '01099887766',
+    whatsappNumber: '201099887766',
+    googleMapsUrl: 'https://maps.google.com/?q=New+Cairo+Tagamoa',
+    workingHours: 'يومياً من 9:00 صباحاً إلى 10:30 مساءً',
+    managerName: 'أ. محمد عبد الله (مسؤول الفرع)',
+    isMainBranch: false,
+    homeSamplingCoverage: 'التجمع الأول والخامس، الرحاب، مدينتي، الشروق',
+    notes: 'خدمة سحب عينات VIP واستراحة مجهزة للأطفال وكبار السن',
+  },
+  {
+    id: 'br_dokki',
+    name: 'فرع الدقي والمهندسين',
+    city: 'الجيزة',
+    address: 'شارع مصدق، تقاطع محيي الدين أبو العز، برج الأطباء الطبي',
+    phone: '01145678330',
+    whatsappNumber: '201145678330',
+    googleMapsUrl: 'https://maps.google.com/?q=Dokki+Giza',
+    workingHours: 'يومياً من 8:00 صباحاً إلى 11:00 مساءً',
+    managerName: 'د. كريم الشربيني',
+    isMainBranch: false,
+    homeSamplingCoverage: 'الدقي، المهندسين، العجوزة، الزمالك، فيصل والهرم',
+    notes: 'سحب عينات منزلي فوري وسيارات مجهزة لنقل العينات المبردة',
+  },
+];
+
+// Initial Admin & Staff Team
+export const INITIAL_ADMIN_TEAM: LabAdminMember[] = [
+  {
+    id: 'adm_1',
+    name: 'د. رامي مختار',
+    role: 'المدير العام والمسؤول الفني لمعامل RT',
+    phone: '01021487889',
+    whatsappNumber: '201021487889',
+    branchId: 'br_main',
+    isOnline: true,
+    allowDirectWhatsApp: true,
+    bio: 'استشاري الكيمياء الحيوية الإكلينيكية والمناعة والمسؤول العام عن الجودة وسرعة النتائج.',
+  },
+  {
+    id: 'adm_2',
+    name: 'د. سارة عبد الرحمن',
+    role: 'استشاري التحاليل الطبية وإدارة الجودة',
+    phone: '01239876918',
+    whatsappNumber: '201239876918',
+    branchId: 'br_heliopolis',
+    isOnline: true,
+    allowDirectWhatsApp: true,
+    bio: 'مراجعة التقارير المخبرية وتفسير نتائج الفحوصات للمرضى ومتابعة الحالات الخاصة.',
+  },
+  {
+    id: 'adm_3',
+    name: 'أ. محمد عبد الله',
+    role: 'مسؤول خدمة العملاء وتنسيق السحب المنزلي السريع',
+    phone: '01099887766',
+    whatsappNumber: '201099887766',
+    branchId: 'br_tagamoa',
+    isOnline: true,
+    allowDirectWhatsApp: true,
+    bio: 'تأكيد الحجوزات، إرسال نتائج التحاليل عبر الواتساب، وتوجيه فنيي السحب المنزلي.',
+  },
+  {
+    id: 'adm_4',
+    name: 'أحمد كمال (أخصائي سحب العينات)',
+    role: 'مسؤول طوارئ الزيارات المنزلية وعينات الأطفال',
+    phone: '01145678330',
+    whatsappNumber: '201145678330',
+    branchId: 'br_dokki',
+    isOnline: true,
+    allowDirectWhatsApp: true,
+    bio: 'خبرة تزيد عن 8 سنوات في سحب العينات الدقيقة والتعامل اللطيف مع الأطفال وكبار السن.',
+  },
+];
+
+// Initial Formatted WhatsApp Templates
+export const INITIAL_WHATSAPP_TEMPLATES: WhatsAppTemplate[] = [
+  {
+    id: 'tpl_1',
+    title: 'تأكيد حجز سحب عينات منزلي 🏠',
+    category: 'booking',
+    templateText: `🎉 *أهلاً بك يا أستاذ/ة {patient_name} في {lab_name}!*
+
+✅ *تم استلام واعتماد طلبك لخدمة السحب المنزلي بنجاح:*
+📍 *العنوان:* {branch_address}
+⏰ *الميعاد المفضل:* {preferred_time}
+🎁 *الكوبون أو الخدمة:* {prize_title} (كود: *{coupon_code}*)
+🩺 *مسؤول الزيارة:* فريق التمريض المتنقل المجهز بأحدث أنابيب وأجهزة سحب العينات المعقمة.
+
+📞 للتواصل السريع مع منسق الزيارات: {manager_name} ({phone})
+💚 صحتك وراحتك في بيتك أولويتنا الدائمة!`,
+    isActive: true,
+  },
+  {
+    id: 'tpl_2',
+    title: 'إشعار جاهزية نتائج التحاليل 📋',
+    category: 'results',
+    templateText: `السلام عليكم ورحمة الله وبركاته يا أستاذ/ة *{patient_name}* 🩺
+
+يسر *{lab_name}* إبلاغكم بأن نتائج تحاليلكم الطبية قد اكتملت وتمت مراجعتها واعتمادها من قبل استشاري المعمل *{manager_name}*.
+
+📄 يمكنكم استلام التقرير بصيغة PDF فوراً بالرد على هذه الرسالة، أو زيارة *{branch_name}*.
+📍 العنوان: {branch_address}
+📞 هاتف الفرع: {branch_phone}
+
+نتمنى لكم دوام الصحة والعافية والشفاء التام دائماً 💚`,
+    isActive: true,
+  },
+  {
+    id: 'tpl_3',
+    title: 'تهنئة الفوز بجائزة / تحليل مجاني 🎁',
+    category: 'rewards',
+    templateText: `مبارك لك يا بطل/ة *{patient_name}*! 🏆🎉
+
+لقد فزت بـ *{prize_title}* بقيمة *{prize_value}* من *{lab_name}*!
+⭐ رصيد نقاطك الحالي: *{points} نقطة*.
+🔢 كود الكوبون المعتمد: *{coupon_code}*
+
+🏥 يمكنك الاستفادة من جائزتك مباشرة بزيارة أي من فروعنا أو بطلب خدمة السحب المنزلي:
+📍 *{branch_name}:* {branch_address}
+📞 للاستفسار والتفعيل المباشر: {phone}
+
+نتشرف دائماً بخدمتكم في معامل RT! 🌟`,
+    isActive: true,
+  },
+  {
+    id: 'tpl_4',
+    title: 'عناوين وفروع معامل RT ولوكيشن الخرائط 📍',
+    category: 'branches',
+    templateText: `يسعدنا دائماً استقبالكم في كافة فروع *{lab_name}*:
+
+📍 *1. الفرع الرئيسي (مدينة نصر):*
+شارع الطيران تقاطع مصطفى النحاس - برج الأطباء والنور - الدور 3
+📞 01021487889 | يومياً 8 ص - 11:30 م
+
+📍 *2. فرع مصر الجديدة (روكسي):*
+شارع الميرغني، أمام محطة مترو الأهرام، الدور الأول
+📞 01239876918 | يومياً 8:30 ص - 11:00 م
+
+📍 *3. فرع التجمع الخامس (القاهرة الجديدة):*
+شارع التسعين الشمالي، ميديكال بارك بريميير - عيادة 204
+📞 01099887766 | يومياً 9 ص - 10:30 م
+
+📍 *4. فرع الدقي والمهندسين:*
+شارع مصدق، تقاطع محيي الدين أبو العز، برج الأطباء
+📞 01145678330 | يومياً 8 ص - 11:00 م
+
+🚗 خدمة السحب المنزلي متاحة في جميع أنحاء القاهرة والجيزة على مدار 24 ساعة.
+للحجز السريع كلمنا على الخط الساخن: *{hotline}* 💚`,
+    isActive: true,
+  },
+  {
+    id: 'tpl_5',
+    title: 'متابعة المريض بعد الفحص والاطمئنان عليه 💚',
+    category: 'inquiry',
+    templateText: `مساء الخير يا أستاذ/ة *{patient_name}* 🌷
+معكم فريق المتابعة الطبية من *{lab_name}*.
+
+نود الاطمئنان على صحتكم الكريمة بعد زيارتكم الأخيرة لمعملنا، ونتمنى أن تكون نتائج الفحوصات مطمئنة.
+إذا كان لديكم أي استفسار طبي بخصوص قراءة التقرير، فإن أطباء واستشاريي المعمل يسعدهم الرد عليكم ومساعدتكم مجاناً في أي وقت.
+
+دمتم بصحة وعافية وراحة بال دائماً! 🤲`,
+    isActive: true,
+  },
+  {
+    id: 'tpl_6',
+    title: 'عرض باقة الفحص الدوري الشامل 🩺',
+    category: 'general',
+    templateText: `عزيزنا العميل *{patient_name}* 🌟
+"الوقاية خير من العلاج" .. وحرصاً على صحتك وصحة أسرتك، تقدم لك *{lab_name}* باقة الفحص الشامل المتميزة:
+
+🩺 *تشمل الباقة:*
+- صورة دم كاملة (CBC)
+- وظائف كبد كاملة (ALT - AST)
+- وظائف كلى وكرياتينين
+- سكر تراكمي وسكر صائم
+- دهون ثلاثية وكوليسترول كلي
+- حمض اليوريك (النقرس)
+
+💰 *بخصم خاص 35%* لعملاء التحدي والمكافآت!
+🚗 شاملة سحب العينات من المنزل مجاناً.
+للحجز السريع: أرسل لنا رسالة هنا أو اتصل بنا: *{hotline}*`,
+    isActive: true,
+  },
+];
+
+// Initial Questions
 export const INITIAL_QUESTIONS: Question[] = [
-  // فئة معلومات طبية وصحية ممتعة
   {
     id: 'q1',
     category: 'medical',
-    question: 'ما هو التحليل الطبي الأكثر دقة لقياس متوسط نسبة السكر في الدم خلال آخر 3 أشهر؟',
-    options: ['تحليل سكر عشوائي (RBS)', 'السكر التراكمي (HbA1c)', 'تحليل بول كامل', 'وظائف كبد (ALT)'],
+    question: 'ما هو التحليل الطبي المعتمد دولياً لقياس متوسط معدل السكر في الدم على مدار آخر 3 أشهر؟',
+    options: ['تحليل السكر العشوائي', 'السكر التراكمي (HbA1c)', 'سكر صائم وفاطر', 'منحنى السكر بالدم'],
     correctIndex: 1,
-    explanation: 'تحليل السكر التراكمي HbA1c يقيس نسبة الهيموجلوبين المرتبط بالجلوكوز ويعكس متوسط السكر لـ 90 يوماً.',
+    explanation: 'السكر التراكمي (HbA1c) يقيس نسبة ارتباط الجلوكوز بالهيموجلوبين داخل كريات الدم الحمراء خلال دورة حياتها (نحو 120 يوماً).',
     points: 50,
     difficulty: 'easy',
   },
   {
     id: 'q2',
     category: 'medical',
-    question: 'ما هو الفيتامين الذي يصنعه جسم الإنسان عند التعرض المعتدل لأشعة الشمس الصباحية؟',
-    options: ['فيتامين C', 'فيتامين D', 'فيتامين B12', 'فيتامين K'],
-    correctIndex: 1,
-    explanation: 'تساعد الأشعة فوق البنفسجية الجلد على تكوين طليعة فيتامين D الضروري لكثافة العظام والمناعة.',
+    question: 'ما هو الفيتامين الملقب بـ "فيتامين أشعة الشمس" والمسؤول أساساً عن امتصاص الكالسيوم وتقوية العظام والمناعة؟',
+    options: ['فيتامين C', 'فيتامين B12', 'فيتامين D', 'فيتامين A'],
+    correctIndex: 2,
+    explanation: 'يتم تصنيع فيتامين د في الجلد عند التعرض لأشعة الشمس المعتدلة، وهو ضروري لامتصاص الكالسيوم والفوسفور.',
     points: 40,
     difficulty: 'easy',
   },
   {
     id: 'q3',
     category: 'medical',
-    question: 'كم عدد ساعات الصيام المطلوبة عادة لإجراء تحليل الدهون الكاملة (Lipid Profile) بدقة؟',
-    options: ['ساعتين فقط', 'من 4 إلى 6 ساعات', 'من 10 إلى 12 ساعة', '24 ساعة'],
-    correctIndex: 2,
-    explanation: 'يتطلب تحليل الدهون الثلاثية والكوليسترول صياماً من 10 إلى 12 ساعة (مسموح بشرب الماء النقي فقط).',
+    question: 'ما هي فصيلة الدم المعروفة علمياً بلقب "المعطي العام" لأنها تستطيع التبرع بالدم لجميع الفصائل الأخرى؟',
+    options: ['فصيلة AB موجب', 'فصيلة O سالب (O-)', 'فصيلة A موجب', 'فصيلة B سالب'],
+    correctIndex: 1,
+    explanation: 'فصيلة O سالب تخلو خلاياها من الأنتيجينات A و B وعامل ريسس، لذا لا يهاجمها جهاز المناعة لدى أي مريض.',
     points: 60,
     difficulty: 'medium',
   },
   {
     id: 'q4',
     category: 'medical',
-    question: 'ما هي فصيلة الدم التي تُلقب بـ "المعطي العام" لجميع الفصائل؟',
-    options: ['AB موجب (+)', 'O سالب (-)', 'A موجب (+)', 'B سالب (-)'],
-    correctIndex: 1,
-    explanation: 'فصيلة O سالب تفتقر لمولدات الضد A و B وعامل ريسوس، لذا يمكن نقل كرياتها الحمراء لأي فصيلة في الطوارئ.',
-    points: 50,
-    difficulty: 'easy',
+    question: 'كم ساعة يفضل أن يصوم المريض عادة لإجراء تحليل الدهون الكاملة في الدم (Lipid Profile) بدقة عالية؟',
+    options: ['ساعتين فقط', 'من 4 إلى 6 ساعات', 'من 10 إلى 12 ساعة', '24 ساعة كاملة'],
+    correctIndex: 2,
+    explanation: 'تحليل الدهون الثلاثية والكوليسترول يتطلب صياماً من 10 إلى 12 ساعة مع السماح بشرب الماء العذب فقط للحصول على أدق نتائج.',
+    points: 45,
+    difficulty: 'medium',
   },
   {
     id: 'q5',
     category: 'medical',
-    question: 'ما هو العضو الرئيسي في جسم الإنسان المسؤول عن فلترة وتصفية الدم من الفضلات والسموم؟',
-    options: ['الرئتان', 'الكلى', 'الطحال', 'المرارة'],
-    correctIndex: 1,
-    explanation: 'تقوم الكليتان بتصفية نحو 180 لتراً من السوائل يومياً وتفرز الفضلات في البول للحفاظ على التوازن الكيميائي.',
-    points: 40,
+    question: 'ما هو البروتين الرئيسي المسؤول عن حمل ونقل الأكسجين في كريات الدم الحمراء إلى سائر أنسجة الجسم؟',
+    options: ['الميوجلوبين', 'الألبومين', 'الهيموجلوبين', 'الترانسفيرين'],
+    correctIndex: 2,
+    explanation: 'الهيموجلوبين مركب غني بالحديد موجود في خلايا الدم الحمراء، ويرتبط بالأكسجين في الرئتين ليوزعه على خلايا الجسم.',
+    points: 50,
     difficulty: 'easy',
   },
   {
     id: 'q6',
-    category: 'medical',
-    question: 'تحليل صورة الدم الكاملة (CBC) يكشف عن خلايا الدم. أي منها مسؤول عن نقل الأكسجين لجميع الأنسجة؟',
-    options: ['كرات الدم البيضاء (WBC)', 'الصفائح الدموية (Platelets)', 'كرات الدم الحمراء (RBC / الهيموجلوبين)', 'البلازما'],
-    correctIndex: 2,
-    explanation: 'تحتوي كرات الدم الحمراء على بروتين الهيموجلوبين الذي يرتبط بالأكسجين في الرئتين وينقله لأنسجة الجسم.',
-    points: 50,
-    difficulty: 'medium',
-  },
-
-  // فئة ألغاز ومسائل ذكاء
-  {
-    id: 'q7',
-    category: 'puzzle',
-    question: 'شيء يمشي بلا أرجل، ويبكي بلا عيون، ويدخل كل بيت دون إذن.. فما هو؟',
-    options: ['الريح', 'السحاب / المطر', 'الوقت', 'الظل'],
-    correctIndex: 1,
-    explanation: 'السحاب يسير مع الريح بلا أقدام، ويهطل مطراً كالبكاء بلا عيون!',
-    points: 60,
-    difficulty: 'medium',
-  },
-  {
-    id: 'q8',
-    category: 'puzzle',
-    question: 'مسألة ذكاء سريعة: إذا كان 5 قطط تصطاد 5 فئران في 5 دقائق، فكم دقيقة تحتاج 100 قطة لصيد 100 فأر؟',
-    options: ['100 دقيقة', '5 دقائق', '20 دقيقة', 'دقيقة واحدة'],
-    correctIndex: 1,
-    explanation: 'كل قطة تستغرق 5 دقائق لصيد فأرها المستقل، لذا 100 قطة ستصطاد 100 فأر في نفس الـ 5 دقائق بالتزامن!',
-    points: 75,
-    difficulty: 'hard',
-  },
-  {
-    id: 'q9',
-    category: 'puzzle',
-    question: 'أنا أملك قلباً لا ينبض، ولي أوراق كثيرة ولكنني لست شجرة.. فما أنا؟',
-    options: ['الكتاب', 'الخس', 'البستان', 'القاموس الطبي'],
-    correctIndex: 0,
-    explanation: 'الكتاب له أوراق وفصول ويحتوي في وسطه على "قلب الكتاب" الفكري ولكنه جماد!',
-    points: 40,
-    difficulty: 'easy',
-  },
-  {
-    id: 'q10',
-    category: 'puzzle',
-    question: 'ما هو الشيء الذي كلما أخذت منه كَبُر، وكلما وضعت فيه صَغُر؟',
-    options: ['العمر', 'الحفرة', 'الظل', 'الصمت'],
-    correctIndex: 1,
-    explanation: 'الحفرة كلما أخذت وحفرت منها زاد اتساعها، وكلما ردمت فيها صغرت!',
-    points: 50,
-    difficulty: 'easy',
-  },
-
-  // فئة ثقافة عامة وترفيه
-  {
-    id: 'q11',
-    category: 'culture',
-    question: 'ما هو أكبر كوكب في مجموعتنا الشمسية حجماً؟',
-    options: ['زحل', 'المشتري', 'المريخ', 'أورانوس'],
-    correctIndex: 1,
-    explanation: 'المشتري هو أضخم كواكب المجموعة الشمسية وكتلته تعادل أكثر من ضعفي جميع الكواكب الأخرى مجتمعة.',
-    points: 40,
-    difficulty: 'easy',
-  },
-  {
-    id: 'q12',
-    category: 'culture',
-    question: 'في الأمثال الشعبية الشهيرة: "الوقاية خير من ..."',
-    options: ['المعاملة', 'العلاج و الندم', 'الانتظار', 'الصبر'],
-    correctIndex: 1,
-    explanation: 'المثل الطبي الشهير "الوقاية خير من العلاج" يؤكد أهمية الفحص الدوري المبكر للحفاظ على الصحة.',
-    points: 30,
-    difficulty: 'easy',
-  },
-  {
-    id: 'q13',
-    category: 'general',
-    question: 'ما هو المعدن السائل الوحيد في درجة حرارة الغرفة العادية وكان يستخدم في موازين الحرارة القديمة؟',
-    options: ['البروم', 'الزئبق', 'الرصاص', 'الكالسيوم'],
-    correctIndex: 1,
-    explanation: 'الزئبق (Mercury) هو العنصر الفلزي الوحيد الذي يبقى سائلاً في درجات الحرارة والضغط المعياريين.',
-    points: 50,
-    difficulty: 'medium',
-  },
-  {
-    id: 'q14',
-    category: 'culture',
-    question: 'ما هو أطول نهر في العالم يمر بعدة دول أفريقية منها مصر والسودان؟',
-    options: ['نهر الأمازون', 'نهر النيل', 'نهر الدانوب', 'نهر الميسيسيبي'],
-    correctIndex: 1,
-    explanation: 'نهر النيل هو شريان الحياة وأطول أنهار كوكب الأرض ويمتد لأكثر من 6,650 كيلومتر.',
-    points: 30,
-    difficulty: 'easy',
-  },
-  {
-    id: 'q15',
     category: 'medical',
     question: 'ما هو العضو في جسم الإنسان المسؤول عن إفراز هرمون الأنسولين لتنظيم السكر في الدم؟',
     options: ['الكبد', 'البنكرياس', 'الغدة الدرقية', 'المعدة'],
@@ -167,7 +313,7 @@ export const INITIAL_QUESTIONS: Question[] = [
     difficulty: 'easy',
   },
   {
-    id: 'q16',
+    id: 'q7',
     category: 'medical',
     question: 'ما هو التحليل الطبي المعتمد للكشف عن ترسبات حمض اليوريك وتشخيص داء النقرس وآلام المفاصل؟',
     options: ['حمض اليوريك (Uric Acid)', 'سرعة الترسيب (ESR)', 'الكالسيوم الكلي', 'الكرياتينين'],
@@ -177,47 +323,27 @@ export const INITIAL_QUESTIONS: Question[] = [
     difficulty: 'medium',
   },
   {
-    id: 'q17',
-    category: 'medical',
-    question: 'ما هو التحليل المخبري الأساسي للاطمئنان على كفاءة فلترة الكليتين قبل تناول أدوية معينة؟',
-    options: ['إنزيمات القلب', 'الكرياتينين ووظائف الكلى (Creatinine)', 'فيتامين C', 'فصائل الدم'],
-    correctIndex: 1,
-    explanation: 'الكرياتينين هو ناتج أيض العضلات وتفرزه الكلى السليمة بانتظام، ويعد مؤشراً دقيقاً لسلامة الكليتين.',
-    points: 50,
-    difficulty: 'medium',
-  },
-  {
-    id: 'q18',
+    id: 'q8',
     category: 'puzzle',
-    question: 'لغز ذكاء سريع: كم شهراً في السنة الميلادية يحتوي على 28 يوماً على الأقل؟',
-    options: ['شهر واحد فقط (فبراير)', '6 أشهر', 'جميع الشهور الـ 12', '10 أشهر'],
-    correctIndex: 2,
-    explanation: 'جميع شهور السنة الـ 12 تحتوي على 28 يوماً، فبعضها يحتوي 30 وبعضها 31 وفبراير 28 أو 29!',
-    points: 70,
+    question: 'لغز ذكاء سريع: إذا كان 5 قطط تصطاد 5 فئران في 5 دقائق، فكم دقيقة تحتاج 100 قطة لصيد 100 فأر؟',
+    options: ['100 دقيقة', '5 دقائق', '20 دقيقة', 'دقيقة واحدة'],
+    correctIndex: 1,
+    explanation: 'كل قطة تستغرق 5 دقائق لصيد فأرها المستقل، لذا 100 قطة ستصطاد 100 فأر في نفس الـ 5 دقائق بالتزامن!',
+    points: 75,
     difficulty: 'hard',
   },
   {
-    id: 'q19',
-    category: 'puzzle',
-    question: 'شيء يخصك أنت وحدك، ولكن الناس يستخدمونه أكثر منك دون إذنك.. فما هو؟',
-    options: ['حذاؤك', 'اسمك', 'صوتك', 'ظلك'],
-    correctIndex: 1,
-    explanation: 'اسمك ملكك ويناديك به الآخرون ويتداولونه طوال اليوم أكثر مما تنطق به أنت لنفسك!',
-    points: 40,
-    difficulty: 'easy',
-  },
-  {
-    id: 'q20',
+    id: 'q9',
     category: 'culture',
-    question: 'في الحكمة العربية الشهيرة: "الصحة تاج على رؤوس الأصحاء، لا يراه إلا ..."',
-    options: ['الأطباء', 'الحكماء', 'المرضى', 'الأغنياء'],
-    correctIndex: 2,
-    explanation: 'المثل يؤكد نعمة العافية وأن الشخص المريض هو الأكثر إدراكاً لقيمة الصحة الغالية.',
-    points: 35,
+    question: 'في الأمثال الشعبية الشهيرة: "الوقاية خير من ..."',
+    options: ['المعاملة', 'العلاج والندم', 'الانتظار', 'الصبر'],
+    correctIndex: 1,
+    explanation: 'المثل الطبي الشهير "الوقاية خير من العلاج" يؤكد أهمية الفحص الدوري المبكر للحفاظ على الصحة.',
+    points: 30,
     difficulty: 'easy',
   },
   {
-    id: 'q21',
+    id: 'q10',
     category: 'medical',
     question: 'ما هو الفحص الطبي الأشهر لتقييم نشاط الغدة الدرقية المنظمة لمعدل الحرق والطاقة؟',
     options: ['هرمون TSH', 'فيتامين B12', 'صورة دم CBC', 'تحليل بول'],
@@ -228,6 +354,7 @@ export const INITIAL_QUESTIONS: Question[] = [
   },
 ];
 
+// Initial Rewards
 export const INITIAL_REWARDS: RewardItem[] = [
   {
     id: 'rew_1',
@@ -301,44 +428,9 @@ export const INITIAL_REWARDS: RewardItem[] = [
     terms: 'متاح للحجز الفوري مع التقرير في نفس اليوم.',
     isActive: true,
   },
-  {
-    id: 'rew_7',
-    code: 'RT-URIC-FREE',
-    title: 'فحص حمض اليوريك (نقرس) مجاناً 100%',
-    description: 'اطمئن على سلامة مفاصلك ومعدل حمض البوليك بالدم مجاناً بالكامل.',
-    type: 'free_test',
-    value: 'تحليل مجاني 100%',
-    pointsCost: 280,
-    badge: 'مفاصل وعظام 🦴',
-    terms: 'صالح في جميع الفروع وخدمة السحب المنزلي.',
-    isActive: true,
-  },
-  {
-    id: 'rew_8',
-    code: 'RT-CREAT-FREE',
-    title: 'تحليل وظائف كلى كرياتينين مجاناً',
-    description: 'فحص دقيق لكفاءة تصفية الكلى بالمعمل.',
-    type: 'free_test',
-    value: 'فحص مجاني 100%',
-    pointsCost: 300,
-    badge: 'صحة وحماية 🛡️',
-    terms: 'يتم تسليم التقرير الطبي خلال ساعات معدودة.',
-    isActive: true,
-  },
-  {
-    id: 'rew_9',
-    code: 'RT-KIDS-40',
-    title: 'خصم 40% على باقة نمو وصحة الطفل',
-    description: 'تشمل صورة دم، كالسيوم، حديد، وتحاليل نمو متكاملة لطفلك بخصم استثنائي.',
-    type: 'package_deal',
-    value: 'خصم 40%',
-    pointsCost: 400,
-    badge: 'باقة الأطفال 👶',
-    terms: 'فريق متخصص في سحب عينات الأطفال بلطف تام.',
-    isActive: true,
-  },
 ];
 
+// Initial Spin Slices
 export const INITIAL_SPIN_SLICES: SpinSlice[] = [
   { id: 's1', label: 'خصم 20%', subtext: 'على جميع الفحوصات', type: 'discount', value: '20%', color: '#0d9488', probability: 20 },
   { id: 's2', label: '100 نقطة', subtext: 'تضاف فوراً لرصيدك', type: 'points', value: '100', pointsAmount: 100, color: '#f59e0b', probability: 25 },
@@ -350,20 +442,28 @@ export const INITIAL_SPIN_SLICES: SpinSlice[] = [
   { id: 's8', label: '200 نقطة ذهبية', subtext: 'جائزة النقاط الكبرى', type: 'points', value: '200', pointsAmount: 200, color: '#d97706', probability: 5 },
 ];
 
+// Initial Lab Settings
 export const INITIAL_LAB_SETTINGS: LabSettings = {
   labName: 'معامل RT للتحاليل الطبية',
   tagline: 'دقة التشخيص .. متعة المكافآت وراحة المرضى',
-  whatsappNumber: '201021487889', // يمكن تغييره من الإدارة
+  whatsappNumber: '201021487889',
   hotlineNumber: '01021487889',
   address: 'فروع معامل RT - خدمة السحب المنزلي متوفرة في جميع المناطق على مدار 24 ساعة',
-  workingHours: 'يومياً من الساعة 8:00 صباحاً حتى 11:30 مساءً (طوارئ 24 ساعة للعينات المنزلية)',
+  workingHours: 'يومياً من 8:00 صباحاً حتى 11:30 مساءً (طوارئ 24 ساعة للعينات المنزلية)',
   homeVisitAvailable: true,
-  announcement: '🎉 مرحباً بكم في تحدي ومكافآت معامل RT! العب الآن، جاوب أسئلة الذكاء، دور عجلة الحظ، واكسب تحاليل مجانية وخصومات فورية!',
+  announcement: '🎉 مرحباً بكم في معامل RT! تم تفعيل المزامنة السحابية الفورية بين جميع الفروع والأجهزة للتواصل المباشر مع المرضى عبر الواتساب.',
   quizPointsPerCorrect: 50,
   dailyStreakBonus: 25,
-  adminPin: '7788', // رمز الحماية الافتراضي للوحة الإدارة
+  adminPin: '7788',
+  branches: INITIAL_BRANCHES,
+  adminTeam: INITIAL_ADMIN_TEAM,
+  whatsappTemplates: INITIAL_WHATSAPP_TEMPLATES,
+  cloudSyncRoomId: 'RT-LAB-MAIN-CLOUD',
+  githubRepo: 'ramimokhtar228-maker/rt-lab-rewards',
+  githubBranch: 'main',
 };
 
+// Initial Leaderboard
 export const INITIAL_LEADERBOARD: LeaderboardUser[] = [
   { id: 'lb1', name: 'أحمد محمود النجار', phoneMasked: '010****542', points: 1850, rank: 1, badge: '👑 بطل RT الماسي', couponsWon: 7 },
   { id: 'lb2', name: 'د. سارة عبد الرحمن', phoneMasked: '012****918', points: 1620, rank: 2, badge: '🥈 بطل ذهبي', couponsWon: 5 },
@@ -372,256 +472,6 @@ export const INITIAL_LEADERBOARD: LeaderboardUser[] = [
   { id: 'lb5', name: 'خالد يوسف إبراهيم', phoneMasked: '010****102', points: 1150, rank: 5, badge: '⭐ متسابق واعد', couponsWon: 3 },
 ];
 
-const STORAGE_KEYS = {
-  QUESTIONS: 'rt_lab_questions_v2',
-  REWARDS: 'rt_lab_rewards_v2',
-  SPIN_SLICES: 'rt_lab_spin_slices_v2',
-  SETTINGS: 'rt_lab_settings_v2',
-  PLAYER: 'rt_lab_player_profile_v2',
-  COUPONS: 'rt_lab_user_coupons_v2',
-  LEADERBOARD: 'rt_lab_leaderboard_v2',
-  LAST_SPIN_TIME: 'rt_lab_last_spin_time',
-  PATIENTS: 'rt_lab_registered_patients_v2',
-  CLAIMS_LOG: 'rt_lab_claims_log_v2',
-};
-
-// Safe LocalStorage helpers
-function safeGet<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const val = localStorage.getItem(key);
-    return val ? (JSON.parse(val) as T) : fallback;
-  } catch (err) {
-    console.error(`Error loading key ${key}:`, err);
-    return fallback;
-  }
-}
-
-function safeSet<T>(key: string, data: T): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (err) {
-    console.error(`Error saving key ${key}:`, err);
-  }
-}
-
-// Player Profile
-export function getPlayerProfile(): PlayerProfile {
-  return safeGet<PlayerProfile>(STORAGE_KEYS.PLAYER, {
-    name: 'عميل معامل RT',
-    phone: '',
-    points: 120, // Initial welcome bonus points
-    streak: 1,
-    lastPlayedDate: new Date().toISOString().split('T')[0],
-    quizzesCompleted: 0,
-    correctAnswersCount: 0,
-    wheelSpinsCount: 0,
-    scratchCardsCount: 0,
-    levelTitle: 'صديق جديد لمعامل RT 🩺',
-  });
-}
-
-export function savePlayerProfile(profile: PlayerProfile): void {
-  // Update level title based on points
-  let level = 'صديق جديد لمعامل RT 🩺';
-  if (profile.points >= 1500) {
-    level = 'سفير التميز لمعامل RT 👑';
-  } else if (profile.points >= 800) {
-    level = 'خبير الصحة والذكاء 🌟';
-  } else if (profile.points >= 400) {
-    level = 'بطل التحدي الفضي 🥈';
-  } else if (profile.points >= 200) {
-    level = 'متسابق نشط ومميز ⭐';
-  }
-  profile.levelTitle = level;
-  safeSet(STORAGE_KEYS.PLAYER, profile);
-}
-
-// Questions CRUD
-export function getQuestions(): Question[] {
-  return safeGet<Question[]>(STORAGE_KEYS.QUESTIONS, INITIAL_QUESTIONS);
-}
-
-export function saveQuestions(questions: Question[]): void {
-  safeSet(STORAGE_KEYS.QUESTIONS, questions);
-}
-
-export function addQuestion(q: Omit<Question, 'id'>): Question {
-  const all = getQuestions();
-  const newQ: Question = {
-    ...q,
-    id: 'q_' + Date.now(),
-  };
-  const updated = [newQ, ...all];
-  saveQuestions(updated);
-  return newQ;
-}
-
-export function updateQuestion(id: string, partial: Partial<Question>): void {
-  const all = getQuestions();
-  const updated = all.map((q) => (q.id === id ? { ...q, ...partial } : q));
-  saveQuestions(updated);
-}
-
-export function deleteQuestion(id: string): void {
-  const all = getQuestions();
-  const updated = all.filter((q) => q.id !== id);
-  saveQuestions(updated);
-}
-
-// Rewards CRUD
-export function getRewards(): RewardItem[] {
-  return safeGet<RewardItem[]>(STORAGE_KEYS.REWARDS, INITIAL_REWARDS);
-}
-
-export function saveRewards(rewards: RewardItem[]): void {
-  safeSet(STORAGE_KEYS.REWARDS, rewards);
-}
-
-export function addReward(reward: Omit<RewardItem, 'id' | 'code'> & { code?: string }): RewardItem {
-  const all = getRewards();
-  const newReward: RewardItem = {
-    ...reward,
-    id: 'rew_' + Date.now(),
-    code: reward.code || 'RT-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
-  };
-  const updated = [newReward, ...all];
-  saveRewards(updated);
-  return newReward;
-}
-
-export function updateReward(id: string, partial: Partial<RewardItem>): void {
-  const all = getRewards();
-  const updated = all.map((r) => (r.id === id ? { ...r, ...partial } : r));
-  saveRewards(updated);
-}
-
-export function deleteReward(id: string): void {
-  const all = getRewards();
-  const updated = all.filter((r) => r.id !== id);
-  saveRewards(updated);
-}
-
-// Spin Wheel Slices
-export function getSpinSlices(): SpinSlice[] {
-  return safeGet<SpinSlice[]>(STORAGE_KEYS.SPIN_SLICES, INITIAL_SPIN_SLICES);
-}
-
-export function saveSpinSlices(slices: SpinSlice[]): void {
-  safeSet(STORAGE_KEYS.SPIN_SLICES, slices);
-}
-
-// Lab Settings
-export function getLabSettings(): LabSettings {
-  return safeGet<LabSettings>(STORAGE_KEYS.SETTINGS, INITIAL_LAB_SETTINGS);
-}
-
-export function saveLabSettings(settings: LabSettings): void {
-  safeSet(STORAGE_KEYS.SETTINGS, settings);
-}
-
-// User Claimed Coupons
-export function getUserCoupons(): UserCoupon[] {
-  return safeGet<UserCoupon[]>(STORAGE_KEYS.COUPONS, [
-    {
-      id: 'welcome_coupon',
-      couponCode: 'RT-WELCOME-15',
-      title: 'كوبون ترحيبي: خصم 15% على أول تحليل',
-      description: 'هدية فورية بمناسبة انضمامك لبرنامج مكافآت معامل RT.',
-      value: 'خصم 15%',
-      type: 'discount_percent',
-      wonFrom: 'هدية التسجيل والترحيب',
-      createdAt: new Date().toLocaleDateString('ar-EG'),
-      expiresAt: new Date(Date.now() + 30 * 86400000).toLocaleDateString('ar-EG'),
-      isUsed: false,
-      terms: 'صالح لجميع التحاليل المخبرية داخل معامل RT.',
-    },
-  ]);
-}
-
-export function saveUserCoupons(coupons: UserCoupon[]): void {
-  safeSet(STORAGE_KEYS.COUPONS, coupons);
-}
-
-export function issueUserCoupon(
-  title: string,
-  description: string,
-  value: string,
-  type: UserCoupon['type'],
-  wonFrom: string,
-  terms?: string
-): UserCoupon {
-  const coupons = getUserCoupons();
-  const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-  const newCoupon: UserCoupon = {
-    id: 'uc_' + Date.now(),
-    couponCode: `RT-${randomSuffix}-${Math.floor(100 + Math.random() * 900)}`,
-    title,
-    description,
-    value,
-    type,
-    wonFrom,
-    createdAt: new Date().toLocaleDateString('ar-EG'),
-    expiresAt: new Date(Date.now() + 30 * 86400000).toLocaleDateString('ar-EG'),
-    isUsed: false,
-    terms: terms || 'صالحة للاستخدام في أي فرع أو مع السحب المنزلي، أظهر هذا الكود لموظف الاستقبال.',
-  };
-  saveUserCoupons([newCoupon, ...coupons]);
-  return newCoupon;
-}
-
-// Leaderboard
-export function getLeaderboard(): LeaderboardUser[] {
-  return safeGet<LeaderboardUser[]>(STORAGE_KEYS.LEADERBOARD, INITIAL_LEADERBOARD);
-}
-
-// Full Reset to Factory Data
-export function resetAllDataToDefault(): void {
-  safeSet(STORAGE_KEYS.QUESTIONS, INITIAL_QUESTIONS);
-  safeSet(STORAGE_KEYS.REWARDS, INITIAL_REWARDS);
-  safeSet(STORAGE_KEYS.SPIN_SLICES, INITIAL_SPIN_SLICES);
-  safeSet(STORAGE_KEYS.SETTINGS, INITIAL_LAB_SETTINGS);
-  safeSet(STORAGE_KEYS.LEADERBOARD, INITIAL_LEADERBOARD);
-}
-
-// Export All JSON
-export function exportDatabaseBackup(): string {
-  const dump = {
-    version: '2.0',
-    exportDate: new Date().toISOString(),
-    settings: getLabSettings(),
-    questions: getQuestions(),
-    rewards: getRewards(),
-    spinSlices: getSpinSlices(),
-  };
-  return JSON.stringify(dump, null, 2);
-}
-
-// Import JSON
-export function importDatabaseBackup(jsonString: string): boolean {
-  try {
-    const data = JSON.parse(jsonString);
-    if (data.questions && Array.isArray(data.questions)) {
-      saveQuestions(data.questions);
-    }
-    if (data.rewards && Array.isArray(data.rewards)) {
-      saveRewards(data.rewards);
-    }
-    if (data.spinSlices && Array.isArray(data.spinSlices)) {
-      saveSpinSlices(data.spinSlices);
-    }
-    if (data.settings && typeof data.settings === 'object') {
-      saveLabSettings(data.settings);
-    }
-    return true;
-  } catch (err) {
-    console.error('Import error:', err);
-    return false;
-  }
-}
-
-// Initial Registered Patients (for Admin Demo and management)
 export const INITIAL_PATIENTS: PatientRecord[] = [
   {
     id: 'pat_1',
@@ -633,6 +483,7 @@ export const INITIAL_PATIENTS: PatientRecord[] = [
     lastActive: '2026-10-18',
     couponsWon: 7,
     gamesPlayed: 24,
+    preferredBranchId: 'br_main',
   },
   {
     id: 'pat_2',
@@ -644,6 +495,7 @@ export const INITIAL_PATIENTS: PatientRecord[] = [
     lastActive: '2026-10-17',
     couponsWon: 5,
     gamesPlayed: 19,
+    preferredBranchId: 'br_heliopolis',
   },
   {
     id: 'pat_3',
@@ -655,6 +507,7 @@ export const INITIAL_PATIENTS: PatientRecord[] = [
     lastActive: '2026-10-18',
     couponsWon: 4,
     gamesPlayed: 16,
+    preferredBranchId: 'br_dokki',
   },
   {
     id: 'pat_4',
@@ -666,9 +519,242 @@ export const INITIAL_PATIENTS: PatientRecord[] = [
     lastActive: '2026-10-18',
     couponsWon: 3,
     gamesPlayed: 12,
+    preferredBranchId: 'br_main',
   },
 ];
 
+export const INITIAL_CLAIMS_LOG: PrizeClaimBooking[] = [
+  {
+    id: 'clm_1',
+    patientName: 'أحمد محمود النجار',
+    patientPhone: '01023456542',
+    address: 'مدينة نصر - شارع الطيران، بجوار النادي الأهلي',
+    serviceType: 'home_visit',
+    preferredTime: 'صباحاً (9 - 12)',
+    branchId: 'br_main',
+    couponCode: 'RT-CBC-FREE',
+    prizeTitle: 'تحليل صورة دم كاملة (CBC) مجاناً 100%',
+    prizeValue: 'مجاني 100%',
+    points: 1850,
+    createdAt: '2026-10-18',
+    status: 'confirmed',
+  },
+  {
+    id: 'clm_2',
+    patientName: 'د. سارة عبد الرحمن',
+    patientPhone: '01239876918',
+    address: 'مصر الجديدة - شارع الميرغني',
+    serviceType: 'branch_visit',
+    preferredTime: 'مساءً (5 - 8)',
+    branchId: 'br_heliopolis',
+    couponCode: 'RT-DISC-25',
+    prizeTitle: 'خصم 25% على إجمالي فاتورة التحاليل',
+    prizeValue: 'خصم 25%',
+    points: 1620,
+    createdAt: '2026-10-17',
+    status: 'completed',
+  },
+];
+
+// Helper safely accessing localStorage
+function safeGet<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    console.error(`Error loading key "${key}":`, err);
+    return fallback;
+  }
+}
+
+function safeSet<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.error(`Error saving key "${key}":`, err);
+  }
+}
+
+// Device ID / Name Management
+export function getDeviceId(): string {
+  let id = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+  if (!id) {
+    id = 'dev_' + Math.random().toString(36).substring(2, 9);
+    localStorage.setItem(STORAGE_KEYS.DEVICE_ID, id);
+  }
+  return id;
+}
+
+export function getDeviceName(): string {
+  let name = localStorage.getItem(STORAGE_KEYS.DEVICE_NAME);
+  if (!name) {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    name = isMobile ? 'موبايل الاستقبال 📱' : 'كمبيوتر المعمل 💻';
+    localStorage.setItem(STORAGE_KEYS.DEVICE_NAME, name);
+  }
+  return name;
+}
+
+export function saveDeviceName(name: string): void {
+  localStorage.setItem(STORAGE_KEYS.DEVICE_NAME, name);
+}
+
+// Player Profile
+export function getPlayerProfile(): PlayerProfile {
+  return safeGet<PlayerProfile>(STORAGE_KEYS.PLAYER, {
+    name: 'عميل معامل RT',
+    phone: '',
+    points: 150,
+    streak: 1,
+    lastPlayedDate: new Date().toISOString().split('T')[0],
+    quizzesCompleted: 0,
+    correctAnswersCount: 0,
+    wheelSpinsCount: 0,
+    scratchCardsCount: 0,
+    levelTitle: 'مبتدئ المعمل 🧪',
+    preferredBranchId: 'br_main',
+  });
+}
+
+export function savePlayerProfile(profile: PlayerProfile): void {
+  safeSet(STORAGE_KEYS.PLAYER, profile);
+}
+
+// Questions
+export function getQuestions(): Question[] {
+  return safeGet<Question[]>(STORAGE_KEYS.QUESTIONS, INITIAL_QUESTIONS);
+}
+
+export function saveQuestions(questions: Question[]): void {
+  safeSet(STORAGE_KEYS.QUESTIONS, questions);
+}
+
+// Rewards
+export function getRewards(): RewardItem[] {
+  return safeGet<RewardItem[]>(STORAGE_KEYS.REWARDS, INITIAL_REWARDS);
+}
+
+export function saveRewards(rewards: RewardItem[]): void {
+  safeSet(STORAGE_KEYS.REWARDS, rewards);
+}
+
+// Spin Slices
+export function getSpinSlices(): SpinSlice[] {
+  return safeGet<SpinSlice[]>(STORAGE_KEYS.SPIN_SLICES, INITIAL_SPIN_SLICES);
+}
+
+export function saveSpinSlices(slices: SpinSlice[]): void {
+  safeSet(STORAGE_KEYS.SPIN_SLICES, slices);
+}
+
+// Lab Settings
+export function getLabSettings(): LabSettings {
+  const current = safeGet<LabSettings>(STORAGE_KEYS.SETTINGS, INITIAL_LAB_SETTINGS);
+  // Ensure branches, adminTeam, and templates exist for legacy migration
+  if (!current.branches || current.branches.length === 0) {
+    current.branches = INITIAL_BRANCHES;
+  }
+  if (!current.adminTeam || current.adminTeam.length === 0) {
+    current.adminTeam = INITIAL_ADMIN_TEAM;
+  }
+  if (!current.whatsappTemplates || current.whatsappTemplates.length === 0) {
+    current.whatsappTemplates = INITIAL_WHATSAPP_TEMPLATES;
+  }
+  if (!current.cloudSyncRoomId) {
+    current.cloudSyncRoomId = 'RT-LAB-MAIN-CLOUD';
+  }
+  return current;
+}
+
+export function saveLabSettings(settings: LabSettings): void {
+  safeSet(STORAGE_KEYS.SETTINGS, settings);
+}
+
+// Branches Management
+export function getLabBranches(): LabBranch[] {
+  return getLabSettings().branches || INITIAL_BRANCHES;
+}
+
+export function saveLabBranches(branches: LabBranch[]): void {
+  const settings = getLabSettings();
+  settings.branches = branches;
+  saveLabSettings(settings);
+}
+
+// Admin Team Management
+export function getLabAdminTeam(): LabAdminMember[] {
+  return getLabSettings().adminTeam || INITIAL_ADMIN_TEAM;
+}
+
+export function saveLabAdminTeam(team: LabAdminMember[]): void {
+  const settings = getLabSettings();
+  settings.adminTeam = team;
+  saveLabSettings(settings);
+}
+
+// WhatsApp Templates
+export function getWhatsAppTemplates(): WhatsAppTemplate[] {
+  return getLabSettings().whatsappTemplates || INITIAL_WHATSAPP_TEMPLATES;
+}
+
+export function saveWhatsAppTemplates(templates: WhatsAppTemplate[]): void {
+  const settings = getLabSettings();
+  settings.whatsappTemplates = templates;
+  saveLabSettings(settings);
+}
+
+// User Coupons
+export function getUserCoupons(): UserCoupon[] {
+  return safeGet<UserCoupon[]>(STORAGE_KEYS.COUPONS, []);
+}
+
+export function saveUserCoupons(coupons: UserCoupon[]): void {
+  safeSet(STORAGE_KEYS.COUPONS, coupons);
+}
+
+export function issueUserCoupon(
+  param1: string | Omit<UserCoupon, 'id' | 'createdAt' | 'isUsed'>,
+  description?: string,
+  value?: string,
+  type?: RewardType,
+  wonFrom?: string,
+  terms?: string
+): UserCoupon {
+  const coupons = getUserCoupons();
+  let couponData: Omit<UserCoupon, 'id' | 'createdAt' | 'isUsed'>;
+
+  if (typeof param1 === 'object') {
+    couponData = param1;
+  } else {
+    couponData = {
+      couponCode: 'RT-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+      title: param1,
+      description: description || '',
+      value: value || 'مجاني',
+      type: type || 'free_test',
+      wonFrom: wonFrom || 'مسابقات معامل RT',
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      terms: terms || 'صالح لمدة 30 يوماً من تاريخ الإصدار في جميع الفروع.',
+    };
+  }
+
+  const newCoupon: UserCoupon = {
+    ...couponData,
+    id: 'cpn_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    createdAt: new Date().toISOString(),
+    isUsed: false,
+  };
+  saveUserCoupons([newCoupon, ...coupons]);
+  return newCoupon;
+}
+
+// Leaderboard
+export function getLeaderboard(): LeaderboardUser[] {
+  return safeGet<LeaderboardUser[]>(STORAGE_KEYS.LEADERBOARD, INITIAL_LEADERBOARD);
+}
+
+// Registered Patients
 export function getRegisteredPatients(): PatientRecord[] {
   return safeGet<PatientRecord[]>(STORAGE_KEYS.PATIENTS, INITIAL_PATIENTS);
 }
@@ -679,8 +765,7 @@ export function saveRegisteredPatients(patients: PatientRecord[]): void {
 
 export function deletePatientRecord(id: string): void {
   const all = getRegisteredPatients();
-  const updated = all.filter((p) => p.id !== id);
-  saveRegisteredPatients(updated);
+  saveRegisteredPatients(all.filter((p) => p.id !== id));
 }
 
 export function resetAllPatients(): void {
@@ -703,6 +788,7 @@ export function recordOrUpdatePatient(profile: PlayerProfile, couponsCount: numb
       lastActive: nowStr,
       couponsWon: couponsCount,
       gamesPlayed: profile.quizzesCompleted + profile.wheelSpinsCount + profile.scratchCardsCount,
+      preferredBranchId: profile.preferredBranchId || all[existingIdx].preferredBranchId,
     };
     saveRegisteredPatients([...all]);
   } else {
@@ -716,15 +802,13 @@ export function recordOrUpdatePatient(profile: PlayerProfile, couponsCount: numb
       lastActive: nowStr,
       couponsWon: couponsCount,
       gamesPlayed: profile.quizzesCompleted + profile.wheelSpinsCount + profile.scratchCardsCount,
+      preferredBranchId: profile.preferredBranchId || 'br_main',
     };
     saveRegisteredPatients([newRecord, ...all]);
   }
-
-  // Also dynamically register in Leaderboard (دوري أبطال المعمل)
   syncPatientToLeaderboard(profile, couponsCount);
 }
 
-// Sync patient to the real-time Leaderboard
 export function syncPatientToLeaderboard(profile: PlayerProfile, couponsCount: number): void {
   if (!profile.name || profile.name === 'عميل معامل RT') return;
   const board = getLeaderboard();
@@ -743,7 +827,12 @@ export function syncPatientToLeaderboard(profile: PlayerProfile, couponsCount: n
             points: profile.points,
             phoneMasked: maskedPhone,
             couponsWon: couponsCount,
-            badge: profile.points >= 1500 ? '👑 بطل RT الماسي' : profile.points >= 800 ? '🌟 بطل التحدي الذهبي' : '🥈 متسابق مميز',
+            badge:
+              profile.points >= 1500
+                ? '👑 بطل RT الماسي'
+                : profile.points >= 800
+                ? '🌟 بطل التحدي الذهبي'
+                : '🥈 متسابق مميز',
           }
         : u
     );
@@ -760,44 +849,12 @@ export function syncPatientToLeaderboard(profile: PlayerProfile, couponsCount: n
     updatedBoard = [...board, newUser];
   }
 
-  // Sort by points descending and reassign ranks
   updatedBoard.sort((a, b) => b.points - a.points);
   updatedBoard = updatedBoard.map((u, idx) => ({ ...u, rank: idx + 1 }));
   safeSet(STORAGE_KEYS.LEADERBOARD, updatedBoard);
 }
 
-// Initial Sample Claims Log
-export const INITIAL_CLAIMS_LOG: PrizeClaimBooking[] = [
-  {
-    id: 'clm_1',
-    patientName: 'أحمد محمود النجار',
-    patientPhone: '01023456542',
-    address: 'مدينة نصر - الحي السابع، شارع الطيران',
-    serviceType: 'home_visit',
-    preferredTime: 'صباحاً (9 - 12)',
-    couponCode: 'RT-CBC-FREE',
-    prizeTitle: 'تحليل صورة دم كاملة (CBC) مجاناً 100%',
-    prizeValue: 'مجاني 100%',
-    points: 1850,
-    createdAt: '2026-10-18',
-    status: 'confirmed',
-  },
-  {
-    id: 'clm_2',
-    patientName: 'د. سارة عبد الرحمن',
-    patientPhone: '01239876918',
-    address: 'مصر الجديدة - بالقرب من ميدان الحجاز',
-    serviceType: 'branch_visit',
-    preferredTime: 'مساءً (5 - 8)',
-    couponCode: 'RT-DISC-25',
-    prizeTitle: 'خصم 25% على إجمالي فاتورة التحاليل',
-    prizeValue: 'خصم 25%',
-    points: 1620,
-    createdAt: '2026-10-17',
-    status: 'completed',
-  },
-];
-
+// Prize Claims
 export function getPrizeClaims(): PrizeClaimBooking[] {
   return safeGet<PrizeClaimBooking[]>(STORAGE_KEYS.CLAIMS_LOG, INITIAL_CLAIMS_LOG);
 }
@@ -829,8 +886,180 @@ export function deletePrizeClaim(id: string): void {
   savePrizeClaims(all.filter((c) => c.id !== id));
 }
 
-// Reset the entire app data for testing with new fresh patients
+// Full Reset to Factory Data
+export function resetAllDataToDefault(): void {
+  safeSet(STORAGE_KEYS.QUESTIONS, INITIAL_QUESTIONS);
+  safeSet(STORAGE_KEYS.REWARDS, INITIAL_REWARDS);
+  safeSet(STORAGE_KEYS.SPIN_SLICES, INITIAL_SPIN_SLICES);
+  safeSet(STORAGE_KEYS.SETTINGS, INITIAL_LAB_SETTINGS);
+  safeSet(STORAGE_KEYS.LEADERBOARD, INITIAL_LEADERBOARD);
+  safeSet(STORAGE_KEYS.PATIENTS, INITIAL_PATIENTS);
+  safeSet(STORAGE_KEYS.CLAIMS_LOG, INITIAL_CLAIMS_LOG);
+}
+
 export function resetAppForNewPatients(): void {
   localStorage.removeItem(STORAGE_KEYS.PLAYER);
   localStorage.removeItem(STORAGE_KEYS.COUPONS);
+}
+
+// Export All JSON
+export function exportDatabaseBackup(): string {
+  const dump = {
+    version: '3.0',
+    exportDate: new Date().toISOString(),
+    settings: getLabSettings(),
+    questions: getQuestions(),
+    rewards: getRewards(),
+    spinSlices: getSpinSlices(),
+    patients: getRegisteredPatients(),
+    claims: getPrizeClaims(),
+    leaderboard: getLeaderboard(),
+  };
+  return JSON.stringify(dump, null, 2);
+}
+
+// Import JSON
+export function importDatabaseBackup(jsonString: string): boolean {
+  try {
+    const data = JSON.parse(jsonString);
+    if (data.questions && Array.isArray(data.questions)) saveQuestions(data.questions);
+    if (data.rewards && Array.isArray(data.rewards)) saveRewards(data.rewards);
+    if (data.spinSlices && Array.isArray(data.spinSlices)) saveSpinSlices(data.spinSlices);
+    if (data.settings && typeof data.settings === 'object') saveLabSettings(data.settings);
+    if (data.patients && Array.isArray(data.patients)) saveRegisteredPatients(data.patients);
+    if (data.claims && Array.isArray(data.claims)) savePrizeClaims(data.claims);
+    return true;
+  } catch (err) {
+    console.error('Import error:', err);
+    return false;
+  }
+}
+
+// ================= CLOUD SYNC HELPERS =================
+export interface CloudSyncPayload {
+  settings: LabSettings;
+  branches: LabBranch[];
+  adminTeam: LabAdminMember[];
+  whatsappTemplates: WhatsAppTemplate[];
+  questions: Question[];
+  rewards: RewardItem[];
+  slices: SpinSlice[];
+  claims: PrizeClaimBooking[];
+  patients: PatientRecord[];
+  leaderboard: LeaderboardUser[];
+}
+
+export async function fetchCloudStatus(): Promise<{
+  revision: number;
+  lastUpdated: string;
+  devicesCount: number;
+  connectedDevices?: any[];
+} | null> {
+  try {
+    const res = await fetch('/api/cloud-sync/status');
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchCloudData(): Promise<{
+  revision: number;
+  lastUpdated: string;
+  data: CloudSyncPayload;
+} | null> {
+  try {
+    const res = await fetch('/api/cloud-sync/data');
+    if (!res.ok) return null;
+    const body = await res.json();
+    if (body.success && body.data) {
+      return {
+        revision: body.revision,
+        lastUpdated: body.lastUpdated,
+        data: body.data,
+      };
+    }
+    return null;
+  } catch (err) {
+    console.error('Fetch cloud data error:', err);
+    return null;
+  }
+}
+
+export async function pushCloudData(payload: CloudSyncPayload): Promise<{
+  success: boolean;
+  revision?: number;
+  lastUpdated?: string;
+  message?: string;
+}> {
+  try {
+    const deviceId = getDeviceId();
+    const deviceName = getDeviceName();
+    const res = await fetch('/api/cloud-sync/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deviceId,
+        deviceName,
+        payload,
+      }),
+    });
+    return await res.json();
+  } catch (err: any) {
+    console.error('Push cloud data error:', err);
+    return { success: false, message: err.message || 'فشل الاتصال بالسحابة' };
+  }
+}
+
+export async function sendCloudHeartbeat(branchName?: string): Promise<{
+  revision: number;
+  devicesCount: number;
+  connectedDevices: any[];
+} | null> {
+  try {
+    const deviceId = getDeviceId();
+    const deviceName = getDeviceName();
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const res = await fetch('/api/cloud-sync/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deviceId,
+        deviceName,
+        deviceType: isMobile ? 'mobile' : 'desktop',
+        branchName: branchName || 'الفرع الرئيسي',
+      }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// GitHub Backup Helper
+export async function pushBackupToGitHub(token?: string, repo?: string): Promise<{
+  success: boolean;
+  message: string;
+  commit?: any;
+}> {
+  try {
+    const backupJson = exportDatabaseBackup();
+    const res = await fetch('/api/github/sync-backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: token || (typeof window !== 'undefined' ? localStorage.getItem('rt_lab_github_token') || '' : ''),
+        owner: 'ramimokhtar228-maker',
+        repo: repo || 'rt-lab-rewards',
+        filePath: 'data/rt_lab_cloud_database.json',
+        message: `تحديث ومزامنة بيانات معمل RT وفروعه والإدارة - ${new Date().toLocaleString('ar-EG')}`,
+        contentJson: backupJson,
+      }),
+    });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: err.message || 'فشل الاتصال بـ GitHub API' };
+  }
 }

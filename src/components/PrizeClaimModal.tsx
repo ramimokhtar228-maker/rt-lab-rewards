@@ -48,17 +48,25 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
   const [preferredTime, setPreferredTime] = useState('صباحاً (9:00 ص - 1:00 ظ)');
   const [copied, setCopied] = useState(false);
 
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    player.preferredBranchId || settings.branches?.[0]?.id || 'br_main'
+  );
+
   useEffect(() => {
     if (isOpen) {
       setStep('form');
       if (player.name && player.name !== 'عميل معامل RT') setPatientName(player.name);
       if (player.phone) setPatientPhone(player.phone);
+      if (player.preferredBranchId) setSelectedBranchId(player.preferredBranchId);
     }
   }, [isOpen, player]);
 
   if (!isOpen || !coupon) return null;
 
-  const cleanLabPhone = settings.whatsappNumber.replace(/\D/g, '');
+  const branches = settings.branches || [];
+  const chosenBranch = branches.find((b) => b.id === selectedBranchId) || branches[0];
+  const targetPhone = chosenBranch?.whatsappNumber || settings.whatsappNumber;
+  const cleanLabPhone = targetPhone.replace(/\D/g, '');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,15 +79,17 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
     onSavePlayer({
       name: patientName.trim(),
       phone: patientPhone.trim(),
+      preferredBranchId: selectedBranchId,
     });
 
     // Save claim record
     onAddClaimBooking({
       patientName: patientName.trim(),
       patientPhone: patientPhone.trim(),
-      address: address.trim() || 'فرع المعمل',
+      address: address.trim() || chosenBranch?.address || 'فرع المعمل',
       serviceType,
       preferredTime,
+      branchId: selectedBranchId,
       couponCode: coupon.couponCode,
       prizeTitle: coupon.title,
       prizeValue: coupon.value,
@@ -100,8 +110,8 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
 🏷️ *القيمة / الخصم:* ${coupon.value}
 🔢 *كود التحقق الإلكتروني:* [${coupon.couponCode}]
 ⭐ *رصيد النقاط:* ${player.points} نقطة
-🏆 *التسجيل في دوري الأبطال:* تم التسجيل رسمياً ✅
-📍 *طريقة الخدمة المطلوبة:* ${serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'حجز فرع المعمل 🏥'}
+🏥 *الفرع المختار:* ${chosenBranch?.name || 'الفرع الرئيسي'}
+📍 *طريقة الخدمة المطلوبة:* ${serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'حجز زيارة الفرع 🏥'}
 ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *الوقت المفضل:* ${preferredTime}
 ---------------------------------------
 برجاء اعتماد الكوبون والتواصل لتأكيد الموعد الطبي. شكراً لمعامل RT!`;
@@ -234,10 +244,33 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
                 </div>
               </div>
 
+              {/* Branch Selector */}
+              <div className="space-y-1">
+                <label className="text-xs text-slate-300 font-semibold block">
+                  اختر فرع المعمل التابع له أو الأقرب إليك:
+                </label>
+                <select
+                  value={selectedBranchId}
+                  onChange={(e) => setSelectedBranchId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                >
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.city})
+                    </option>
+                  ))}
+                </select>
+                {chosenBranch && (
+                  <div className="text-[10px] text-slate-400 bg-slate-950/70 p-2 rounded-lg border border-slate-800 mt-1">
+                    📍 {chosenBranch.address}
+                  </div>
+                )}
+              </div>
+
               {/* Address / Location */}
               <div className="space-y-1">
                 <label className="text-xs text-slate-300 font-semibold block">
-                  {serviceType === 'home_visit' ? 'العنوان التفصيلي ومكان السحب المنزلي:' : 'المنطقة أو الفرع الأقرب لك:'}
+                  {serviceType === 'home_visit' ? 'العنوان التفصيلي ومكان السحب المنزلي:' : 'ملاحظات العنوان أو الوصول:'}
                 </label>
                 <div className="relative">
                   <MapPin className="w-4 h-4 absolute right-3.5 top-3 text-slate-500 pointer-events-none" />
@@ -245,7 +278,11 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
                     type="text"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder={serviceType === 'home_visit' ? 'المنطقة، الشارع، رقم العمارة أو علامة مميزة...' : 'مثال: فرع وسط البلد، المعادي، مدينة نصر...'}
+                    placeholder={
+                      serviceType === 'home_visit'
+                        ? 'الشارع، رقم العمارة، الشقة، علامة مميزة...'
+                        : 'اختياري: أي ملاحظة إضافية للمعمل...'
+                    }
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                 </div>

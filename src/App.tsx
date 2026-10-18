@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   getPlayerProfile,
   savePlayerProfile,
@@ -16,7 +16,6 @@ import {
   getLabSettings,
   saveLabSettings,
   getUserCoupons,
-  saveUserCoupons,
   issueUserCoupon,
   getLeaderboard,
   resetAllDataToDefault,
@@ -31,6 +30,12 @@ import {
   addPrizeClaim,
   updateClaimStatus,
   deletePrizeClaim,
+  fetchCloudStatus,
+  fetchCloudData,
+  pushCloudData,
+  sendCloudHeartbeat,
+  pushBackupToGitHub,
+  CloudSyncPayload,
 } from './utils/storage';
 import {
   PlayerProfile,
@@ -42,6 +47,7 @@ import {
   LeaderboardUser,
   PatientRecord,
   PrizeClaimBooking,
+  LabBranch,
 } from './types';
 import { TopNavbar } from './components/TopNavbar';
 import { HeroSection } from './components/HeroSection';
@@ -56,6 +62,9 @@ import { PatientProfileModal } from './components/PatientProfileModal';
 import { InviteShareModal } from './components/InviteShareModal';
 import { PrizeClaimModal } from './components/PrizeClaimModal';
 import { LabConnectBar } from './components/LabConnectBar';
+import { BranchesManagementModal } from './components/BranchesManagementModal';
+import { Cloud, CheckCircle2, RefreshCw } from 'lucide-react';
+import { soundManager } from './utils/audio';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -71,25 +80,200 @@ export default function App() {
   const [patients, setPatients] = useState<PatientRecord[]>(() => getRegisteredPatients());
   const [claims, setClaims] = useState<PrizeClaimBooking[]>(() => getPrizeClaims());
 
+  // Cloud Synchronization States
+  const [cloudRevision, setCloudRevision] = useState<number>(1);
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
+  const [devicesOnlineCount, setDevicesOnlineCount] = useState<number>(1);
+  const [connectedDevicesList, setConnectedDevicesList] = useState<any[]>([]);
+  const [cloudNotice, setCloudNotice] = useState<string | null>(null);
+
   // Modals
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [syncTargetCoupon, setSyncTargetCoupon] = useState<UserCoupon | null>(null);
   const [customSyncMessage, setCustomSyncMessage] = useState<string | undefined>(undefined);
-
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-
-  // Prize Claim & League Registration Modal
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [claimTargetCoupon, setClaimTargetCoupon] = useState<UserCoupon | null>(null);
+  const [isBranchesModalOpen, setIsBranchesModalOpen] = useState(false);
+
+  // Ref to track current revision to avoid stale closure in polling
+  const cloudRevisionRef = useRef(cloudRevision);
+  cloudRevisionRef.current = cloudRevision;
 
   // Sync active player to registered patients list
   useEffect(() => {
     recordOrUpdatePatient(player, userCoupons.length);
     setPatients(getRegisteredPatients());
     setLeaderboard(getLeaderboard());
-  }, [player.points, player.name, player.phone, userCoupons.length]);
+  }, [player.points, player.name, player.phone, userCoupons.length, player.preferredBranchId]);
+
+  // Read room query param from URL if specified
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomParam = urlParams.get('room');
+      if (roomParam && roomParam !== settings.cloudSyncRoomId) {
+        setSettings((prev) => {
+          const updated = { ...prev, cloudSyncRoomId: roomParam };
+          saveLabSettings(updated);
+          return updated;
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Construct current payload for cloud synchronization
+  const buildCurrentPayload = (): CloudSyncPayload => {
+    return {
+      settings: getLabSettings(),
+      branches: getLabSettings().branches || [],
+      adminTeam: getLabSettings().adminTeam || [],
+      whatsappTemplates: getLabSettings().whatsappTemplates || [],
+      questions: getQuestions(),
+      rewards: getRewards(),
+      slices: getSpinSlices(),
+      claims: getPrizeClaims(),
+      patients: getRegisteredPatients(),
+      leaderboard: getLeaderboard(),
+    };
+  };
+
+  // Broadcast local changes to Cloud Server
+  const broadcastToCloud = async (overrideSettings?: LabSettings) => {
+    try {
+      const payload: CloudSyncPayload = {
+        settings: overrideSettings || getLabSettings(),
+        branches: (overrideSettings || getLabSettings()).branches || [],
+        adminTeam: (overrideSettings || getLabSettings()).adminTeam || [],
+        whatsappTemplates: (overrideSettings || getLabSettings()).whatsappTemplates || [],
+        questions: getQuestions(),
+        rewards: getRewards(),
+        slices: getSpinSlices(),
+        claims: getPrizeClaims(),
+        patients: getRegisteredPatients(),
+        leaderboard: getLeaderboard(),
+      };
+
+      const result = await pushCloudData(payload);
+      if (result.success && result.revision) {
+        setCloudRevision(result.revision);
+        setIsCloudConnected(true);
+      }
+    } catch (err) {
+      console.error('Cloud broadcast error:', err);
+    }
+  };
+
+  // Initial Cloud Mount & Regular Heartbeat Polling
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeCloud = async () => {
+      try {
+        const cloudState = await fetchCloudData();
+        if (!isMounted) return;
+
+        if (cloudState && cloudState.data) {
+          // Hydrate from cloud data
+          const data = cloudState.data;
+          setCloudRevision(cloudState.revision);
+          setIsCloudConnected(true);
+
+          if (data.settings) {
+            setSettings(data.settings);
+            saveLabSettings(data.settings);
+          }
+          if (data.questions && data.questions.length > 0) {
+            setQuestions(data.questions);
+            saveQuestions(data.questions);
+          }
+          if (data.rewards && data.rewards.length > 0) {
+            setRewards(data.rewards);
+            saveRewards(data.rewards);
+          }
+          if (data.slices && data.slices.length > 0) {
+            setSlices(data.slices);
+            saveSpinSlices(data.slices);
+          }
+          if (data.claims) {
+            setClaims(data.claims);
+          }
+          if (data.patients) {
+            setPatients(data.patients);
+          }
+        } else {
+          // Cloud has no data yet, push initial baseline
+          await broadcastToCloud();
+        }
+      } catch (err) {
+        console.error('Error during cloud initialization:', err);
+      }
+    };
+
+    initializeCloud();
+
+    // Heartbeat & status polling interval (every 4 seconds)
+    const interval = setInterval(async () => {
+      try {
+        const heartbeatRes = await sendCloudHeartbeat(settings.branches?.[0]?.name || 'الفرع الرئيسي');
+        if (!isMounted) return;
+
+        if (heartbeatRes) {
+          setIsCloudConnected(true);
+          setDevicesOnlineCount(Math.max(1, heartbeatRes.devicesCount || 1));
+          if (heartbeatRes.connectedDevices) {
+            setConnectedDevicesList(heartbeatRes.connectedDevices);
+          }
+
+          // Check if remote revision is ahead of local
+          if (heartbeatRes.revision > cloudRevisionRef.current) {
+            const fresh = await fetchCloudData();
+            if (fresh && fresh.data && isMounted) {
+              setCloudRevision(fresh.revision);
+              const d = fresh.data;
+
+              if (d.settings) {
+                setSettings(d.settings);
+                saveLabSettings(d.settings);
+              }
+              if (d.questions) {
+                setQuestions(d.questions);
+                saveQuestions(d.questions);
+              }
+              if (d.rewards) {
+                setRewards(d.rewards);
+                saveRewards(d.rewards);
+              }
+              if (d.slices) {
+                setSlices(d.slices);
+                saveSpinSlices(d.slices);
+              }
+              if (d.claims) {
+                setClaims(d.claims);
+              }
+              if (d.patients) {
+                setPatients(d.patients);
+              }
+
+              setCloudNotice('⚡ تم استلام ومزامنة تحديثات جديدة من السحابة بين الأجهزة!');
+              setTimeout(() => setCloudNotice(null), 4000);
+            }
+          }
+        }
+      } catch {
+        if (isMounted) setIsCloudConnected(false);
+      }
+    }, 4000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Update Player Profile Handler
   const handleUpdatePlayer = (partial: Partial<PlayerProfile>) => {
@@ -100,26 +284,27 @@ export default function App() {
     });
   };
 
-  // Award Bonus Points (e.g. from sharing or special actions)
-  const handleAwardBonusPoints = (amount: number) => {
-    handleUpdatePlayer({ points: player.points + amount });
+  // Award Bonus Points (e.g. from invite)
+  const handleAwardBonusPoints = (bonus: number) => {
+    handleUpdatePlayer({ points: player.points + bonus });
   };
 
-  // Open Claim Modal for a coupon
+  // Open Claim Modal
   const handleOpenClaimModal = (coupon: UserCoupon) => {
     setClaimTargetCoupon(coupon);
     setIsClaimModalOpen(true);
   };
 
-  // Add new claim booking
+  // Add Prize Claim Booking
   const handleAddClaimBooking = (claimData: Omit<PrizeClaimBooking, 'id' | 'createdAt' | 'status'>) => {
     addPrizeClaim(claimData);
     setClaims(getPrizeClaims());
     setLeaderboard(getLeaderboard());
     setPatients(getRegisteredPatients());
+    broadcastToCloud();
   };
 
-  // Award Coupon Handler (called from Quiz, Wheel, Scratch)
+  // Award Coupon Handler
   const handleAwardCoupon = (
     title: string,
     description: string,
@@ -135,7 +320,6 @@ export default function App() {
   // Redeem from Store Handler
   const handleRedeemReward = (reward: RewardItem): UserCoupon => {
     handleUpdatePlayer({ points: player.points - reward.pointsCost });
-
     const newCoupon = issueUserCoupon(
       reward.title,
       reward.description,
@@ -163,35 +347,41 @@ export default function App() {
     setIsSyncModalOpen(true);
   };
 
-  // Admin Data Actions
+  // Admin Data Actions & Cloud Broadcast
   const handleSaveQuestions = (updated: Question[]) => {
     setQuestions(updated);
     saveQuestions(updated);
+    broadcastToCloud();
   };
 
   const handleSaveRewards = (updated: RewardItem[]) => {
     setRewards(updated);
     saveRewards(updated);
+    broadcastToCloud();
   };
 
   const handleSaveSlices = (updated: SpinSlice[]) => {
     setSlices(updated);
     saveSpinSlices(updated);
+    broadcastToCloud();
   };
 
   const handleSaveSettings = (updated: LabSettings) => {
     setSettings(updated);
     saveLabSettings(updated);
+    broadcastToCloud(updated);
   };
 
   const handleDeletePatient = (id: string) => {
     deletePatientRecord(id);
     setPatients(getRegisteredPatients());
+    broadcastToCloud();
   };
 
   const handleResetPatients = () => {
     resetAllPatients();
     setPatients(getRegisteredPatients());
+    broadcastToCloud();
   };
 
   const handleResetAppForNewPatients = () => {
@@ -206,11 +396,13 @@ export default function App() {
   const handleUpdateClaimStatus = (id: string, status: PrizeClaimBooking['status']) => {
     updateClaimStatus(id, status);
     setClaims(getPrizeClaims());
+    broadcastToCloud();
   };
 
   const handleDeleteClaim = (id: string) => {
     deletePrizeClaim(id);
     setClaims(getPrizeClaims());
+    broadcastToCloud();
   };
 
   const handleResetDefaults = () => {
@@ -222,6 +414,7 @@ export default function App() {
     setPatients(getRegisteredPatients());
     setLeaderboard(getLeaderboard());
     setClaims(getPrizeClaims());
+    broadcastToCloud();
   };
 
   const handleExportBackup = () => {
@@ -244,21 +437,77 @@ export default function App() {
       setSettings(getLabSettings());
       setPatients(getRegisteredPatients());
       setLeaderboard(getLeaderboard());
+      setClaims(getPrizeClaims());
+      broadcastToCloud();
     }
     return ok;
   };
 
+  // Manual Cloud Pull
+  const handleTriggerCloudPull = async () => {
+    const fresh = await fetchCloudData();
+    if (fresh && fresh.data) {
+      setCloudRevision(fresh.revision);
+      const d = fresh.data;
+      if (d.settings) {
+        setSettings(d.settings);
+        saveLabSettings(d.settings);
+      }
+      if (d.questions) {
+        setQuestions(d.questions);
+        saveQuestions(d.questions);
+      }
+      if (d.rewards) {
+        setRewards(d.rewards);
+        saveRewards(d.rewards);
+      }
+      if (d.slices) {
+        setSlices(d.slices);
+        saveSpinSlices(d.slices);
+      }
+      if (d.claims) setClaims(d.claims);
+      if (d.patients) setPatients(d.patients);
+    }
+  };
+
+  // Manual Cloud Push
+  const handleTriggerCloudPush = async () => {
+    await broadcastToCloud();
+  };
+
+  // GitHub Direct Sync
+  const handleTriggerGitHubSync = async () => {
+    const token = localStorage.getItem('rt_lab_github_token') || '';
+    return await pushBackupToGitHub(
+      token,
+      settings.githubRepo || 'rt-lab-rewards'
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950">
+      {/* Live Cloud Sync Notification Banner */}
+      {cloudNotice && (
+        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-center gap-2 shadow-lg animate-in slide-in-from-top-2 sticky top-0 z-50">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>{cloudNotice}</span>
+        </div>
+      )}
+
       {/* Top Navbar */}
       <TopNavbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         points={player.points}
         playerName={player.name}
+        isCloudConnected={isCloudConnected}
+        cloudRevision={cloudRevision}
+        devicesOnlineCount={devicesOnlineCount}
         onOpenAdmin={() => setIsAdminModalOpen(true)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onOpenInvite={() => setIsInviteModalOpen(true)}
+        onOpenBranches={() => setIsBranchesModalOpen(true)}
+        onQuickCloudSync={handleTriggerCloudPull}
       />
 
       {/* Main Container */}
@@ -325,6 +574,7 @@ export default function App() {
       <LabConnectBar
         settings={settings}
         onOpenSync={() => handleOpenGeneralSync()}
+        onOpenBranches={() => setIsBranchesModalOpen(true)}
       />
 
       {/* WhatsApp Synchronization Modal */}
@@ -335,6 +585,17 @@ export default function App() {
         settings={settings}
         player={player}
         customMessage={customSyncMessage}
+      />
+
+      {/* Lab Branches & Management Modal */}
+      <BranchesManagementModal
+        isOpen={isBranchesModalOpen}
+        onClose={() => setIsBranchesModalOpen(false)}
+        settings={settings}
+        onSelectBranchForBooking={(branch: LabBranch) => {
+          setIsBranchesModalOpen(false);
+          handleOpenGeneralSync(`السلام عليكم، أود حجز موعد في ${branch.name}.`);
+        }}
       />
 
       {/* Prize Claim & League Registration Modal */}
@@ -348,7 +609,7 @@ export default function App() {
         onAddClaimBooking={handleAddClaimBooking}
       />
 
-      {/* Admin Panel Modal (Protected with PIN, Patient Management, CRUD, Bookings Log) */}
+      {/* Admin Panel Modal (With Branches, Management Team, WhatsApp Templates, Multi-Device Cloud Sync, GitHub Sync) */}
       <AdminPanelModal
         isOpen={isAdminModalOpen}
         onClose={() => setIsAdminModalOpen(false)}
@@ -358,6 +619,10 @@ export default function App() {
         settings={settings}
         patients={patients}
         claims={claims}
+        cloudRevision={cloudRevision}
+        devicesOnlineCount={devicesOnlineCount}
+        connectedDevicesList={connectedDevicesList}
+        isCloudConnected={isCloudConnected}
         onSaveQuestions={handleSaveQuestions}
         onSaveRewards={handleSaveRewards}
         onSaveSlices={handleSaveSlices}
@@ -370,6 +635,9 @@ export default function App() {
         onResetDefaults={handleResetDefaults}
         onExportBackup={handleExportBackup}
         onImportBackup={handleImportBackup}
+        onTriggerCloudPush={handleTriggerCloudPush}
+        onTriggerCloudPull={handleTriggerCloudPull}
+        onTriggerGitHubSync={handleTriggerGitHubSync}
       />
 
       {/* Patient Profile Modal */}

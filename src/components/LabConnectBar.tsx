@@ -1,31 +1,48 @@
 import React from 'react';
-import { MessageCircle, PhoneCall, Clock, MapPin, Sparkles, Home } from 'lucide-react';
+import {
+  MessageCircle,
+  PhoneCall,
+  Clock,
+  MapPin,
+  Home,
+  Building,
+  Users,
+  ExternalLink,
+  ShieldCheck,
+  Radio,
+} from 'lucide-react';
 import { LabSettings } from '../types';
 
 interface LabConnectBarProps {
   settings: LabSettings;
   onOpenSync: () => void;
+  onOpenBranches: () => void;
 }
 
-export const LabConnectBar: React.FC<LabConnectBarProps> = ({ settings, onOpenSync }) => {
-  const cleanPhone = settings.whatsappNumber.replace(/\D/g, '');
+export const LabConnectBar: React.FC<LabConnectBarProps> = ({
+  settings,
+  onOpenSync,
+  onOpenBranches,
+}) => {
+  const branches = settings.branches || [];
+  const mainBranch = branches.find((b) => b.isMainBranch) || branches[0];
 
   return (
     <footer className="mt-16 border-t border-slate-800 bg-slate-950 text-slate-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">
         {/* Main CTA Callout Box */}
-        <div className="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-teal-950/60 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+        <div className="bg-gradient-to-r from-emerald-950/70 via-slate-900 to-teal-950/70 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
           <div className="space-y-2 text-right">
             <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
               <Home className="w-4 h-4" />
-              <span>خدمة السحب المنزلي المريحة 24/7</span>
+              <span>خدمة السحب المنزلي المريحة 24/7 في كافة أنحاء القاهرة والجيزة</span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-white">
-              جاهز لإجراء تحليلك أو استخدام كوبون الخصم؟
+              جاهز لإجراء تحليلك أو التواصل مع فرعك المفضل؟
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 max-w-xl leading-relaxed">
-              تواصل مباشرة مع فريق {settings.labName} عبر الواتساب لإرسال كود الكوبون، تحديد موعد في الفرع،
-              أو طلب أخصائي سحب العينة حتى باب منزلك في أسرع وقت.
+              تواصل مباشرة مع فريق {settings.labName} عبر الواتساب لتأكيد الحجز، استلام نتائج الفحوصات بصيغة PDF،
+              أو طلب تمريض وسحب عينات في منزلك من أقرب فرع إليك.
             </p>
           </div>
 
@@ -35,16 +52,64 @@ export const LabConnectBar: React.FC<LabConnectBarProps> = ({ settings, onOpenSy
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-xl shadow-emerald-950 transition-all hover:scale-[1.02]"
             >
               <MessageCircle className="w-4 h-4" />
-              <span>مزامنة وحجز عبر واتساب</span>
+              <span>محادثة واتساب سريعة</span>
             </button>
-
-            <a
-              href={`tel:${settings.hotlineNumber}`}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-colors"
+            <button
+              onClick={onOpenBranches}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors"
             >
-              <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
-              <span>اتصال ({settings.hotlineNumber})</span>
-            </a>
+              <Building className="w-3.5 h-3.5 text-emerald-400" />
+              <span>عرض جميع الفروع ({branches.length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Branches Quick Grid Strip */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+              <Building className="w-4 h-4 text-emerald-400" />
+              <span>فروع معامل RT المعتمدة ومواعيد العمل</span>
+            </h4>
+            <button
+              onClick={onOpenBranches}
+              className="text-xs text-emerald-400 hover:underline font-semibold"
+            >
+              إدارة الفروع والإدارة ←
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {branches.map((b) => (
+              <div
+                key={b.id}
+                className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-2 hover:border-emerald-500/30 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-white">{b.name}</span>
+                  {b.isMainBranch && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
+                      الرئيسي
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                  {b.address}
+                </p>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-800 text-[10px] text-slate-400">
+                  <span className="font-mono text-emerald-400">{b.phone}</span>
+                  <a
+                    href={`https://wa.me/${b.whatsappNumber.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-300 hover:underline flex items-center gap-1 font-semibold"
+                  >
+                    <MessageCircle className="w-2.5 h-2.5" />
+                    <span>واتساب</span>
+                  </a>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -53,6 +118,11 @@ export const LabConnectBar: React.FC<LabConnectBarProps> = ({ settings, onOpenSy
           <div>
             <h4 className="text-sm font-bold text-white mb-2">{settings.labName}</h4>
             <p className="leading-relaxed text-slate-400">{settings.tagline}</p>
+            <div className="flex items-center gap-2 mt-3 text-slate-300 text-xs">
+              <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
+              <span>الخط الساخن: </span>
+              <strong className="text-emerald-400 font-mono">{settings.hotlineNumber}</strong>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -62,16 +132,20 @@ export const LabConnectBar: React.FC<LabConnectBarProps> = ({ settings, onOpenSy
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>{settings.address}</span>
+              <span>{mainBranch ? mainBranch.address : settings.address}</span>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <Radio className="w-3 h-3 text-emerald-400" />
+              <span>المزامنة السحابية متعددة الأجهزة مفعلة عبر سيرفر RT Lab المركزي</span>
             </div>
           </div>
 
-          <div className="text-left md:text-left text-slate-500 flex flex-col justify-between">
+          <div className="text-right md:text-left text-slate-500 flex flex-col justify-between">
             <p className="text-[11px]">
               برنامج ترفيهي ومكافآت معتمد لرواد معامل RT © {new Date().getFullYear()}
             </p>
             <p className="text-[11px] text-slate-600 mt-1">
-              جميع حقوق الكوبونات والجوائز محفوظة لمعامل RT للتحاليل الطبية
+              جميع حقوق الكوبونات والجوائز والفروع محفوظة لمعامل RT للتحاليل الطبية
             </p>
           </div>
         </div>

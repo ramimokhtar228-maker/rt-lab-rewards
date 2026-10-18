@@ -3,39 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>تحدي ومكافآت معامل RT | RT Lab Rewards & Fun</title>
-    <meta name="description" content="المنصة الترفيهية والتنافسية الأولى لرواد معامل RT: مسابقات ذكاء ومعلومات عامة، عجلة الحظ، كروت الخربشة والربح، كوبونات وخصومات فورية، وتحاليل مجانية مع مزامنة مباشرة للواتساب ولوحة تحكم متكاملة للإدارة." />
-    <meta property="og:title" content="تحدي ومكافآت معامل RT | RT Lab Rewards & Fun" />
-    <meta property="og:description" content="المنصة الترفيهية والتنافسية الأولى لرواد معامل RT: مسابقات ذكاء ومعلومات عامة، عجلة الحظ، كروت الخربشة والربح، كوبونات وخصومات فورية، وتحاليل مجانية مع مزامنة مباشرة للواتساب ولوحة تحكم متكاملة للإدارة." />
+    <title>تحدي ومكافآت معامل RT | RT Lab Rewards & Cloud Sync</title>
+    <meta name="description" content="منصة معامل RT المتطورة للتحاليل الطبية والمسابقات التفاعلية والمكافآت، مع المزامنة السحابية الفورية متعددة الأجهزة وإدارة الفروع والعناوين والتواصل المباشر عبر الواتساب." />
+    <meta property="og:title" content="تحدي ومكافآت معامل RT | RT Lab Rewards & Cloud Sync" />
+    <meta property="og:description" content="منصة معامل RT المتطورة للتحاليل الطبية والمسابقات التفاعلية والمكافآت، مع المزامنة السحابية الفورية متعددة الأجهزة وإدارة الفروع والعناوين والتواصل المباشر عبر الواتساب." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-    <script>
-      // Clean up any stale service workers or caches from previous app versions
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (var reg of registrations) {
-            reg.unregister();
-          }
-        }).catch(function(){});
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (var name of names) {
-            caches.delete(name);
-          }
-        }).catch(function(){});
-      }
-    </script>
   </head>
   <body class="bg-slate-950 text-slate-100 font-['Cairo',sans-serif] antialiased selection:bg-amber-400 selection:text-slate-950">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
