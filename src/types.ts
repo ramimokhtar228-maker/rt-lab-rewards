@@ -1,92 +1,88 @@
-export type GameType = 'wheel' | 'scratch' | 'quiz' | 'box' | 'match' | 'capsule';
+export type QuestionCategory = 'medical' | 'general' | 'puzzle' | 'culture';
 
-export type DiscountType = 'percentage' | 'fixed' | 'free_test' | 'gift';
-
-export interface Branch {
+export interface Question {
   id: string;
-  name: string;
-  address: string;
-  hours: string;
-  phone: string;
-  isHomeVisit?: boolean;
-}
-
-export interface Prize {
-  id: string;
-  title: string;
-  shortTitle: string;
-  description: string;
-  discountType: DiscountType;
-  discountValue: string;
-  color: string;
-  textColor: string;
-  weight: number; // Probability weight
-  active: boolean;
-  terms: string;
-}
-
-export interface BookingDetails {
-  selectedBranch: string;
-  appointmentDate: string;
-  appointmentTime: string;
-  prepInstructions?: string;
-  isHomeVisit?: boolean;
-  confirmedBy?: string;
-  confirmedAt?: string;
-  whatsappSentAt?: string;
-  adminNotes?: string;
-}
-
-export interface PatientClaim {
-  id: string;
-  couponCode: string;
-  patientName: string;
-  phone: string;
-  branch: string;
-  prizeId: string;
-  prizeTitle: string;
-  discountValue: string;
-  gameType: GameType;
-  createdAt: string;
-  createdAtTimestamp: number;
-  expiresAt: string;
-  expiresAtTimestamp: number; // 24 hours strictly
-  status: 'pending' | 'confirmed' | 'redeemed' | 'cancelled';
-  notes?: string;
-  bookingDetails?: BookingDetails;
-}
-
-export interface LabSettings {
-  labNameAr: string;
-  sloganAr: string;
-  labSubtitleAr: string;
-  labNameEn: string;
-  whatsappNumber: string;
-  hotline: string;
-  adminPin: string;
-  branches: Branch[];
-  couponValidityHours: number; // 24 hours strictly
-  autoOpenWhatsApp: boolean;
-  enableNotificationSound: boolean;
-  termsAndConditions: string[];
-}
-
-export interface QuizQuestion {
-  id: string;
+  category: QuestionCategory;
   question: string;
   options: string[];
   correctIndex: number;
   explanation: string;
-  hint?: string;
+  points: number;
+  difficulty: 'easy' | 'medium' | 'hard';
 }
 
-export interface PrizeIdea {
+export type RewardType = 'discount_percent' | 'free_test' | 'cash_discount' | 'package_deal';
+
+export interface RewardItem {
   id: string;
+  code: string;
   title: string;
-  shortTitle: string;
-  category: 'فحوصات شاملة' | 'فيتامينات ومعادن' | 'سكر وغدد' | 'كبد وكلى' | 'عروض خاصة' | 'صحة الأسرة والوقاية';
-  suggestedDiscount: string;
-  discountType: DiscountType;
   description: string;
-  benefitToLab: string;
+  type: RewardType;
+  value: string; // e.g. "25%" or "مجاني" or "50 ج.م"
+  pointsCost: number;
+  badge: string;
+  terms: string;
+  isActive: boolean;
+}
+
+export interface UserCoupon {
+  id: string;
+  couponCode: string;
+  title: string;
+  description: string;
+  value: string;
+  type: RewardType;
+  wonFrom: string; // e.g. 'عجلة الحظ', 'مسابقة التحدي', 'متجر النقاط', 'كارت الخربشة'
+  createdAt: string;
+  expiresAt: string;
+  isUsed: boolean;
+  terms: string;
+}
+
+export interface SpinSlice {
+  id: string;
+  label: string;
+  subtext: string;
+  type: 'points' | 'discount' | 'free_test' | 'luck';
+  value: string;
+  pointsAmount?: number;
+  color: string;
+  probability: number; // weight
+}
+
+export interface LabSettings {
+  labName: string;
+  tagline: string;
+  whatsappNumber: string; // e.g. "201021487889"
+  hotlineNumber: string;
+  address: string;
+  workingHours: string;
+  homeVisitAvailable: boolean;
+  announcement: string;
+  quizPointsPerCorrect: number;
+  dailyStreakBonus: number;
+}
+
+export interface PlayerProfile {
+  name: string;
+  phone: string;
+  points: number;
+  streak: number;
+  lastPlayedDate: string;
+  quizzesCompleted: number;
+  correctAnswersCount: number;
+  wheelSpinsCount: number;
+  scratchCardsCount: number;
+  levelTitle: string;
+}
+
+export interface LeaderboardUser {
+  id: string;
+  name: string;
+  phoneMasked: string;
+  points: number;
+  rank: number;
+  badge: string;
+  couponsWon: number;
 }
