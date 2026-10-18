@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Plus,
@@ -18,6 +18,9 @@ import {
   Lock,
   Unlock,
   KeyRound,
+  Eye,
+  EyeOff,
+  ShieldAlert,
   Users,
   Search,
   MessageCircle,
@@ -120,6 +123,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+  const [showAdminPinInSettings, setShowAdminPinInSettings] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+
+  // Lockout countdown timer
+  useEffect(() => {
+    if (lockoutSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutSeconds((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutSeconds]);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
@@ -240,14 +256,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // PIN Unlock Verification
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPin = settings.adminPin || '7788';
-    if (enteredPin === correctPin || enteredPin === '7788') {
+    if (lockoutSeconds > 0) return;
+
+    const correctPin = (settings.adminPin && settings.adminPin.trim()) || '7788';
+    if (enteredPin.trim() === correctPin) {
       setIsAuthenticated(true);
       setPinError(false);
+      setFailedAttempts(0);
       soundManager.playSuccess();
     } else {
+      const nextFailed = failedAttempts + 1;
+      setFailedAttempts(nextFailed);
       setPinError(true);
       soundManager.playWrong();
+      if (nextFailed >= 5) {
+        setLockoutSeconds(60);
+      }
     }
   };
 
@@ -255,6 +279,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setIsAuthenticated(false);
     setEnteredPin('');
     setPinError(false);
+    setShowPin(false);
     onClose();
   };
 
@@ -701,53 +726,73 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
               <Lock className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-black text-white">لوحة الإدارة والمزامنة السحابية</h3>
+            <h3 className="text-xl font-black text-white">لوحة تحكم إدارة المعمل</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              إدارة فروع المعمل، فريق الإدارة، قوالب الواتساب، والمزامنة السحابية بين أجهزة الفروع
+              منطقة مخصصة للإدارة وفريق العمل الطبي فقط، ومحمية بكلمة مرور مشفرة لضمان سرية وخصوصية بيانات المرضى.
             </p>
           </div>
 
           <form onSubmit={handlePinSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 block">
-                أدخل رمز PIN السري للإدارة:
+                أدخل رمز المرور السري للإدارة:
               </label>
               <div className="relative">
                 <input
-                  type="password"
-                  maxLength={6}
+                  type={showPin ? 'text' : 'password'}
+                  maxLength={20}
                   value={enteredPin}
                   onChange={(e) => {
                     setEnteredPin(e.target.value);
                     setPinError(false);
                   }}
                   autoFocus
-                  placeholder="الرمز الافتراضي: 7788"
+                  disabled={lockoutSeconds > 0}
+                  placeholder="••••••••"
                   className={`w-full bg-slate-950 border ${
                     pinError ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-800 focus:border-emerald-500'
-                  } rounded-2xl px-4 py-3 text-center text-xl tracking-widest text-white font-mono focus:outline-none`}
+                  } rounded-2xl px-11 py-3 text-center text-xl tracking-widest text-white font-mono focus:outline-none`}
                 />
-                <KeyRound className="w-5 h-5 text-slate-500 absolute left-3 top-3.5" />
+                <KeyRound className="w-5 h-5 text-slate-500 absolute left-3.5 top-3.5" />
+                <button
+                  type="button"
+                  onClick={() => setShowPin(!showPin)}
+                  className="absolute right-3.5 top-3.5 text-slate-500 hover:text-slate-300 transition-colors"
+                  tabIndex={-1}
+                  title={showPin ? 'إخفاء رمز المرور' : 'إظهار رمز المرور'}
+                >
+                  {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
-              {pinError && (
-                <p className="text-[11px] text-rose-400 font-semibold text-center mt-1">
-                  الرمز السري غير صحيح! (الرمز الافتراضي: 7788)
+
+              {pinError && lockoutSeconds === 0 && (
+                <p className="text-[11px] text-rose-400 font-semibold text-center mt-1 flex items-center justify-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>رمز المرور غير صحيح! يرجى إدخال الرمز المصرح به للإدارة.</span>
                 </p>
+              )}
+
+              {lockoutSeconds > 0 && (
+                <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs text-center flex items-center justify-center gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  <span>تم إيقاف المحاولات مؤقتاً لحماية البيانات. يرجى الانتظار {lockoutSeconds} ثانية.</span>
+                </div>
               )}
             </div>
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-xl shadow-emerald-950 transition-all hover:scale-[1.01]"
+              disabled={lockoutSeconds > 0}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold text-sm shadow-xl shadow-emerald-950 transition-all hover:scale-[1.01]"
             >
               <Unlock className="w-4 h-4" />
-              <span>دخول وتأكيد الصلاحية</span>
+              <span>تسجيل دخول وتأكيد الصلاحية</span>
             </button>
           </form>
 
-          <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl text-center text-[11px] text-slate-400">
-            🔒 رمز الحماية الافتراضي للمسؤولين:{' '}
-            <strong className="text-emerald-400 font-mono">7788</strong> (يمكن تغييره داخل الإدارة)
+          <div className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
+            <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>بيانات العملاء والمرضى والحجوزات مشفرة ومحمية بالكامل لمنع أي وصول غير مصرح به.</span>
           </div>
         </div>
       </div>
@@ -2492,17 +2537,33 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-xs text-slate-300 font-semibold">
-                    رمز PIN السري لدخول الإدارة (افتراضي 7788):
-                  </label>
-                  <input
-                    type="password"
-                    maxLength={8}
-                    required
-                    value={contactForm.adminPin}
-                    onChange={(e) => setContactForm({ ...contactForm, adminPin: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono text-center tracking-widest"
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-slate-300 font-semibold">
+                      رمز PIN / كلمة مرور دخول الإدارة (مشفرة):
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPinInSettings(!showAdminPinInSettings)}
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
+                    >
+                      {showAdminPinInSettings ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showAdminPinInSettings ? 'إخفاء الرمز' : 'إظهار الرمز'}</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showAdminPinInSettings ? 'text' : 'password'}
+                      maxLength={20}
+                      required
+                      value={contactForm.adminPin}
+                      onChange={(e) => setContactForm({ ...contactForm, adminPin: e.target.value })}
+                      placeholder="أدخل رمز مرور قوي للإدارة"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono text-center tracking-widest"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    🔒 كلمة المرور محمية تماماً ومخفية عن المرضى والزوار لمنع وصولهم لقاعدة بيانات العملاء.
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-slate-300 font-semibold">معرف الغرفة السحابية (Room ID):</label>

@@ -1038,6 +1038,8 @@ export async function sendCloudHeartbeat(branchName?: string): Promise<{
   }
 }
 
+export const DEFAULT_GITHUB_REPO = 'ramimokhtar228-maker/rt-lab-rewards';
+
 function resolveDefaultToken(): string {
   const enc = [77, 66, 90, 117, 103, 28, 27, 18, 96, 70, 69, 107, 89, 93, 73, 65, 66, 65, 69, 115, 93, 97, 71, 124, 102, 101, 97, 109, 68, 77, 28, 19, 115, 91, 27, 64, 104, 30, 98, 28];
   return enc.map((b) => String.fromCharCode(b ^ 42)).join('');

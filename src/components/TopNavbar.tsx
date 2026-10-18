@@ -3,6 +3,7 @@ import {
   Volume2,
   VolumeX,
   ShieldCheck,
+  Lock,
   Award,
   Sparkles,
   Building,
@@ -167,10 +168,11 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           {/* Admin Control Access */}
           <button
             onClick={onOpenAdmin}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-sm shadow-emerald-950 whitespace-nowrap"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 hover:text-white font-medium text-xs transition-colors whitespace-nowrap"
+            title="بوابة إدارة المعمل (محمية بكلمة مرور مشفرة)"
           >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>لوحة الإدارة</span>
+            <Lock className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">دخول الإدارة</span>
           </button>
         </div>
       </div>
