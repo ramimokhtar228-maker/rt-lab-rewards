@@ -20,7 +20,6 @@ import {
 import { UserCoupon, PlayerProfile, LabSettings, PrizeClaimBooking } from '../types';
 import { soundManager } from '../utils/audio';
 import { triggerConfetti } from '../utils/confetti';
-import { getWhatsAppUrl, cleanWhatsAppNumber, formatPhoneDisplay } from '../utils/phone';
 
 interface PrizeClaimModalProps {
   isOpen: boolean;
@@ -48,6 +47,7 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
   const [serviceType, setServiceType] = useState<'home_visit' | 'branch_visit'>('home_visit');
   const [preferredTime, setPreferredTime] = useState('صباحاً (9:00 ص - 1:00 ظ)');
   const [copied, setCopied] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(
     player.preferredBranchId || settings.branches?.[0]?.id || 'br_main'
@@ -67,13 +67,12 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
   const branches = settings.branches || [];
   const chosenBranch = branches.find((b) => b.id === selectedBranchId) || branches[0];
   const targetPhone = chosenBranch?.whatsappNumber || settings.whatsappNumber;
-
-  const [formError, setFormError] = useState<string | null>(null);
+  const cleanLabPhone = targetPhone.replace(/\D/g, '');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!patientName.trim() || !patientPhone.trim()) {
-      setFormError('برجاء كتابة الاسم ورقم الهاتف لإتمام تسجيل الجائزة.');
+      setFormError('برجاء كتابة الاسم ورقم الهاتف لإتمام تسجيل وتفعيل الجائزة.');
       return;
     }
     setFormError(null);
@@ -119,7 +118,7 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
 ---------------------------------------
 برجاء اعتماد الكوبون والتواصل لتأكيد الموعد الطبي. شكراً لمعامل RT!`;
 
-  const whatsappUrl = getWhatsAppUrl(targetPhone, whatsappMessage);
+  const whatsappUrl = `https://wa.me/${cleanLabPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 
   const handleCopyTicket = () => {
     navigator.clipboard.writeText(whatsappMessage);
@@ -129,8 +128,8 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-slate-900 border border-emerald-500/40 rounded-3xl shadow-2xl overflow-hidden text-right">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+      <div className="relative w-full max-w-lg h-full sm:h-auto sm:max-h-[92vh] bg-slate-900 border-0 sm:border border-emerald-500/40 rounded-none sm:rounded-3xl shadow-2xl overflow-y-auto text-right flex flex-col">
         {/* Header Ribbon */}
         <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 p-5 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -176,7 +175,7 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
             </div>
 
             {formError && (
-              <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold text-center">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-bold text-center">
                 {formError}
               </div>
             )}

@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { LabSettings, UserCoupon, PlayerProfile, LabBranch, LabAdminMember } from '../types';
 import { soundManager } from '../utils/audio';
-import { getWhatsAppUrl, cleanWhatsAppNumber, formatPhoneDisplay, formatInternationalDisplay } from '../utils/phone';
 
 interface WhatsAppSyncModalProps {
   isOpen: boolean;
@@ -61,6 +60,8 @@ export const WhatsAppSyncModal: React.FC<WhatsAppSyncModalProps> = ({
       ? currentBranch.whatsappNumber
       : settings.whatsappNumber;
 
+  const cleanNumber = targetPhone.replace(/\D/g, '');
+
   const voucherTitle = coupon ? coupon.title : 'طلب استفسار ومكافأة من تطبيق معامل RT';
   const voucherCode = coupon ? coupon.couponCode : `RT-${Math.floor(1000 + Math.random() * 9000)}`;
   const voucherValue = coupon ? coupon.value : 'مكافأة عميل مميز';
@@ -92,7 +93,7 @@ export const WhatsAppSyncModal: React.FC<WhatsAppSyncModalProps> = ({
     }`;
   }
 
-  const encodedUrl = getWhatsAppUrl(targetPhone, messageBody);
+  const encodedUrl = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(messageBody)}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(messageBody);
@@ -102,8 +103,8 @@ export const WhatsAppSyncModal: React.FC<WhatsAppSyncModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl max-h-[92vh] bg-slate-900 border border-emerald-500/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-xl h-full sm:h-auto sm:max-h-[92vh] bg-slate-900 border-0 sm:border border-emerald-500/30 rounded-none sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
         {/* Header */}
         <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 p-5 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">

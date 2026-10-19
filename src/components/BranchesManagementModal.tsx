@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { LabSettings, LabBranch, LabAdminMember } from '../types';
 import { soundManager } from '../utils/audio';
-import { getWhatsAppUrl, getTelUrl, formatPhoneDisplay, cleanWhatsAppNumber, formatInternationalDisplay } from '../utils/phone';
 
 interface BranchesManagementModalProps {
   isOpen: boolean;
@@ -50,10 +49,6 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toastNotice, setToastNotice] = useState<string | null>(null);
-
-  // Form refs for smooth scrolling on edit
-  const branchFormRef = useRef<HTMLFormElement | null>(null);
-  const memberFormRef = useRef<HTMLFormElement | null>(null);
 
   // Branch CRUD states
   const [isAddingBranch, setIsAddingBranch] = useState(false);
@@ -167,6 +162,24 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
     setIsAddingBranch(true);
   };
 
+  // Smooth scroll to top when editing items
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollToTop = (formId?: string) => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      if (formId) {
+        const el = document.getElementById(formId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          el.classList.add('ring-4', 'ring-emerald-500/50');
+          setTimeout(() => el.classList.remove('ring-4', 'ring-emerald-500/50'), 1500);
+          return;
+        }
+      }
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 60);
+  };
+
   const handleStartEditBranch = (branch: LabBranch) => {
     setEditingBranch(branch);
     setBranchForm({
@@ -183,9 +196,7 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
       notes: branch.notes || '',
     });
     setIsAddingBranch(true);
-    setTimeout(() => {
-      branchFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 60);
+    scrollToTop('branch-form');
   };
 
   const handleSaveBranch = (e: React.FormEvent) => {
@@ -260,9 +271,7 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
       bio: member.bio || '',
     });
     setIsAddingMember(true);
-    setTimeout(() => {
-      memberFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 60);
+    scrollToTop('member-form');
   };
 
   const handleSaveMember = (e: React.FormEvent) => {
@@ -318,8 +327,8 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl max-h-[92vh] bg-slate-900 border border-emerald-500/40 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-4xl h-full sm:h-auto sm:max-h-[92vh] bg-slate-900 border-0 sm:border border-emerald-500/40 rounded-none sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
         {/* Header */}
         <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-slate-900 p-4 sm:p-5 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -477,21 +486,21 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
         )}
 
         {/* Content Body */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+        <div ref={scrollContainerRef} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           {/* ================= TAB 1: BRANCHES ================= */}
           {activeTab === 'branches' && (
             <div className="space-y-4">
               {/* Add / Edit Branch Form */}
               {isAddingBranch && (
                 <form
-                  ref={branchFormRef}
+                  id="branch-form"
                   onSubmit={handleSaveBranch}
                   className="p-4 sm:p-5 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-2xl"
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
                       <Building className="w-4 h-4" />
-                      <span>{editingBranch ? `تعديل بيانات الفرع: "${editingBranch.name}"` : 'إضافة فرع جديد للمعمل'}</span>
+                      <span>{editingBranch ? 'تعديل بيانات فرع المعمل' : 'إضافة فرع جديد للمعمل'}</span>
                     </h5>
                     <button
                       type="button"
@@ -504,25 +513,6 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
                       إلغاء
                     </button>
                   </div>
-
-                  {editingBranch && (
-                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-bold">
-                      <span className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>أنت الآن في وضع تعديل بيانات الفرع: <strong>{editingBranch.name}</strong></span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingBranch(false);
-                          setEditingBranch(null);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]"
-                      >
-                        إلغاء التعديل
-                      </button>
-                    </div>
-                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-1">
@@ -677,10 +667,10 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
               {/* Branches Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredBranches.map((branch) => {
-                  const branchWaUrl = getWhatsAppUrl(
-                    branch.whatsappNumber,
+                  const cleanPhone = branch.whatsappNumber.replace(/\D/g, '');
+                  const branchWaUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
                     `السلام عليكم، أتواصل مع ${branch.name} لمعامل RT بخصوص استفسار أو حجز تحاليل.`
-                  );
+                  )}`;
 
                   return (
                     <div
@@ -817,14 +807,14 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
               {/* Add / Edit Team Member Form */}
               {isAddingMember && (
                 <form
-                  ref={memberFormRef}
+                  id="member-form"
                   onSubmit={handleSaveMember}
                   className="p-4 sm:p-5 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-2xl"
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
                       <Users className="w-4 h-4" />
-                      <span>{editingMember ? `تعديل بيانات المسؤول: "${editingMember.name}"` : 'إضافة مسؤول جديد للإدارة'}</span>
+                      <span>{editingMember ? 'تعديل بيانات المسؤول / الطبيب' : 'إضافة مسؤول جديد للإدارة'}</span>
                     </h5>
                     <button
                       type="button"
@@ -837,25 +827,6 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
                       إلغاء
                     </button>
                   </div>
-
-                  {editingMember && (
-                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-bold">
-                      <span className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>أنت الآن في وضع تعديل بيانات المسؤول: <strong>{editingMember.name}</strong></span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingMember(false);
-                          setEditingMember(null);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]"
-                      >
-                        إلغاء التعديل
-                      </button>
-                    </div>
-                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
@@ -979,10 +950,10 @@ export const BranchesManagementModal: React.FC<BranchesManagementModalProps> = (
               {/* Members Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredTeam.map((member) => {
-                  const directWaUrl = getWhatsAppUrl(
-                    member.whatsappNumber,
+                  const cleanPhone = member.whatsappNumber.replace(/\D/g, '');
+                  const directWaUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
                     `السلام عليكم دكتور/أستاذ ${member.name}، أتواصل معكم عبر تطبيق معامل RT للتحاليل الطبية.`
-                  );
+                  )}`;
 
                   return (
                     <div

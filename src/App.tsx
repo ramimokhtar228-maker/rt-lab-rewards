@@ -22,15 +22,15 @@ import {
   exportDatabaseBackup,
   importDatabaseBackup,
   getRegisteredPatients,
+  saveRegisteredPatients,
   deletePatientRecord,
   resetAllPatients,
   resetAppForNewPatients,
   recordOrUpdatePatient,
-  updatePatientRecord,
   getPrizeClaims,
+  savePrizeClaims,
   addPrizeClaim,
   updateClaimStatus,
-  updatePrizeClaim,
   deletePrizeClaim,
   fetchCloudStatus,
   fetchCloudData,
@@ -67,8 +67,17 @@ import { InviteShareModal } from './components/InviteShareModal';
 import { PrizeClaimModal } from './components/PrizeClaimModal';
 import { LabConnectBar } from './components/LabConnectBar';
 import { BranchesManagementModal } from './components/BranchesManagementModal';
-import { FloatingLabContactWidget } from './components/FloatingLabContactWidget';
-import { Cloud, CheckCircle2, RefreshCw } from 'lucide-react';
+import {
+  Cloud,
+  CheckCircle2,
+  RefreshCw,
+  Home,
+  Brain,
+  RotateCw,
+  Sparkles,
+  Gift,
+  Trophy,
+} from 'lucide-react';
 import { soundManager } from './utils/audio';
 
 export default function App() {
@@ -383,12 +392,6 @@ export default function App() {
     broadcastToCloud();
   };
 
-  const handleUpdatePatientRecord = (updatedPatient: PatientRecord) => {
-    updatePatientRecord(updatedPatient);
-    setPatients(getRegisteredPatients());
-    broadcastToCloud();
-  };
-
   const handleResetPatients = () => {
     resetAllPatients();
     setPatients(getRegisteredPatients());
@@ -406,12 +409,6 @@ export default function App() {
 
   const handleUpdateClaimStatus = (id: string, status: PrizeClaimBooking['status']) => {
     updateClaimStatus(id, status);
-    setClaims(getPrizeClaims());
-    broadcastToCloud();
-  };
-
-  const handleUpdateClaim = (updatedClaim: PrizeClaimBooking) => {
-    updatePrizeClaim(updatedClaim);
     setClaims(getPrizeClaims());
     broadcastToCloud();
   };
@@ -545,12 +542,11 @@ export default function App() {
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onOpenInvite={() => setIsInviteModalOpen(true)}
         onOpenBranches={() => setIsBranchesModalOpen(true)}
-        onOpenWhatsAppSync={() => setIsSyncModalOpen(true)}
         onQuickCloudSync={handleTriggerCloudPull}
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 md:py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 md:py-8 pb-28 md:pb-8">
         {activeTab === 'home' && (
           <HeroSection
             settings={settings}
@@ -614,8 +610,50 @@ export default function App() {
         settings={settings}
         onOpenSync={() => handleOpenGeneralSync()}
         onOpenBranches={() => setIsBranchesModalOpen(true)}
-        onOpenInvite={() => setIsInviteModalOpen(true)}
       />
+
+      {/* Mobile Bottom Floating App Bar (Full Data 1-Tap Access on Mobile) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 safe-bottom px-1.5 py-1.5 flex items-center justify-around shadow-2xl">
+        {[
+          { id: 'home', label: 'الرئيسية', icon: Home },
+          { id: 'quiz', label: 'المسابقة', icon: Brain },
+          { id: 'wheel', label: 'عجلة الحظ', icon: RotateCw },
+          { id: 'scratch', label: 'الخربشة', icon: Sparkles },
+          { id: 'store', label: 'المتجر', icon: Gift },
+          { id: 'leaderboard', label: 'المتصدرون', icon: Trophy },
+        ].map((item) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => {
+                setActiveTab(item.id);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all relative ${
+                isActive
+                  ? 'text-emerald-400 font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <div
+                className={`p-1 rounded-lg transition-transform ${
+                  isActive ? 'bg-emerald-500/20 scale-110 shadow-sm' : ''
+                }`}
+              >
+                <Icon className={`w-5 h-5 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight truncate max-w-[55px]">
+                {item.label}
+              </span>
+              {isActive && (
+                <span className="absolute bottom-0 w-4 h-0.5 bg-emerald-400 rounded-full" />
+              )}
+            </button>
+          );
+        })}
+      </nav>
 
       {/* WhatsApp Synchronization Modal */}
       <WhatsAppSyncModal
@@ -670,12 +708,18 @@ export default function App() {
         onSaveRewards={handleSaveRewards}
         onSaveSlices={handleSaveSlices}
         onSaveSettings={handleSaveSettings}
+        onSavePatients={(updated) => {
+          setPatients(updated);
+          saveRegisteredPatients(updated);
+        }}
+        onSaveClaims={(updated) => {
+          setClaims(updated);
+          savePrizeClaims(updated);
+        }}
         onDeletePatient={handleDeletePatient}
-        onUpdatePatient={handleUpdatePatientRecord}
         onResetPatients={handleResetPatients}
         onResetAppForNewPatients={handleResetAppForNewPatients}
         onUpdateClaimStatus={handleUpdateClaimStatus}
-        onUpdateClaim={handleUpdateClaim}
         onDeleteClaim={handleDeleteClaim}
         onResetDefaults={handleResetDefaults}
         onExportBackup={handleExportBackup}
@@ -700,14 +744,6 @@ export default function App() {
         onClose={() => setIsInviteModalOpen(false)}
         onAwardBonusPoints={handleAwardBonusPoints}
         labName={settings.labName}
-        settings={settings}
-      />
-
-      {/* Floating Speed-Dial WhatsApp and Lab Contact Widget */}
-      <FloatingLabContactWidget
-        settings={settings}
-        onOpenSyncModal={() => setIsSyncModalOpen(true)}
-        onOpenBranchesModal={() => setIsBranchesModalOpen(true)}
       />
     </div>
   );

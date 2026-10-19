@@ -56,8 +56,12 @@ import {
   WhatsAppTemplate,
 } from '../types';
 import { soundManager } from '../utils/audio';
-import { saveGitHubToken, getGitHubToken } from '../utils/storage';
-import { getWhatsAppUrl, getTelUrl, formatPhoneDisplay, cleanWhatsAppNumber, formatInternationalDisplay } from '../utils/phone';
+import {
+  saveGitHubToken,
+  getGitHubToken,
+  saveRegisteredPatients,
+  savePrizeClaims,
+} from '../utils/storage';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -76,12 +80,12 @@ interface AdminPanelModalProps {
   onSaveRewards: (r: RewardItem[]) => void;
   onSaveSlices: (s: SpinSlice[]) => void;
   onSaveSettings: (settings: LabSettings) => void;
+  onSavePatients?: (patients: PatientRecord[]) => void;
+  onSaveClaims?: (claims: PrizeClaimBooking[]) => void;
   onDeletePatient: (id: string) => void;
-  onUpdatePatient?: (patient: PatientRecord) => void;
   onResetPatients: () => void;
   onResetAppForNewPatients: () => void;
   onUpdateClaimStatus: (id: string, status: PrizeClaimBooking['status']) => void;
-  onUpdateClaim?: (claim: PrizeClaimBooking) => void;
   onDeleteClaim: (id: string) => void;
   onResetDefaults: () => void;
   onExportBackup: () => void;
@@ -109,12 +113,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onSaveRewards,
   onSaveSlices,
   onSaveSettings,
+  onSavePatients,
+  onSaveClaims,
   onDeletePatient,
-  onUpdatePatient,
   onResetPatients,
   onResetAppForNewPatients,
   onUpdateClaimStatus,
-  onUpdateClaim,
   onDeleteClaim,
   onResetDefaults,
   onExportBackup,
@@ -198,16 +202,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     isActive: true,
   });
 
-  // Form refs for auto-focus / smooth scrolling on Edit
-  const branchFormRef = useRef<HTMLFormElement | null>(null);
-  const memberFormRef = useRef<HTMLFormElement | null>(null);
-  const templateFormRef = useRef<HTMLFormElement | null>(null);
-  const questionFormRef = useRef<HTMLFormElement | null>(null);
-  const rewardFormRef = useRef<HTMLFormElement | null>(null);
-  const sliceEditRef = useRef<HTMLDivElement | null>(null);
-  const patientEditRef = useRef<HTMLDivElement | null>(null);
-  const claimEditRef = useRef<HTMLDivElement | null>(null);
-
   // Question editing / adding state
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
@@ -228,42 +222,42 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [newRPoints, setNewRPoints] = useState(250);
   const [newRBadge, setNewRBadge] = useState('عرض خاص ✨');
 
-  // Spin Wheel Slice editing state
+  // Spin Wheel Slice editing / adding state
   const [editingSlice, setEditingSlice] = useState<SpinSlice | null>(null);
-  const [sliceForm, setSliceForm] = useState<SpinSlice>({
-    id: '',
+  const [isAddingSlice, setIsAddingSlice] = useState(false);
+  const [sliceForm, setSliceForm] = useState<Omit<SpinSlice, 'id'>>({
     label: '',
     subtext: '',
     type: 'discount',
-    value: '',
-    pointsAmount: 0,
-    color: '#0d9488',
+    value: '10%',
     probability: 10,
+    color: '#0d9488',
+    pointsAmount: 50,
   });
 
   // Patient editing state
   const [editingPatient, setEditingPatient] = useState<PatientRecord | null>(null);
-  const [patientEditForm, setPatientEditForm] = useState({
+  const [isAddingPatient, setIsAddingPatient] = useState(false);
+  const [patientForm, setPatientForm] = useState({
     name: '',
     phone: '',
     points: 0,
     levelTitle: '',
+    preferredBranchId: 'br_main',
   });
 
-  // Claim editing state
+  // Claim booking editing state
   const [editingClaim, setEditingClaim] = useState<PrizeClaimBooking | null>(null);
-  const [claimEditForm, setClaimEditForm] = useState<{
-    status: PrizeClaimBooking['status'];
-    preferredTime: string;
-    address: string;
-    patientPhone: string;
-    notes: string;
-  }>({
-    status: 'pending',
-    preferredTime: '',
-    address: '',
+  const [claimForm, setClaimForm] = useState({
+    patientName: '',
     patientPhone: '',
-    notes: '',
+    address: '',
+    serviceType: 'branch_visit' as PrizeClaimBooking['serviceType'],
+    preferredTime: 'صباحاً (9 - 12)',
+    branchId: 'br_main',
+    status: 'pending' as PrizeClaimBooking['status'],
+    prizeTitle: '',
+    prizeValue: '',
   });
 
   // Patients Search & Filter
@@ -283,6 +277,24 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const showNotice = (msg: string) => {
     setCopiedTextNotice(msg);
     setTimeout(() => setCopiedTextNotice(null), 3000);
+  };
+
+  // Scroll to form helper so edit button is immediately responsive and clear
+  const contentContainerRef = useRef<HTMLDivElement>(null);
+  const scrollToForm = (formId?: string) => {
+    contentContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      if (formId) {
+        const el = document.getElementById(formId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          el.classList.add('ring-4', 'ring-emerald-500/50');
+          setTimeout(() => el.classList.remove('ring-4', 'ring-emerald-500/50'), 1500);
+          return;
+        }
+      }
+      contentContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 80);
   };
 
   // Cloud & GitHub Sync Action States
@@ -371,23 +383,20 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       address: branch.address,
       phone: branch.phone,
       whatsappNumber: branch.whatsappNumber,
-      googleMapsUrl: branch.googleMapsUrl || '',
-      workingHours: branch.workingHours || '',
-      managerName: branch.managerName || '',
-      isMainBranch: !!branch.isMainBranch,
-      homeSamplingCoverage: branch.homeSamplingCoverage || '',
+      googleMapsUrl: branch.googleMapsUrl,
+      workingHours: branch.workingHours,
+      managerName: branch.managerName,
+      isMainBranch: branch.isMainBranch,
+      homeSamplingCoverage: branch.homeSamplingCoverage,
       notes: branch.notes || '',
     });
     setIsAddingBranch(true);
-    setTimeout(() => {
-      branchFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 60);
+    scrollToForm('branch-form');
   };
 
   const handleSaveBranch = (e: React.FormEvent) => {
     e.preventDefault();
     const branches = settings.branches || [];
-
     if (editingBranch) {
       const updated = branches.map((b) =>
         b.id === editingBranch.id
@@ -400,7 +409,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           : b
       );
       onSaveSettings({ ...settings, branches: updated });
-      showNotice(`تم تحديث بيانات فرع "${branchForm.name}" بنجاح!`);
+      showNotice(`تم تعديل فرع "${branchForm.name}" بنجاح!`);
     } else {
       const newBranch: LabBranch = {
         id: 'br_' + Date.now(),
@@ -412,7 +421,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       onSaveSettings({ ...settings, branches: [newBranch, ...updated] });
       showNotice(`تمت إضافة فرع "${branchForm.name}" بنجاح!`);
     }
-
     setIsAddingBranch(false);
     setEditingBranch(null);
     soundManager.playSuccess();
@@ -447,6 +455,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       bio: '',
     });
     setIsAddingMember(true);
+    scrollToForm('member-form');
   };
 
   const handleStartEditMember = (member: LabAdminMember) => {
@@ -462,15 +471,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       bio: member.bio || '',
     });
     setIsAddingMember(true);
-    setTimeout(() => {
-      memberFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 60);
+    scrollToForm('member-form');
   };
 
   const handleSaveMember = (e: React.FormEvent) => {
     e.preventDefault();
     const team = settings.adminTeam || [];
-
     if (editingMember) {
       const updated = team.map((m) =>
         m.id === editingMember.id
@@ -488,7 +494,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       };
       onSaveSettings({ ...settings, adminTeam: [newMember, ...team] });
     }
-
     setIsAddingMember(false);
     setEditingMember(null);
     soundManager.playSuccess();
@@ -520,6 +525,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       isActive: true,
     });
     setIsAddingTemplate(true);
+    scrollToForm('template-form');
   };
 
   const handleStartEditTemplate = (tpl: WhatsAppTemplate) => {
@@ -531,15 +537,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       isActive: tpl.isActive,
     });
     setIsAddingTemplate(true);
-    setTimeout(() => {
-      templateFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 60);
+    scrollToForm('template-form');
   };
 
   const handleSaveTemplate = (e: React.FormEvent) => {
     e.preventDefault();
     const templates = settings.whatsappTemplates || [];
-
     if (editingTemplate) {
       const updated = templates.map((t) =>
         t.id === editingTemplate.id
@@ -550,19 +553,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           : t
       );
       onSaveSettings({ ...settings, whatsappTemplates: updated });
-      showNotice(`تم تحديث قالب "${templateForm.title}" بنجاح!`);
     } else {
       const newTpl: WhatsAppTemplate = {
         id: 'tpl_' + Date.now(),
         ...templateForm,
       };
       onSaveSettings({ ...settings, whatsappTemplates: [newTpl, ...templates] });
-      showNotice(`تمت إضافة قالب "${templateForm.title}" بنجاح!`);
     }
-
     setIsAddingTemplate(false);
     setEditingTemplate(null);
     soundManager.playSuccess();
+    showNotice(editingTemplate ? 'تم تعديل قالب الرسالة بنجاح!' : 'تم حفظ القالب الجديد!');
   };
 
   const handleDeleteTemplate = (id: string) => {
@@ -615,7 +616,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       onSaveQuestions([newQ, ...questions]);
       showNotice('تمت إضافة السؤال بنجاح!');
     }
-
     setIsAddingQuestion(false);
     setEditingQuestion(null);
     setNewQText('');
@@ -633,9 +633,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setNewQExplanation(q.explanation);
     setNewQPoints(q.points);
     setIsAddingQuestion(true);
-    setTimeout(() => {
-      questionFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 60);
+    scrollToForm('question-form');
   };
 
   const handleDeleteQuestion = (id: string) => {
@@ -660,14 +658,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setNewRType(reward.type);
     setNewRValue(reward.value);
     setNewRPoints(reward.pointsCost);
-    setNewRBadge(reward.badge || '');
+    setNewRBadge(reward.badge);
     setIsAddingReward(true);
-    setTimeout(() => {
-      rewardFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 60);
+    scrollToForm('reward-form');
   };
 
-  const handleSaveReward = (e: React.FormEvent) => {
+  const handleSaveNewReward = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRTitle.trim()) return;
 
@@ -676,125 +672,37 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         r.id === editingReward.id
           ? {
               ...r,
-              title: newRTitle.trim(),
-              description: newRDesc.trim(),
+              title: newRTitle,
+              description: newRDesc,
               type: newRType,
-              value: newRValue.trim(),
-              pointsCost: Number(newRPoints),
-              badge: newRBadge.trim(),
+              value: newRValue,
+              pointsCost: newRPoints,
+              badge: newRBadge,
             }
           : r
       );
       onSaveRewards(updated);
-      showNotice(`تم تحديث بيانات الجائزة "${newRTitle}" بنجاح!`);
+      showNotice(`تم تعديل جائزة "${newRTitle}" بنجاح!`);
     } else {
       const newRew: RewardItem = {
         id: 'rew_' + Date.now(),
         code: 'RT-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
-        title: newRTitle.trim(),
-        description: newRDesc.trim(),
+        title: newRTitle,
+        description: newRDesc,
         type: newRType,
-        value: newRValue.trim(),
-        pointsCost: Number(newRPoints),
-        badge: newRBadge.trim(),
+        value: newRValue,
+        pointsCost: newRPoints,
+        badge: newRBadge,
         terms: 'صالح لمدة 30 يوماً من تاريخ الإصدار.',
         isActive: true,
       };
       onSaveRewards([newRew, ...rewards]);
       showNotice('تمت إضافة الجائزة إلى المتجر بنجاح!');
     }
-
     setIsAddingReward(false);
     setEditingReward(null);
     setNewRTitle('');
     setNewRDesc('');
-    soundManager.playSuccess();
-  };
-
-  // ================= SPIN WHEEL SLICES CRUD =================
-  const handleStartEditSlice = (slice: SpinSlice) => {
-    setEditingSlice(slice);
-    setSliceForm({ ...slice });
-    setTimeout(() => {
-      sliceEditRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 60);
-  };
-
-  const handleSaveSlice = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSlice) return;
-    const updated = slices.map((s) => (s.id === editingSlice.id ? sliceForm : s));
-    onSaveSlices(updated);
-    showNotice(`تم تحديث شريحة "${sliceForm.label}" بنجاح!`);
-    setEditingSlice(null);
-    soundManager.playSuccess();
-  };
-
-  // ================= PATIENT RECORDS CRUD =================
-  const handleStartEditPatient = (p: PatientRecord) => {
-    setEditingPatient(p);
-    setPatientEditForm({
-      name: p.name,
-      phone: p.phone,
-      points: p.points,
-      levelTitle: p.levelTitle,
-    });
-    setTimeout(() => {
-      patientEditRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 60);
-  };
-
-  const handleSavePatient = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPatient) return;
-    const updated: PatientRecord = {
-      ...editingPatient,
-      name: patientEditForm.name.trim(),
-      phone: patientEditForm.phone.trim(),
-      points: Number(patientEditForm.points),
-      levelTitle: patientEditForm.levelTitle.trim(),
-    };
-    if (onUpdatePatient) {
-      onUpdatePatient(updated);
-    }
-    showNotice(`تم تحديث بيانات ورصيد المريض "${updated.name}" بنجاح!`);
-    setEditingPatient(null);
-    soundManager.playSuccess();
-  };
-
-  // ================= CLAIMS & BOOKINGS CRUD =================
-  const handleStartEditClaim = (clm: PrizeClaimBooking) => {
-    setEditingClaim(clm);
-    setClaimEditForm({
-      status: clm.status,
-      preferredTime: clm.preferredTime || '',
-      address: clm.address || '',
-      patientPhone: clm.patientPhone || '',
-      notes: clm.notes || '',
-    });
-    setTimeout(() => {
-      claimEditRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 60);
-  };
-
-  const handleSaveClaim = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingClaim) return;
-    const updated: PrizeClaimBooking = {
-      ...editingClaim,
-      status: claimEditForm.status,
-      preferredTime: claimEditForm.preferredTime.trim(),
-      address: claimEditForm.address.trim(),
-      patientPhone: claimEditForm.patientPhone.trim(),
-      notes: claimEditForm.notes.trim() || undefined,
-    };
-    if (onUpdateClaim) {
-      onUpdateClaim(updated);
-    } else {
-      onUpdateClaimStatus(editingClaim.id, claimEditForm.status);
-    }
-    showNotice(`تم تحديث بيانات حجز المريض "${updated.patientName}" بنجاح!`);
-    setEditingClaim(null);
     soundManager.playSuccess();
   };
 
@@ -810,6 +718,192 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         showNotice('تم حذف الجائزة من المتجر بنجاح.');
       },
     });
+  };
+
+  // ================= SPIN WHEEL SLICES CRUD =================
+  const handleOpenAddSlice = () => {
+    setEditingSlice(null);
+    setSliceForm({
+      label: '',
+      subtext: '',
+      type: 'discount',
+      value: '15%',
+      probability: 15,
+      color: '#0d9488',
+      pointsAmount: 50,
+    });
+    setIsAddingSlice(true);
+    scrollToForm('slice-form');
+  };
+
+  const handleStartEditSlice = (slice: SpinSlice) => {
+    setEditingSlice(slice);
+    setSliceForm({
+      label: slice.label,
+      subtext: slice.subtext,
+      type: slice.type,
+      value: slice.value,
+      probability: slice.probability,
+      color: slice.color,
+      pointsAmount: slice.pointsAmount || 50,
+    });
+    setIsAddingSlice(true);
+    scrollToForm('slice-form');
+  };
+
+  const handleSaveSlice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sliceForm.label.trim()) return;
+
+    if (editingSlice) {
+      const updated = slices.map((s) =>
+        s.id === editingSlice.id
+          ? {
+              ...s,
+              ...sliceForm,
+            }
+          : s
+      );
+      onSaveSlices(updated);
+      showNotice(`تم تعديل شريحة "${sliceForm.label}" بنجاح!`);
+    } else {
+      const newSlice: SpinSlice = {
+        id: 's_' + Date.now(),
+        ...sliceForm,
+      };
+      onSaveSlices([...slices, newSlice]);
+      showNotice('تمت إضافة شريحة جديدة للعجلة بنجاح!');
+    }
+    setIsAddingSlice(false);
+    setEditingSlice(null);
+    soundManager.playSuccess();
+  };
+
+  const handleDeleteSlice = (id: string) => {
+    if (slices.length <= 4) {
+      showNotice('⚠️ يجب أن تحتوي العجلة على 4 شرائح على الأقل للدوران المتوازن.');
+      return;
+    }
+    const target = slices.find((s) => s.id === id);
+    setDeleteConfirmTarget({
+      type: 'شريحة عجلة الحظ',
+      id,
+      name: target?.label || 'الشريحة',
+      onConfirm: () => {
+        const updated = slices.filter((s) => s.id !== id);
+        onSaveSlices(updated);
+        soundManager.playSuccess();
+        showNotice('تم حذف الشريحة بنجاح.');
+      },
+    });
+  };
+
+  // ================= PATIENT CRUD =================
+  const handleOpenAddPatient = () => {
+    setEditingPatient(null);
+    setPatientForm({
+      name: '',
+      phone: '',
+      points: 50,
+      levelTitle: 'عضو مسجل جديد 🌱',
+      preferredBranchId: branches[0]?.id || 'br_main',
+    });
+    setIsAddingPatient(true);
+    scrollToForm('patient-form');
+  };
+
+  const handleStartEditPatient = (p: PatientRecord) => {
+    setEditingPatient(p);
+    setIsAddingPatient(true);
+    setPatientForm({
+      name: p.name,
+      phone: p.phone,
+      points: p.points,
+      levelTitle: p.levelTitle,
+      preferredBranchId: p.preferredBranchId || 'br_main',
+    });
+    scrollToForm('patient-form');
+  };
+
+  const handleSavePatient = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!patientForm.name.trim()) return;
+
+    let updated: PatientRecord[];
+    if (editingPatient) {
+      updated = patients.map((p) =>
+        p.id === editingPatient.id
+          ? {
+              ...p,
+              ...patientForm,
+            }
+          : p
+      );
+      showNotice(`تم حفظ وتعديل بيانات المريض "${patientForm.name}" بنجاح!`);
+    } else {
+      const newPatient: PatientRecord = {
+        id: 'pat_' + Date.now(),
+        name: patientForm.name,
+        phone: patientForm.phone,
+        points: Number(patientForm.points) || 0,
+        levelTitle: patientForm.levelTitle || 'عضو مسجل جديد 🌱',
+        joinedAt: new Date().toISOString(),
+        lastActive: new Date().toISOString(),
+        couponsWon: 0,
+        gamesPlayed: 0,
+        preferredBranchId: patientForm.preferredBranchId || 'br_main',
+      };
+      updated = [newPatient, ...patients];
+      showNotice(`تمت إضافة المريض "${patientForm.name}" إلى السجل بنجاح!`);
+    }
+
+    if (onSavePatients) {
+      onSavePatients(updated);
+    } else {
+      saveRegisteredPatients(updated);
+    }
+    setEditingPatient(null);
+    setIsAddingPatient(false);
+    soundManager.playSuccess();
+  };
+
+  // ================= CLAIMS CRUD =================
+  const handleStartEditClaim = (clm: PrizeClaimBooking) => {
+    setEditingClaim(clm);
+    setClaimForm({
+      patientName: clm.patientName,
+      patientPhone: clm.patientPhone,
+      address: clm.address,
+      serviceType: clm.serviceType,
+      preferredTime: clm.preferredTime,
+      branchId: clm.branchId || branches[0]?.id || 'br_main',
+      status: clm.status,
+      prizeTitle: clm.prizeTitle,
+      prizeValue: clm.prizeValue,
+    });
+    scrollToForm('claim-form');
+  };
+
+  const handleSaveClaim = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClaim) return;
+
+    const updated = claims.map((c) =>
+      c.id === editingClaim.id
+        ? {
+            ...c,
+            ...claimForm,
+          }
+        : c
+    );
+    if (onSaveClaims) {
+      onSaveClaims(updated);
+    } else {
+      savePrizeClaims(updated);
+    }
+    setEditingClaim(null);
+    soundManager.playSuccess();
+    showNotice(`تم تعديل بيانات حجز المريض "${claimForm.patientName}" بنجاح!`);
   };
 
   // ================= GENERAL SETTINGS SUBMIT =================
@@ -995,8 +1089,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const templates = settings.whatsappTemplates || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-6xl h-[92vh] bg-slate-900 border border-emerald-500/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-6xl h-full sm:h-[92vh] bg-slate-900 border-0 sm:border border-emerald-500/30 rounded-none sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
         {/* Header Strip */}
         <div className="bg-gradient-to-r from-emerald-700 via-teal-800 to-slate-950 p-4 sm:p-5 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -1106,7 +1200,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         </div>
 
         {/* Body Content */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 text-slate-200">
+        <div ref={contentContainerRef} className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 text-slate-200">
           {/* ================= TAB 1: BRANCHES MANAGEMENT ================= */}
           {activeTab === 'branches' && (
             <div className="space-y-6">
@@ -1132,14 +1226,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Add / Edit Branch Form */}
               {isAddingBranch && (
                 <form
-                  ref={branchFormRef}
+                  id="branch-form"
                   onSubmit={handleSaveBranch}
                   className="p-5 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-xl"
                 >
+                  {editingBranch && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold flex items-center justify-between">
+                      <span>✏️ جاري تعديل بيانات الفرع: {editingBranch.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingBranch(false);
+                          setEditingBranch(null);
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-white underline"
+                      >
+                        إلغاء التعديل
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
                       <Building className="w-4 h-4" />
-                      <span>{editingBranch ? `تعديل بيانات الفرع: ${editingBranch.name}` : 'إضافة فرع جديد للمعمل'}</span>
+                      <span>{editingBranch ? 'تعديل بيانات الفرع' : 'إضافة فرع جديد'}</span>
                     </h5>
                     <button
                       type="button"
@@ -1152,25 +1261,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       إلغاء
                     </button>
                   </div>
-
-                  {editingBranch && (
-                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-300">
-                      <span className="flex items-center gap-2 font-bold">
-                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>أنت الآن في وضع تعديل بيانات فرع: <strong>{editingBranch.name}</strong></span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingBranch(false);
-                          setEditingBranch(null);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]"
-                      >
-                        إلغاء التعديل
-                      </button>
-                    </div>
-                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-1">
@@ -1277,17 +1367,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-300 font-semibold">ملاحظات الفرع وإرشادات المرضى:</label>
-                    <textarea
-                      rows={2}
-                      value={branchForm.notes}
-                      onChange={(e) => setBranchForm({ ...branchForm, notes: e.target.value })}
-                      placeholder="تعليمات حجز التحاليل، متطلبات الصيام، مكان الركن، إلخ..."
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-
                   <div className="flex items-center gap-3 pt-2">
                     <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
                       <input
@@ -1322,16 +1401,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Branches List */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {branches.map((branch) => {
-                  const branchWaUrl = getWhatsAppUrl(
-                    branch.whatsappNumber,
+                  const cleanPhone = branch.whatsappNumber.replace(/\D/g, '');
+                  const branchWaUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
                     `السلام عليكم، أتواصل مع ${branch.name} لمعامل RT بخصوص استفسار أو حجز تحاليل.`
-                  );
+                  )}`;
 
                   return (
                     <div
                       key={branch.id}
                       className={`p-5 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${
-                        branch.isMainBranch
+                        editingBranch?.id === branch.id
+                          ? 'bg-slate-950 border-amber-500 ring-2 ring-amber-500/40 shadow-xl'
+                          : branch.isMainBranch
                           ? 'bg-slate-950 border-emerald-500/40 shadow-lg ring-1 ring-emerald-500/20'
                           : 'bg-slate-950/80 border-slate-800'
                       }`}
@@ -1462,14 +1543,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Add / Edit Admin Form */}
               {isAddingMember && (
                 <form
-                  ref={memberFormRef}
+                  id="member-form"
                   onSubmit={handleSaveMember}
                   className="p-5 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-xl"
                 >
+                  {editingMember && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold flex items-center justify-between">
+                      <span>✏️ جاري تعديل بيانات المسؤول: {editingMember.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingMember(false);
+                          setEditingMember(null);
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-white underline"
+                      >
+                        إلغاء التعديل
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
                       <Users className="w-4 h-4" />
-                      <span>{editingMember ? `تعديل بيانات المسؤول: ${editingMember.name}` : 'إضافة عضو جديد في فريق الإدارة'}</span>
+                      <span>{editingMember ? 'تعديل بيانات المسؤول' : 'إضافة عضو جديد في فريق الإدارة'}</span>
                     </h5>
                     <button
                       type="button"
@@ -1482,25 +1578,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       إلغاء
                     </button>
                   </div>
-
-                  {editingMember && (
-                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-bold">
-                      <span className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>أنت الآن في وضع تعديل بيانات المسؤول: <strong>{editingMember.name}</strong></span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingMember(false);
-                          setEditingMember(null);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]"
-                      >
-                        إلغاء التعديل
-                      </button>
-                    </div>
-                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
@@ -1621,15 +1698,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Members List */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {adminTeam.map((member) => {
-                  const waUrl = getWhatsAppUrl(
-                    member.whatsappNumber,
+                  const cleanPhone = member.whatsappNumber.replace(/\D/g, '');
+                  const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
                     `السلام عليكم دكتور/أستاذ ${member.name}، أتواصل معك من إدارة معامل RT.`
-                  );
+                  )}`;
 
                   return (
                     <div
                       key={member.id}
-                      className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 hover:border-emerald-500/40 transition-all flex flex-col justify-between gap-4"
+                      className={`p-5 rounded-2xl transition-all flex flex-col justify-between gap-4 ${
+                        editingMember?.id === member.id
+                          ? 'bg-slate-950 border-amber-500 ring-2 ring-amber-500/40 shadow-xl'
+                          : 'bg-slate-950/80 border border-slate-800 hover:border-emerald-500/40'
+                      }`}
                     >
                       <div className="space-y-3">
                         <div className="flex items-start justify-between gap-2">
@@ -1735,14 +1816,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Add / Edit Template Form */}
               {isAddingTemplate && (
                 <form
-                  ref={templateFormRef}
+                  id="template-form"
                   onSubmit={handleSaveTemplate}
                   className="p-5 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-xl"
                 >
+                  {editingTemplate && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold flex items-center justify-between">
+                      <span>✏️ جاري تعديل قالب الرسالة: {editingTemplate.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingTemplate(false);
+                          setEditingTemplate(null);
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-white underline"
+                      >
+                        إلغاء التعديل
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
                       <MessageCircle className="w-4 h-4" />
-                      <span>{editingTemplate ? `تعديل قالب الواتساب: ${editingTemplate.title}` : 'إضافة قالب واتساب جديد'}</span>
+                      <span>{editingTemplate ? 'تعديل قالب الواتساب' : 'إضافة قالب جديد'}</span>
                     </h5>
                     <button
                       type="button"
@@ -1755,25 +1851,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       إلغاء
                     </button>
                   </div>
-
-                  {editingTemplate && (
-                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-bold">
-                      <span className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>أنت الآن في وضع تعديل قالب: <strong>{editingTemplate.title}</strong></span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingTemplate(false);
-                          setEditingTemplate(null);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]"
-                      >
-                        إلغاء التعديل
-                      </button>
-                    </div>
-                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
@@ -1852,7 +1929,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 {templates.map((tpl) => (
                   <div
                     key={tpl.id}
-                    className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 hover:border-emerald-500/40 transition-all flex flex-col justify-between gap-3"
+                    className={`p-5 rounded-2xl transition-all flex flex-col justify-between gap-3 ${
+                      editingTemplate?.id === tpl.id
+                        ? 'bg-slate-950 border-amber-500 ring-2 ring-amber-500/40 shadow-xl'
+                        : 'bg-slate-950/80 border border-slate-800 hover:border-emerald-500/40'
+                    }`}
                   >
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
@@ -1904,15 +1985,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </button>
 
                       <a
-                        href={getWhatsAppUrl(
-                          settings.whatsappNumber,
+                        href={`https://wa.me/${settings.whatsappNumber.replace(
+                          /\D/g,
+                          ''
+                        )}?text=${encodeURIComponent(
                           tpl.templateText
                             .replace('{patient_name}', 'أحمد محمود')
                             .replace('{coupon_code}', 'RT-CBC-FREE')
                             .replace('{prize_title}', 'تحليل صورة دم كاملة (CBC) مجاناً')
                             .replace('{lab_name}', settings.labName)
                             .replace('{hotline}', settings.hotlineNumber)
-                        )}
+                        )}`}
                         target="_blank"
                         rel="noreferrer"
                         className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1"
@@ -2162,9 +2245,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h4 className="text-base font-bold text-white">سجل تفعيلات الجوائز وحجوزات المرضى</h4>
+                  <h4 className="text-base font-bold text-white flex items-center gap-2">
+                    <CalendarCheck className="w-5 h-5 text-emerald-400" />
+                    <span>سجل تفعيلات الجوائز وحجوزات المرضى</span>
+                  </h4>
                   <p className="text-xs text-slate-400">
-                    متابعة المرضى الذين فازوا بالتحاليل المجانية وسجلوا بياناتهم لطلب السحب المنزلي أو زيارة الفرع
+                    متابعة وتعديل بيانات المرضى الذين فازوا بالتحاليل وتعديل العناوين والمواعيد والفروع وحالة الحجز
                   </p>
                 </div>
               </div>
@@ -2172,90 +2258,132 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Edit Claim Form */}
               {editingClaim && (
                 <form
-                  ref={claimEditRef as any}
+                  id="claim-form"
                   onSubmit={handleSaveClaim}
-                  className="p-5 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-2xl"
+                  className="p-5 bg-slate-950 border border-amber-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-2xl"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
-                      <Edit2 className="w-4 h-4" />
-                      <span>تعديل تفاصيل حجز المريض: <strong>{editingClaim.patientName}</strong></span>
-                    </h5>
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold flex items-center justify-between">
+                    <span>✏️ جاري تعديل حجز المريض: {editingClaim.patientName} ({editingClaim.prizeTitle})</span>
                     <button
                       type="button"
                       onClick={() => setEditingClaim(null)}
-                      className="text-xs text-slate-400 hover:text-white"
+                      className="text-[11px] text-slate-400 hover:text-white underline"
                     >
-                      إلغاء
+                      إلغاء التعديل
                     </button>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-semibold">حالة الحجز الحالية:</label>
+                      <label className="text-xs text-slate-300 font-semibold">اسم المريض:</label>
+                      <input
+                        type="text"
+                        required
+                        value={claimForm.patientName}
+                        onChange={(e) => setClaimForm({ ...claimForm, patientName: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">هاتف التواصل:</label>
+                      <input
+                        type="text"
+                        required
+                        value={claimForm.patientPhone}
+                        onChange={(e) => setClaimForm({ ...claimForm, patientPhone: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono text-left"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">الفرع المخصص:</label>
                       <select
-                        value={claimEditForm.status}
-                        onChange={(e) => setClaimEditForm({ ...claimEditForm, status: e.target.value as PrizeClaimBooking['status'] })}
+                        value={claimForm.branchId}
+                        onChange={(e) => setClaimForm({ ...claimForm, branchId: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} ({b.city})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">نوع الخدمة المطلوبة:</label>
+                      <select
+                        value={claimForm.serviceType}
+                        onChange={(e) => setClaimForm({ ...claimForm, serviceType: e.target.value as PrizeClaimBooking['serviceType'] })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="home_visit">سحب عينة منزلي 🏠</option>
+                        <option value="branch_visit">زيارة الفرع 🏥</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">الميعاد المفضل:</label>
+                      <input
+                        type="text"
+                        value={claimForm.preferredTime}
+                        onChange={(e) => setClaimForm({ ...claimForm, preferredTime: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">حالة الحجز:</label>
+                      <select
+                        value={claimForm.status}
+                        onChange={(e) => setClaimForm({ ...claimForm, status: e.target.value as PrizeClaimBooking['status'] })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                       >
                         <option value="pending">قيد الانتظار ⏳</option>
-                        <option value="confirmed">تم التأكيد والتنسيق 📅</option>
-                        <option value="completed">تم إجراء الفحص بالمعمل 🩺</option>
-                        <option value="cancelled">ملغي أو غير متاح ❌</option>
+                        <option value="confirmed">تم التأكيد ✅</option>
+                        <option value="completed">تم إجراء التحليل 🩺</option>
                       </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-semibold">رقم هاتف المريض:</label>
-                      <input
-                        type="tel"
-                        value={claimEditForm.patientPhone}
-                        onChange={(e) => setClaimEditForm({ ...claimEditForm, patientPhone: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono text-left focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-semibold">الموعد والتوقيت المفضل:</label>
-                      <input
-                        type="text"
-                        value={claimEditForm.preferredTime}
-                        onChange={(e) => setClaimEditForm({ ...claimEditForm, preferredTime: e.target.value })}
-                        placeholder="مثال: غداً 10:00 صباحاً"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                      />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-semibold">العنوان وموقع السحب المنزلي:</label>
+                      <label className="text-xs text-slate-300 font-semibold">اسم الجائزة / التحليل الطبي:</label>
                       <input
                         type="text"
-                        value={claimEditForm.address}
-                        onChange={(e) => setClaimEditForm({ ...claimEditForm, address: e.target.value })}
-                        placeholder="العنوان بالتفصيل..."
+                        required
+                        value={claimForm.prizeTitle}
+                        onChange={(e) => setClaimForm({ ...claimForm, prizeTitle: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                       />
                     </div>
-
                     <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-semibold">ملاحظات خدمة العملاء والإدارة:</label>
+                      <label className="text-xs text-slate-300 font-semibold">قيمة الجائزة أو الخصم (مثال: مجاني 100% أو 50%):</label>
                       <input
                         type="text"
-                        value={claimEditForm.notes}
-                        onChange={(e) => setClaimEditForm({ ...claimEditForm, notes: e.target.value })}
-                        placeholder="تم التواصل مع المريض وإبلاغه..."
+                        required
+                        value={claimForm.prizeValue}
+                        onChange={(e) => setClaimForm({ ...claimForm, prizeValue: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-300 font-semibold">عنوان السحب المنزلي بالتفصيل:</label>
+                    <input
+                      type="text"
+                      value={claimForm.address}
+                      onChange={(e) => setClaimForm({ ...claimForm, address: e.target.value })}
+                      placeholder="العنوان والمنطقة..."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
                   </div>
 
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                     <button
                       type="button"
                       onClick={() => setEditingClaim(null)}
-                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold"
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300"
                     >
                       إلغاء
                     </button>
@@ -2281,7 +2409,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     return (
                       <div
                         key={clm.id}
-                        className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-emerald-500/40 transition-all"
+                        className={`bg-slate-950 border rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all ${
+                          editingClaim?.id === clm.id
+                            ? 'border-amber-500 ring-2 ring-amber-500/40 shadow-xl'
+                            : 'border-slate-800 hover:border-emerald-500/40'
+                        }`}
                       >
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -2298,8 +2430,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                   : clm.status === 'completed'
                                   ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                  : clm.status === 'cancelled'
-                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                                   : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                               }`}
                             >
@@ -2307,8 +2437,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 ? 'تم التأكيد ✅'
                                 : clm.status === 'completed'
                                 ? 'تم إجراء التحليل 🩺'
-                                : clm.status === 'cancelled'
-                                ? 'ملغي ❌'
                                 : 'قيد الانتظار ⏳'}
                             </span>
                           </div>
@@ -2339,25 +2467,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               <span>· بتاريخ: {clm.createdAt}</span>
                             </div>
                           )}
-
-                          {clm.notes && (
-                            <div className="text-xs text-emerald-300/80 bg-slate-900/60 p-2 rounded-xl border border-slate-800">
-                              ملاحظات: {clm.notes}
-                            </div>
-                          )}
                         </div>
 
                         {/* Actions */}
                         <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => handleStartEditClaim(clm)}
-                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-emerald-400 transition-colors border border-slate-800"
-                            title="تعديل تفاصيل وبيانات الحجز"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-
                           <button
                             onClick={() => {
                               const confirmationMsg = `🎉 *أهلاً بك يا أستاذ/ة ${clm.patientName} في ${settings.labName}!*\n\n✅ *تم اعتماد وتأكيد طلب تفعيل جائزتك بنجاح:*\n🎁 *الجائزة:* ${clm.prizeTitle} (${clm.prizeValue})\n🔢 *كود التحقق المعتمد:* [${clm.couponCode}]\n📍 *الفرع المخصص:* ${assignedBranch?.name}\n🚗 *الخدمة المطلوبة:* ${clm.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}\n⏰ *الميعاد:* ${clm.preferredTime}\n⭐ *رصيد نقاطك:* ${clm.points} نقطة\n\nفريق التمريض وخدمة العملاء سيتواصل معك للتنسيق النهائي. نسعد بخدمتك دائماً 💚`;
@@ -2370,10 +2483,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           </button>
 
                           <a
-                            href={getWhatsAppUrl(
-                              clm.patientPhone,
+                            href={`https://wa.me/${clm.patientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
                               `أهلاً بك يا أستاذ/ة ${clm.patientName}، نؤكد لك استلام طلب تفعيل جائزة (${clm.prizeTitle}) كود: ${clm.couponCode} من ${settings.labName}.`
-                            )}
+                            )}`}
                             target="_blank"
                             rel="noreferrer"
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm"
@@ -2390,9 +2502,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             <option value="pending">قيد الانتظار ⏳</option>
                             <option value="confirmed">تم التأكيد ✅</option>
                             <option value="completed">تم الفحص 🩺</option>
-                            <option value="cancelled">ملغي ❌</option>
                           </select>
 
+                          <button
+                            onClick={() => handleStartEditClaim(clm)}
+                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
+                            title="تعديل تفاصيل الحجز"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => {
                               setDeleteConfirmTarget({
@@ -2424,86 +2542,116 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h4 className="text-base font-bold text-white">سجل المرضى والمتسابقين</h4>
+                  <h4 className="text-base font-bold text-white flex items-center gap-2">
+                    <Users className="w-5 h-5 text-emerald-400" />
+                    <span>سجل المرضى والمتسابقين</span>
+                  </h4>
                   <p className="text-xs text-slate-400">
-                    قاعدة بيانات المرضى المسجلين، نقاطهم، ومراسلتهم مباشرة عبر الواتساب
+                    قاعدة بيانات المرضى المسجلين، تعديل النقاط والبيانات، ومراسلتهم مباشرة عبر الواتساب
                   </p>
                 </div>
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-4 h-4 text-slate-500 absolute right-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={patientSearch}
-                    onChange={(e) => setPatientSearch(e.target.value)}
-                    placeholder="بحث بالاسم أو الهاتف..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="w-4 h-4 text-slate-500 absolute right-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={patientSearch}
+                      onChange={(e) => setPatientSearch(e.target.value)}
+                      placeholder="بحث بالاسم أو الهاتف..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <button
+                    onClick={handleOpenAddPatient}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-950 shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>إضافة مريض</span>
+                  </button>
                 </div>
               </div>
 
-              {/* Edit Patient Form */}
-              {editingPatient && (
+              {/* Add / Edit Patient Form */}
+              {(editingPatient || isAddingPatient) && (
                 <form
-                  ref={patientEditRef as any}
+                  id="patient-form"
                   onSubmit={handleSavePatient}
-                  className="p-5 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-2xl"
+                  className="p-5 bg-slate-950 border border-amber-500/40 rounded-2xl space-y-4 animate-in fade-in shadow-2xl"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
-                      <Edit2 className="w-4 h-4" />
-                      <span>تعديل بيانات ورصيد المريض: <strong>{editingPatient.name}</strong></span>
-                    </h5>
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold flex items-center justify-between">
+                    <span>
+                      {editingPatient
+                        ? `✏️ جاري تعديل بيانات المريض: ${editingPatient.name}`
+                        : '➕ إضافة مريض جديد لسجلات معامل RT'}
+                    </span>
                     <button
                       type="button"
-                      onClick={() => setEditingPatient(null)}
-                      className="text-xs text-slate-400 hover:text-white"
+                      onClick={() => {
+                        setEditingPatient(null);
+                        setIsAddingPatient(false);
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-white underline"
                     >
-                      إلغاء
+                      إلغاء التعديل
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-semibold">اسم المريض / المتسابق:</label>
+                      <label className="text-xs text-slate-300 font-semibold">اسم المريض:</label>
                       <input
                         type="text"
                         required
-                        value={patientEditForm.name}
-                        onChange={(e) => setPatientEditForm({ ...patientEditForm, name: e.target.value })}
+                        value={patientForm.name}
+                        onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })}
+                        placeholder="الاسم الثلاثي..."
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                       />
                     </div>
-
                     <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-semibold">رقم الهاتف (للتواصل والواتساب):</label>
+                      <label className="text-xs text-slate-300 font-semibold">رقم الهاتف:</label>
                       <input
-                        type="tel"
+                        type="text"
                         required
-                        value={patientEditForm.phone}
-                        onChange={(e) => setPatientEditForm({ ...patientEditForm, phone: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono text-left focus:outline-none focus:border-emerald-500"
+                        value={patientForm.phone}
+                        onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })}
+                        placeholder="010XXXXXXXX"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono text-left"
                       />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">الفرع المفضل / التابع له:</label>
+                      <select
+                        value={patientForm.preferredBranchId}
+                        onChange={(e) => setPatientForm({ ...patientForm, preferredBranchId: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} ({b.city})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-semibold">رصيد النقاط الحالية (⭐):</label>
+                      <label className="text-xs text-slate-300 font-semibold">رصيد النقاط الحالية:</label>
                       <input
                         type="number"
                         min="0"
-                        value={patientEditForm.points}
-                        onChange={(e) => setPatientEditForm({ ...patientEditForm, points: Number(e.target.value) })}
+                        value={patientForm.points}
+                        onChange={(e) => setPatientForm({ ...patientForm, points: Number(e.target.value) })}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                       />
                     </div>
-
                     <div className="space-y-1">
-                      <label className="text-xs text-slate-300 font-semibold">اللقب والرتبة في المعمل:</label>
+                      <label className="text-xs text-slate-300 font-semibold">اللقب والرتبة:</label>
                       <input
                         type="text"
-                        value={patientEditForm.levelTitle}
-                        onChange={(e) => setPatientEditForm({ ...patientEditForm, levelTitle: e.target.value })}
+                        value={patientForm.levelTitle}
+                        onChange={(e) => setPatientForm({ ...patientForm, levelTitle: e.target.value })}
                         placeholder="سفير التميز لمعامل RT 👑"
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                       />
@@ -2513,8 +2661,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                     <button
                       type="button"
-                      onClick={() => setEditingPatient(null)}
-                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold"
+                      onClick={() => {
+                        setEditingPatient(null);
+                        setIsAddingPatient(false);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300"
                     >
                       إلغاء
                     </button>
@@ -2523,7 +2674,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-950"
                     >
                       <Save className="w-3.5 h-3.5" />
-                      <span>حفظ تعديلات المريض</span>
+                      <span>{editingPatient ? 'حفظ تعديلات المريض' : 'إضافة المريض للسجل'}</span>
                     </button>
                   </div>
                 </form>
@@ -2537,15 +2688,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       p.phone.includes(patientSearch)
                   )
                   .map((p) => {
-                    const waUrl = getWhatsAppUrl(
-                      p.phone,
+                    const cleanPhone = p.phone.replace(/\D/g, '');
+                    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
                       `أهلاً بك يا أستاذ/ة ${p.name}، معك فريق خدمة عملاء ${settings.labName}.`
-                    );
+                    )}`;
 
                     return (
                       <div
                         key={p.id}
-                        className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-emerald-500/30 transition-all"
+                        className={`p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all ${
+                          editingPatient?.id === p.id
+                            ? 'bg-slate-950 border border-amber-500 ring-2 ring-amber-500/40 shadow-xl'
+                            : 'bg-slate-950/70 border border-slate-800 hover:border-emerald-500/30'
+                        }`}
                       >
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -2561,18 +2716,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             {p.levelTitle} · جوائز فاز بها: {p.couponsWon} · ألعاب لعبها: {p.gamesPlayed}
                           </p>
                         </div>
-
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleStartEditPatient(p)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 text-xs font-semibold transition-colors border border-slate-700/60"
-                            title="تعديل بيانات ورصيد المريض"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                            <span>تعديل</span>
-                          </button>
-
                           <a
                             href={waUrl}
                             target="_blank"
@@ -2582,6 +2726,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             <MessageCircle className="w-3.5 h-3.5" />
                             <span>مراسلة بالواتساب</span>
                           </a>
+                          <button
+                            onClick={() => handleStartEditPatient(p)}
+                            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
+                            title="تعديل بيانات ورصيد المريض"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
 
                           <button
                             onClick={() => {
@@ -2634,45 +2785,28 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* Add Question Form */}
               {isAddingQuestion && (
                 <form
-                  ref={questionFormRef}
+                  id="question-form"
                   onSubmit={handleSaveNewQuestion}
                   className="bg-slate-950 p-5 rounded-2xl border border-emerald-500/40 space-y-4 shadow-xl"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
-                      <HelpCircle className="w-4 h-4" />
-                      <span>{editingQuestion ? `تعديل السؤال: #${editingQuestion.id}` : 'إضافة سؤال جديد لبنك الأسئلة'}</span>
-                    </h5>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAddingQuestion(false);
-                        setEditingQuestion(null);
-                      }}
-                      className="text-xs text-slate-400 hover:text-white"
-                    >
-                      إلغاء
-                    </button>
-                  </div>
-
                   {editingQuestion && (
-                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-bold">
-                      <span className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>أنت الآن في وضع تعديل السؤال وخيارات الإجابة</span>
-                      </span>
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold flex items-center justify-between">
+                      <span>✏️ جاري تعديل السؤال: {editingQuestion.question.slice(0, 40)}...</span>
                       <button
                         type="button"
                         onClick={() => {
                           setIsAddingQuestion(false);
                           setEditingQuestion(null);
                         }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]"
+                        className="text-[11px] text-slate-400 hover:text-white underline"
                       >
                         إلغاء التعديل
                       </button>
                     </div>
                   )}
+                  <h5 className="text-sm font-bold text-emerald-400">
+                    {editingQuestion ? 'تعديل السؤال' : 'إضافة سؤال جديد لبنك الأسئلة'}
+                  </h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs text-slate-400 font-semibold">فئة السؤال:</label>
@@ -2779,7 +2913,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 {questions.map((q, i) => (
                   <div
                     key={q.id}
-                    className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center justify-between gap-4"
+                    className={`p-4 rounded-xl flex items-center justify-between gap-4 transition-all ${
+                      editingQuestion?.id === q.id
+                        ? 'bg-slate-950 border border-amber-500 ring-2 ring-amber-500/40 shadow-xl'
+                        : 'bg-slate-950/70 border border-slate-800'
+                    }`}
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
@@ -2845,46 +2983,28 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
               {isAddingReward && (
                 <form
-                  ref={rewardFormRef}
-                  onSubmit={handleSaveReward}
-                  className="bg-slate-950 p-5 rounded-2xl border border-emerald-500/40 space-y-4 shadow-xl"
+                  id="reward-form"
+                  onSubmit={handleSaveNewReward}
+                  className="bg-slate-950 p-5 rounded-2xl border border-emerald-500/40 space-y-4 shadow-xl animate-in fade-in"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h5 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
-                      <Gift className="w-4 h-4" />
-                      <span>{editingReward ? `تعديل بيانات الجائزة: "${editingReward.title}"` : 'إضافة جائزة جديدة للمتجر'}</span>
-                    </h5>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAddingReward(false);
-                        setEditingReward(null);
-                      }}
-                      className="text-xs text-slate-400 hover:text-white"
-                    >
-                      إلغاء
-                    </button>
-                  </div>
-
                   {editingReward && (
-                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-bold">
-                      <span className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>أنت الآن في وضع تعديل جائزة: <strong>{editingReward.title}</strong></span>
-                      </span>
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold flex items-center justify-between">
+                      <span>✏️ جاري تعديل جائزة: {editingReward.title}</span>
                       <button
                         type="button"
                         onClick={() => {
                           setIsAddingReward(false);
                           setEditingReward(null);
                         }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]"
+                        className="text-[11px] text-slate-400 hover:text-white underline"
                       >
                         إلغاء التعديل
                       </button>
                     </div>
                   )}
-
+                  <h5 className="text-sm font-bold text-emerald-400">
+                    {editingReward ? 'تعديل بيانات الجائزة بالمتجر' : 'إضافة جائزة جديدة لبنك الجوائز'}
+                  </h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs text-slate-400 font-semibold">عنوان الجائزة:</label>
@@ -2958,23 +3078,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     />
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <div className="flex items-center justify-end gap-2 pt-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsAddingReward(false);
-                        setEditingReward(null);
-                      }}
+                      onClick={() => setIsAddingReward(false)}
                       className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold"
                     >
                       إلغاء
                     </button>
                     <button
                       type="submit"
-                      className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-950"
+                      className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
                     >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>{editingReward ? 'حفظ تعديلات الجائزة' : 'حفظ الجائزة بالمتجر'}</span>
+                      حفظ الجائزة بالمتجر
                     </button>
                   </div>
                 </form>
@@ -2984,7 +3100,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 {rewards.map((r) => (
                   <div
                     key={r.id}
-                    className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-emerald-500/30 transition-all"
+                    className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl flex items-center justify-between gap-3"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
@@ -2992,29 +3108,21 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
                           {r.pointsCost} نقطة
                         </span>
-                        {r.badge && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-semibold border border-emerald-500/30">
-                            {r.badge}
-                          </span>
-                        )}
                       </div>
                       <p className="text-xs text-slate-400">{r.description}</p>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
-                        type="button"
                         onClick={() => handleStartEditReward(r)}
-                        className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors"
-                        title="تعديل بيانات الجائزة والنقاط"
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
+                        title="تعديل بيانات الجائزة"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-
                       <button
-                        type="button"
                         onClick={() => handleDeleteReward(r.id)}
-                        className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 shrink-0 transition-colors"
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition-colors"
                         title="حذف الجائزة"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -3029,23 +3137,200 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           {/* ================= TAB 9: SPIN WHEEL SLICES ================= */}
           {activeTab === 'wheel' && (
             <div className="space-y-6">
-              <div>
-                <h4 className="text-base font-bold text-white">إعدادات شرائح عجلة الحظ</h4>
-                <p className="text-xs text-slate-400">تخصيص جوائز العجلة ونسب احتمالية الفوز لكل شريحة</p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-base font-bold text-white flex items-center gap-2">
+                    <RotateCw className="w-5 h-5 text-emerald-400" />
+                    <span>إعدادات وتخصيص شرائح عجلة الحظ</span>
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    تخصيص جوائز العجلة، نسب احتمالية الفوز، ألوان الشرائح، ونقاط المكافأة
+                  </p>
+                </div>
+                <button
+                  onClick={handleOpenAddSlice}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-950"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>إضافة شريحة جديدة للعجلة</span>
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Add / Edit Slice Form */}
+              {isAddingSlice && (
+                <form
+                  id="slice-form"
+                  onSubmit={handleSaveSlice}
+                  className="bg-slate-950 p-5 rounded-2xl border border-emerald-500/40 space-y-4 shadow-xl animate-in fade-in"
+                >
+                  {editingSlice && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 font-bold flex items-center justify-between">
+                      <span>✏️ جاري تعديل شريحة العجلة: {editingSlice.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingSlice(false);
+                          setEditingSlice(null);
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-white underline"
+                      >
+                        إلغاء التعديل
+                      </button>
+                    </div>
+                  )}
+                  <h5 className="text-sm font-bold text-emerald-400">
+                    {editingSlice ? 'تعديل بيانات شريحة العجلة' : 'إضافة شريحة جديدة لعجلة الحظ'}
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">عنوان الشريحة / الجائزة:</label>
+                      <input
+                        type="text"
+                        required
+                        value={sliceForm.label}
+                        onChange={(e) => setSliceForm({ ...sliceForm, label: e.target.value })}
+                        placeholder="مثال: خصم 25% أو تحليل سكر مجاني"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">النص التوضيحي:</label>
+                      <input
+                        type="text"
+                        value={sliceForm.subtext}
+                        onChange={(e) => setSliceForm({ ...sliceForm, subtext: e.target.value })}
+                        placeholder="على كافة باقات الفحص..."
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">نوع الجائزة:</label>
+                      <select
+                        value={sliceForm.type}
+                        onChange={(e) => setSliceForm({ ...sliceForm, type: e.target.value as SpinSlice['type'] })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="discount">نسبة خصم (Discount)</option>
+                        <option value="free_test">تحليل مجاني (Free Test)</option>
+                        <option value="points">نقاط مكافأة إضافية (Points)</option>
+                        <option value="retry">حاول مجدداً (Try Again)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">القيمة المعروضة:</label>
+                      <input
+                        type="text"
+                        required
+                        value={sliceForm.value}
+                        onChange={(e) => setSliceForm({ ...sliceForm, value: e.target.value })}
+                        placeholder="مثال: 25% أو مجاني 100%"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">نسبة الاحتمالية (%):</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        required
+                        value={sliceForm.probability}
+                        onChange={(e) => setSliceForm({ ...sliceForm, probability: Number(e.target.value) })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">لون الشريحة:</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={sliceForm.color}
+                          onChange={(e) => setSliceForm({ ...sliceForm, color: e.target.value })}
+                          className="w-10 h-9 bg-slate-900 border border-slate-800 rounded-xl cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={sliceForm.color}
+                          onChange={(e) => setSliceForm({ ...sliceForm, color: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {sliceForm.type === 'points' && (
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300 font-semibold">عدد النقاط الممنوحة للمريض:</label>
+                      <input
+                        type="number"
+                        min="10"
+                        max="1000"
+                        value={sliceForm.pointsAmount || 50}
+                        onChange={(e) => setSliceForm({ ...sliceForm, pointsAmount: Number(e.target.value) })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingSlice(false);
+                        setEditingSlice(null);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-950"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{editingSlice ? 'حفظ تعديل الشريحة' : 'إضافة الشريحة للعجلة'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {slices.map((slc) => (
                   <div
                     key={slc.id}
-                    className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-2"
-                    style={{ borderRight: `4px solid ${slc.color}` }}
+                    className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3 relative group"
+                    style={{ borderRight: `5px solid ${slc.color}` }}
                   >
-                    <span className="font-bold text-sm text-white block">{slc.label}</span>
-                    <p className="text-xs text-slate-400">{slc.subtext}</p>
-                    <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                      <span>النوع: {slc.type}</span>
-                      <span className="font-mono text-emerald-400">{slc.probability}% نسبة</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-bold text-sm text-white block">{slc.label}</span>
+                        <p className="text-xs text-slate-400 mt-0.5">{slc.subtext}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => handleStartEditSlice(slc)}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
+                          title="تعديل الشريحة"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSlice(slc.id)}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition-colors"
+                          title="حذف الشريحة"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/80">
+                      <span className="text-[11px] bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">
+                        {slc.type === 'discount' ? 'خصم 🏷️' : slc.type === 'free_test' ? 'تحليل مجاني 🩺' : slc.type === 'points' ? 'نقاط ⭐' : 'إعادة 🔄'}
+                      </span>
+                      <span className="font-mono text-emerald-400 font-bold">{slc.probability}% احتمالية</span>
                     </div>
                   </div>
                 ))}

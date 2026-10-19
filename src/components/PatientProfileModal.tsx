@@ -22,11 +22,10 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setName(player.name || '');
-      setPhone(player.phone || '');
-      setSavedSuccess(false);
+      setName(player.name);
+      setPhone(player.phone);
     }
-  }, [isOpen, player]);
+  }, [player, isOpen]);
 
   if (!isOpen) return null;
 
