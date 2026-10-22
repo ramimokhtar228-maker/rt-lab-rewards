@@ -1,8 +1,6 @@
 {
-  "name": "تحدي ومكافآت معامل RT",
-  "description": "نظام حجز الجوائز ومزامنة المرضى واختيار جامعي العينات في الوقت الفعلي مع إرسال الواتساب الفوري والتنبيه الصوتي المباشر بين الأجهزة.",
+  "name": "معامل RT للتحاليل الطبية - نظام المكافآت والحجوزات الفورية",
+  "description": "منظومة مكافآت وجوائز معامل RT مع حفظ سحابي دائم لحجوزات المرضى، إشعارات صوتية فورية، وإدارة شاملة لفنيي السحب ومواعيد التحاليل والواتساب.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

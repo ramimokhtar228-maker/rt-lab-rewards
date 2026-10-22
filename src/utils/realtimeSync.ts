@@ -5,11 +5,20 @@
 
 import { PrizeClaimBooking, SampleCollector } from '../types';
 import { alertSoundManager } from './audioAlert';
+import {
+  fetchCloudDatabase,
+  saveClaimToCloud,
+  updateClaimStatusInCloud,
+  deleteClaimFromCloud,
+  saveCollectorToCloud,
+  deleteCollectorFromCloud,
+  CloudDatabaseState,
+} from './cloudDatabase';
 
-type SyncStatus = 'connected' | 'connecting' | 'offline';
-
+export type SyncStatus = 'connected' | 'connecting' | 'offline';
 type EventListener = (event: { type: string; data: any }) => void;
 
+// Real-time Cloud Topic on public SSE relay for instant zero-config multi-device wake up
 const CLOUD_SYNC_TOPIC = 'rt_lab_claims_hub_ramimokhtar228';
 const CLOUD_SSE_URL = `https://ntfy.sh/${CLOUD_SYNC_TOPIC}/sse`;
 const CLOUD_POST_URL = `https://ntfy.sh/${CLOUD_SYNC_TOPIC}`;
@@ -20,15 +29,16 @@ class RealtimeSyncManager {
   private broadcastChannel: BroadcastChannel | null = null;
   private listeners: Set<EventListener> = new Set();
   private status: SyncStatus = 'offline';
-  private reconnectTimer: any = null;
   private statusListeners: Set<(status: SyncStatus) => void> = new Set();
   private isMuted: boolean = false;
-  private seenEventKeys: Set<string> = new Set();
+  private seenClaimIds: Set<string> = new Set();
+  private pollInterval: any = null;
 
   constructor() {
     this.initBroadcastChannel();
     this.connectLocalSSE();
     this.connectCloudRelay();
+    this.startCloudPolling();
   }
 
   private initBroadcastChannel() {
@@ -48,7 +58,6 @@ class RealtimeSyncManager {
 
   public connectLocalSSE() {
     if (typeof window === 'undefined') return;
-
     if (this.localEventSource) {
       this.localEventSource.close();
       this.localEventSource = null;
@@ -56,46 +65,31 @@ class RealtimeSyncManager {
 
     try {
       this.localEventSource = new EventSource('/api/events');
-
       this.localEventSource.onopen = () => {
         this.setStatus('connected');
-        if (this.reconnectTimer) {
-          clearTimeout(this.reconnectTimer);
-          this.reconnectTimer = null;
-        }
       };
-
       this.localEventSource.onmessage = (e) => {
         try {
           const parsed = JSON.parse(e.data);
           if (parsed && parsed.type) {
-            this.handleIncomingEvent(parsed.type, parsed.data, 'local-sse');
+            this.handleIncomingEvent(parsed.type, parsed.data, 'server');
           }
         } catch {
-          // ignore non-json
+          // ignore
         }
       };
-
       this.localEventSource.onerror = () => {
-        if (this.localEventSource) {
-          this.localEventSource.close();
-          this.localEventSource = null;
-        }
-        if (!this.reconnectTimer) {
-          this.reconnectTimer = setTimeout(() => {
-            this.reconnectTimer = null;
-            this.connectLocalSSE();
-          }, 5000);
+        if (this.status !== 'connected') {
+          this.setStatus('connecting');
         }
       };
     } catch {
-      // Local server might not be available on static host
+      // ignore
     }
   }
 
   public connectCloudRelay() {
     if (typeof window === 'undefined') return;
-
     if (this.cloudEventSource) {
       this.cloudEventSource.close();
       this.cloudEventSource = null;
@@ -103,11 +97,9 @@ class RealtimeSyncManager {
 
     try {
       this.cloudEventSource = new EventSource(CLOUD_SSE_URL);
-
       this.cloudEventSource.onopen = () => {
         this.setStatus('connected');
       };
-
       this.cloudEventSource.onmessage = (e) => {
         try {
           const raw = JSON.parse(e.data);
@@ -121,13 +113,70 @@ class RealtimeSyncManager {
           // ignore
         }
       };
-
       this.cloudEventSource.onerror = () => {
         setTimeout(() => this.connectCloudRelay(), 7000);
       };
     } catch {
       // ignore
     }
+  }
+
+  /**
+   * Heartbeat Cloud Polling (every 10s) to guarantee zero loss of claims even on static GitHub Pages
+   */
+  private startCloudPolling() {
+    if (typeof window === 'undefined') return;
+    // Initial fetch
+    this.pollCloudDatabase();
+
+    // Recurring check every 10 seconds
+    this.pollInterval = setInterval(() => {
+      this.pollCloudDatabase();
+    }, 10000);
+  }
+
+  public async pollCloudDatabase(): Promise<CloudDatabaseState | null> {
+    try {
+      const db = await fetchCloudDatabase();
+      if (db && db.claims && Array.isArray(db.claims)) {
+        this.setStatus('connected');
+        // Check for new claims that this client hasn't registered yet
+        const newIncoming: PrizeClaimBooking[] = [];
+        db.claims.forEach((claim) => {
+          if (!this.seenClaimIds.has(claim.id)) {
+            // First time seeing this claim
+            this.seenClaimIds.add(claim.id);
+            // If it's a recent pending claim, consider it incoming alert
+            if (claim.status === 'pending') {
+              newIncoming.push(claim);
+            }
+          }
+        });
+
+        // Notify UI listeners of full synchronized state
+        this.listeners.forEach((listener) => {
+          listener({
+            type: 'sync:init',
+            data: {
+              claims: db.claims,
+              collectors: db.collectors || [],
+              patients: db.patients || [],
+            },
+          });
+        });
+
+        // If there is an unseen pending claim, ring the alarm and trigger banner
+        if (newIncoming.length > 0 && this.seenClaimIds.size > newIncoming.length) {
+          const latest = newIncoming[0];
+          this.triggerAlertForClaim(latest);
+        }
+
+        return db;
+      }
+    } catch (err) {
+      console.warn('Polling error:', err);
+    }
+    return null;
   }
 
   private setStatus(newStatus: SyncStatus) {
@@ -158,31 +207,34 @@ class RealtimeSyncManager {
     return this.isMuted;
   }
 
-  private handleIncomingEvent(type: string, data: any, source: string) {
-    // Deduplication key
-    const eventKey = `${type}_${data?.id || ''}_${data?.createdAt || ''}_${data?.status || ''}`;
-    if (this.seenEventKeys.has(eventKey)) {
-      return;
+  private triggerAlertForClaim(claim: PrizeClaimBooking) {
+    if (!this.isMuted) {
+      alertSoundManager.playIncomingAlert();
+      alertSoundManager.showSystemNotification(`🚨 حجز مريض ومكافأة جديدة!`, {
+        body: `المريض: ${claim.patientName} | الهاتف: ${claim.patientPhone} | الجائزة: ${claim.prizeTitle}`,
+      });
     }
-    this.seenEventKeys.add(eventKey);
-    // Limit memory
-    if (this.seenEventKeys.size > 200) {
-      const arr = Array.from(this.seenEventKeys);
-      this.seenEventKeys = new Set(arr.slice(50));
-    }
+    // Dispatch to registered UI listeners
+    this.listeners.forEach((listener) => {
+      listener({ type: 'claim:new', data: claim });
+    });
+  }
 
+  private handleIncomingEvent(type: string, data: any, source: string) {
     // If incoming event is a new claim booking -> "تسمع عندي"
     if (type === 'claim:new') {
       const claim = data as PrizeClaimBooking;
-      if (!this.isMuted) {
-        alertSoundManager.playIncomingAlert();
-        alertSoundManager.showSystemNotification(`🚨 حجز مريض وجامع جديد!`, {
-          body: `المريض: ${claim.patientName} | فني السحب: ${claim.collectorName || 'غير محدد'} | الجائزة: ${claim.prizeTitle}`,
-        });
+      if (claim && claim.id) {
+        const isAlreadySeen = this.seenClaimIds.has(claim.id);
+        this.seenClaimIds.add(claim.id);
+
+        if (!isAlreadySeen) {
+          this.triggerAlertForClaim(claim);
+        }
       }
     }
 
-    // If received from server or cloud, broadcast to other tabs on same device
+    // Broadcast locally to other browser tabs
     if (source !== 'broadcast' && this.broadcastChannel) {
       try {
         this.broadcastChannel.postMessage({ type, data });
@@ -202,167 +254,140 @@ class RealtimeSyncManager {
   }
 
   /**
-   * Post new claim booking to server & cloud relay -> notify all devices
+   * Submit new claim: Saves directly to Cloud Database (GitHub API + Server) & broadcasts
    */
   public async submitClaim(
     claimData: Omit<PrizeClaimBooking, 'id' | 'createdAt' | 'status'>
   ): Promise<PrizeClaimBooking> {
+    const claimId = 'clm_' + Date.now();
     const localClaim: PrizeClaimBooking = {
       ...claimData,
-      id: 'clm_' + Date.now(),
+      id: claimId,
       createdAt: new Date().toLocaleDateString('ar-EG'),
       status: 'pending',
       syncedAt: new Date().toISOString(),
     };
 
-    // 1. Post to Cloud Relay (works everywhere including GitHub Pages!)
+    this.seenClaimIds.add(claimId);
+
+    // 1. Commit to Cloud Database (GitHub API + local server)
+    const saved = await saveClaimToCloud(localClaim);
+
+    // 2. Broadcast via Cloud Relay (ntfy.sh) for instant device wake-up
     try {
       fetch(CLOUD_POST_URL, {
         method: 'POST',
-        headers: { 'Title': 'RT Lab New Claim' },
-        body: JSON.stringify({ type: 'claim:new', data: localClaim }),
+        headers: { Title: 'RT Lab New Claim' },
+        body: JSON.stringify({ type: 'claim:new', data: saved }),
       }).catch(() => {});
     } catch {
       // ignore
     }
 
-    // 2. Post to Local/Full-Stack backend server
-    try {
-      const res = await fetch('/api/claims', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(localClaim),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.claim) {
-          this.broadcastLocally('claim:new', json.claim);
-          return json.claim;
-        }
-      }
-    } catch {
-      // server offline
-    }
-
-    this.broadcastLocally('claim:new', localClaim);
-    return localClaim;
+    this.broadcastLocally('claim:new', saved);
+    return saved;
   }
 
   /**
-   * Update claim status across devices
+   * Update claim status across devices & cloud
    */
-  public async updateClaimStatus(id: string, status: PrizeClaimBooking['status']): Promise<void> {
+  public async updateClaimStatus(
+    id: string,
+    status: PrizeClaimBooking['status'],
+    notes?: string
+  ): Promise<void> {
+    await updateClaimStatusInCloud(id, status, notes);
+
     try {
       fetch(CLOUD_POST_URL, {
         method: 'POST',
-        headers: { 'Title': 'RT Lab Claim Updated' },
-        body: JSON.stringify({ type: 'claim:updated', data: { id, status } }),
+        headers: { Title: 'RT Lab Claim Updated' },
+        body: JSON.stringify({ type: 'claim:updated', data: { id, status, notes } }),
       }).catch(() => {});
     } catch {
       // ignore
     }
 
-    try {
-      await fetch(`/api/claims/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-    } catch {
-      // offline
-    }
-    this.broadcastLocally('claim:updated', { id, status });
+    this.broadcastLocally('claim:updated', { id, status, notes });
   }
 
   /**
    * Delete claim
    */
   public async deleteClaim(id: string): Promise<void> {
+    await deleteClaimFromCloud(id);
+
     try {
       fetch(CLOUD_POST_URL, {
         method: 'POST',
-        headers: { 'Title': 'RT Lab Claim Deleted' },
+        headers: { Title: 'RT Lab Claim Deleted' },
         body: JSON.stringify({ type: 'claim:deleted', data: { id } }),
       }).catch(() => {});
     } catch {
       // ignore
     }
 
-    try {
-      await fetch(`/api/claims/${id}`, { method: 'DELETE' });
-    } catch {
-      // offline
-    }
     this.broadcastLocally('claim:deleted', { id });
   }
 
   /**
-   * Fetch latest claims from server
+   * Fetch latest claims from cloud database
    */
   public async fetchClaims(): Promise<PrizeClaimBooking[] | null> {
-    try {
-      const res = await fetch('/api/claims');
-      if (res.ok) {
-        const json = await res.json();
-        return json.claims || [];
-      }
-    } catch {
-      // offline
+    const db = await fetchCloudDatabase();
+    if (db && db.claims) {
+      db.claims.forEach((c) => this.seenClaimIds.add(c.id));
+      return db.claims;
     }
     return null;
   }
 
   /**
-   * Fetch collectors from server
+   * Fetch collectors from cloud database
    */
   public async fetchCollectors(): Promise<SampleCollector[] | null> {
-    try {
-      const res = await fetch('/api/collectors');
-      if (res.ok) {
-        const json = await res.json();
-        return json.collectors || [];
-      }
-    } catch {
-      // offline
+    const db = await fetchCloudDatabase();
+    if (db && db.collectors) {
+      return db.collectors;
     }
     return null;
   }
 
   /**
-   * Save or update collector on server & cloud
+   * Save or update collector in cloud database
    */
   public async saveCollector(collector: Partial<SampleCollector>): Promise<void> {
+    await saveCollectorToCloud(collector);
+
     try {
       fetch(CLOUD_POST_URL, {
         method: 'POST',
-        headers: { 'Title': 'RT Lab Collector Updated' },
+        headers: { Title: 'RT Lab Collector Updated' },
         body: JSON.stringify({ type: 'collector:updated', data: collector }),
       }).catch(() => {});
     } catch {
       // ignore
     }
 
-    try {
-      await fetch('/api/collectors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(collector),
-      });
-    } catch {
-      // offline
-    }
     this.broadcastLocally('collector:updated', collector);
   }
 
   /**
-   * Delete collector on server
+   * Delete collector from cloud database
    */
   public async deleteCollector(id: string): Promise<void> {
+    await deleteCollectorFromCloud(id);
+
     try {
-      await fetch(`/api/collectors/${id}`, { method: 'DELETE' });
+      fetch(CLOUD_POST_URL, {
+        method: 'POST',
+        headers: { Title: 'RT Lab Collector Deleted' },
+        body: JSON.stringify({ type: 'collector:deleted', data: { id } }),
+      }).catch(() => {});
     } catch {
-      // offline
+      // ignore
     }
+
     this.broadcastLocally('collector:deleted', { id });
   }
 
@@ -378,32 +403,29 @@ class RealtimeSyncManager {
   }
 
   /**
-   * Send test alert chime and notification
+   * Test alert chime and incoming notification trigger
    */
   public triggerTestAlert() {
     alertSoundManager.playIncomingAlert();
-    this.handleIncomingEvent(
-      'claim:new',
-      {
-        id: 'test_' + Date.now(),
-        patientName: 'مريض تجريبي للتأكد من التزامن وسماع الصوت',
-        patientPhone: '01100046841',
-        address: 'ميدان بهتيم، شبرا الخيمة',
-        serviceType: 'home_visit',
-        preferredTime: 'صباحاً (10:00 ص)',
-        couponCode: 'RT-ALERT-TEST',
-        prizeTitle: 'تجربة جرس التنبيه وتزامن الجامع 🔔',
-        prizeValue: 'مجاني 100%',
-        points: 250,
-        collectorId: 'col_aya',
-        collectorName: 'أ. آية أحمد (مسؤولة التنسيق)',
-        collectorPhone: '01278967133',
-        collectorWhatsApp: '201116979431',
-        createdAt: new Date().toLocaleDateString('ar-EG'),
-        status: 'pending',
-      },
-      'local'
-    );
+    const testClaim: PrizeClaimBooking = {
+      id: 'test_' + Date.now(),
+      patientName: 'مريض تجريبي للتأكد من التزامن وسماع الصوت 🔔',
+      patientPhone: '01100046841',
+      address: 'ميدان بهتيم، شبرا الخيمة',
+      serviceType: 'home_visit',
+      preferredTime: 'صباحاً (10:00 ص)',
+      couponCode: 'RT-ALERT-TEST',
+      prizeTitle: 'تجربة جرس التنبيه وتزامن الجامع 🔔',
+      prizeValue: 'مجاني 100%',
+      points: 250,
+      collectorId: 'col_aya',
+      collectorName: 'أ. آية أحمد (مسؤولة التنسيق)',
+      collectorPhone: '01278967133',
+      collectorWhatsApp: '201116979431',
+      createdAt: new Date().toLocaleDateString('ar-EG'),
+      status: 'pending',
+    };
+    this.handleIncomingEvent('claim:new', testClaim, 'local');
   }
 }
 

@@ -205,6 +205,11 @@ app.get('/api/events', (req, res) => {
   });
 });
 
+// 2.5 Full Database Sync API
+app.get('/api/sync/all', (req, res) => {
+  res.json(db);
+});
+
 // 3. Claims API
 app.get('/api/claims', (req, res) => {
   res.json({ success: true, claims: db.claims });

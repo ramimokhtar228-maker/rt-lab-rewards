@@ -266,21 +266,21 @@ export const ScratchCardGame: React.FC<ScratchCardGameProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-center gap-2">
               <button
-                onClick={() => onClaimPrize(awardedCoupon)}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md shadow-amber-950"
+                onClick={() => onOpenSyncWithCoupon(awardedCoupon)}
+                className="w-full flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-black transition-all shadow-lg shadow-emerald-950"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>تفعيل الجائزة ودوري الأبطال</span>
+                <MessageCircle className="w-4 h-4" />
+                <span>تأكيد الحجز بالسيستم وإرساله لواتساب المعمل 🚀</span>
               </button>
 
               <button
-                onClick={() => onOpenSyncWithCoupon(awardedCoupon)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors"
+                onClick={() => onClaimPrize(awardedCoupon)}
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition-colors border border-slate-700"
               >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>واتساب</span>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>تذكرة تفصيلية ودوري الأبطال</span>
               </button>
             </div>
           </div>

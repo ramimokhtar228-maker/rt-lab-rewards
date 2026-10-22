@@ -156,6 +156,26 @@ export default function App() {
       }
     });
 
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlName = params.get('name') || params.get('patient');
+      const urlPhone = params.get('phone') || params.get('tel');
+      if (urlName || urlPhone) {
+        setPlayer((prev) => {
+          const next = {
+            ...prev,
+            name: urlName || prev.name,
+            phone: urlPhone || prev.phone,
+          };
+          savePlayerProfile(next);
+          return next;
+        });
+      }
+      if (params.get('admin') === 'true') {
+        setIsAdminModalOpen(true);
+      }
+    }
+
     return () => {
       unsubStatus();
       unsubEvents();
@@ -486,6 +506,9 @@ export default function App() {
         coupon={syncTargetCoupon}
         settings={settings}
         player={player}
+        collectors={collectors}
+        onSavePlayer={handleUpdatePlayer}
+        onAddClaimBooking={handleAddClaimBooking}
         customMessage={customSyncMessage}
       />
 
