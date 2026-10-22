@@ -81,12 +81,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </nav>
 
         {/* Zone 3: Primary Action & Controls */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Sound Toggle */}
           <button
             onClick={handleToggleSound}
             aria-label={muted ? 'تشغيل الصوت' : 'كتم الصوت'}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+            className="p-1.5 sm:p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
             title={muted ? 'تشغيل المؤثرات الصوتية' : 'كتم الصوت'}
           >
             {muted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
@@ -95,7 +95,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           {/* Invite Friend Button */}
           <button
             onClick={onOpenInvite}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-300 font-semibold text-xs transition-colors"
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-300 font-semibold text-xs transition-colors"
             title="مشاركة الرابط ودعوة صديق (+50 نقطة)"
           >
             <Sparkles className="w-3.5 h-3.5 text-teal-400" />
@@ -105,14 +105,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           {/* Points & Profile Trigger */}
           <button
             onClick={onOpenProfile}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 transition-colors text-xs font-bold"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 transition-colors text-xs font-bold"
             title="ملف المريض والنقاط"
           >
-            <Award className="w-4 h-4 text-amber-400" />
-            <span className="tabular-nums font-mono text-sm">{points}</span>
+            <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+            <span className="tabular-nums font-mono text-xs sm:text-sm">{points}</span>
             <span className="hidden sm:inline text-[11px] text-amber-200">نقطة</span>
-            <span className="hidden md:inline text-slate-400">·</span>
-            <span className="hidden md:inline text-slate-300 max-w-[90px] truncate">{playerName}</span>
+            <span className="hidden lg:inline text-slate-400">·</span>
+            <span className="hidden lg:inline text-slate-300 max-w-[85px] truncate">{playerName}</span>
           </button>
 
           {/* Install Mobile PWA App Button */}
@@ -121,33 +121,13 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           {/* Admin Control Access */}
           <button
             onClick={onOpenAdmin}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-sm whitespace-nowrap"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-sm whitespace-nowrap"
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">لوحة الإدارة</span>
             <span className="sm:hidden">الإدارة</span>
           </button>
         </div>
-      </div>
-
-      {/* Mobile Horizontal Navigation Strip */}
-      <div className="lg:hidden flex items-center gap-2 px-4 py-2 overflow-x-auto no-scrollbar border-t border-slate-800/80 bg-slate-900/60">
-        {navItems.map((item) => {
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${
-                isActive
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {item.label}
-            </button>
-          );
-        })}
       </div>
     </header>
   );

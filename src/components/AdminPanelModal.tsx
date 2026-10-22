@@ -29,6 +29,8 @@ import {
   Home,
   Building,
   MapPin,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import {
   Question,
@@ -92,6 +94,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [showEnteredPin, setShowEnteredPin] = useState(false);
+  const [showAdminPinInSettings, setShowAdminPinInSettings] = useState(false);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
@@ -193,31 +197,45 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
           <form onSubmit={handleVerifyPin} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-300 font-semibold block text-right">
-                أدخل رمز PIN السري:
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-slate-300 font-semibold block text-right">
+                  أدخل رمز PIN السري:
+                </label>
+                <span className="text-[11px] text-emerald-400/90 font-medium flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  <span>محمي ومخفي للخصوصية</span>
+                </span>
+              </div>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showEnteredPin ? 'text' : 'password'}
                   autoFocus
                   required
-                  maxLength={10}
+                  maxLength={12}
                   value={enteredPin}
                   onChange={(e) => {
                     setEnteredPin(e.target.value);
                     setPinError(false);
                   }}
                   placeholder="••••"
-                  className={`w-full bg-slate-950 border rounded-xl py-3 px-4 text-center font-mono text-xl tracking-[0.3em] text-white focus:outline-none transition-colors ${
+                  className={`w-full bg-slate-950 border rounded-xl py-3 px-11 text-center font-mono text-xl tracking-[0.3em] text-white focus:outline-none transition-colors ${
                     pinError
                       ? 'border-rose-500 bg-rose-950/20 text-rose-300'
                       : 'border-slate-800 focus:border-emerald-500'
                   }`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowEnteredPin(!showEnteredPin)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-lg transition-colors focus:outline-none"
+                  title={showEnteredPin ? 'إخفاء الرمز' : 'إظهار الرمز'}
+                >
+                  {showEnteredPin ? <EyeOff className="w-5 h-5 text-amber-400" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
               {pinError && (
                 <p className="text-xs text-rose-400 font-semibold text-center mt-1">
-                  الرمز السري غير صحيح! الرمز الافتراضي هو 7788
+                  رمز PIN غير صحيح! برجاء التأكد من كتابة الرمز السري المصرح به للمعمل.
                 </p>
               )}
             </div>
@@ -231,8 +249,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             </button>
 
             <div className="text-center pt-2">
-              <span className="text-[11px] text-slate-500">
-                الرمز الافتراضي للإدارة: <span className="font-mono text-emerald-400 font-bold">7788</span> (يمكن تغييره من الإعدادات)
+              <span className="text-[11px] text-slate-500 flex items-center justify-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>لوحة تحكم إدارية خاصة ومؤمنة بالكامل لحماية خصوصية المعمل والمرضى</span>
               </span>
             </div>
           </form>
@@ -455,19 +474,19 @@ ${appUrl}
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-5xl max-h-[92vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
         {/* Header Ribbon */}
-        <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+        <div className="bg-slate-950 px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
               <Settings className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-white">لوحة تحكم إدارة معامل RT</h3>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                <h3 className="text-base sm:text-lg font-bold text-white">لوحة تحكم إدارة معامل RT</h3>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 hidden xs:inline">
                   جلسة مؤمنة بالرمز السري 🔒
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-400 line-clamp-1">
                 إدارة وسجل المرضى، إضافة وحذف وتعديل الأسئلة والجوائز، وتخصيص أرقام الواتساب
               </p>
             </div>
@@ -475,21 +494,21 @@ ${appUrl}
 
           <button
             onClick={handleClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 px-6 py-3 bg-slate-900 border-b border-slate-800 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2.5 bg-slate-900 border-b border-slate-800 overflow-x-auto no-scrollbar">
           {[
-            { id: 'claims', label: `تفعيلات وحجوزات الجوائز (${claims.length})`, icon: CalendarCheck },
+            { id: 'claims', label: `تفعيلات الجوائز (${claims.length})`, icon: CalendarCheck },
             { id: 'patients', label: `سجل المرضى (${patients.length})`, icon: Users },
             { id: 'questions', label: `إدارة الأسئلة (${questions.length})`, icon: HelpCircle },
             { id: 'rewards', label: `إدارة الجوائز (${rewards.length})`, icon: Gift },
             { id: 'wheel', label: `عجلة الحظ (${slices.length})`, icon: RotateCw },
-            { id: 'contact', label: 'أرقام المعمل والرمز السري PIN', icon: Phone },
+            { id: 'contact', label: 'أرقام المعمل ورمز PIN', icon: Phone },
             { id: 'backup', label: 'النسخ والضبط', icon: Sparkles },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -498,13 +517,13 @@ ${appUrl}
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
                   isActive
                     ? 'bg-emerald-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>{tab.label}</span>
               </button>
             );
@@ -512,7 +531,7 @@ ${appUrl}
         </div>
 
         {/* Body Content */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-200">
+        <div className="p-3.5 sm:p-6 overflow-y-auto space-y-5 sm:space-y-6 flex-1 text-slate-200">
           
           {/* TAB: CLAIMS & BOOKINGS LOG */}
           {activeTab === 'claims' && (
@@ -1260,20 +1279,36 @@ ${window.location.origin}/?wa=${(contactForm.whatsappNumber || '201100874444').r
 
               {/* Security PIN code box */}
               <div className="p-4 bg-slate-950 border border-amber-500/30 rounded-2xl space-y-2">
-                <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
-                  <KeyRound className="w-4 h-4" />
-                  <span>الرمز السري لدخول الإدارة (Admin PIN):</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
+                    <KeyRound className="w-4 h-4" />
+                    <span>الرمز السري لدخول الإدارة (Admin PIN):</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    <span>مشفر ومحمي للخصوصية</span>
+                  </span>
                 </div>
-                <input
-                  type="text"
-                  required
-                  value={contactForm.adminPin || '7788'}
-                  onChange={(e) => setContactForm({ ...contactForm, adminPin: e.target.value })}
-                  placeholder="مثال: 7788"
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-base font-mono text-white focus:outline-none focus:border-amber-500 text-left"
-                />
+                <div className="relative">
+                  <input
+                    type={showAdminPinInSettings ? 'text' : 'password'}
+                    required
+                    value={contactForm.adminPin || ''}
+                    onChange={(e) => setContactForm({ ...contactForm, adminPin: e.target.value })}
+                    placeholder="••••"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 pl-11 text-base font-mono tracking-widest text-white focus:outline-none focus:border-amber-500 text-left"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPinInSettings(!showAdminPinInSettings)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-lg transition-colors focus:outline-none"
+                    title={showAdminPinInSettings ? 'إخفاء الرمز' : 'إظهار الرمز'}
+                  >
+                    {showAdminPinInSettings ? <EyeOff className="w-4 h-4 text-amber-400" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 <span className="text-[11px] text-slate-500 block">
-                  احفظ هذا الرمز جيداً. سيُطلب منك في كل مرة تفتح فيها لوحة الإدارة لحماية بيانات المرضى.
+                  احفظ هذا الرمز جيداً. تم إخفاء الرمز تلقائياً لضمان الخصوصية التامة عند فتح لوحة الإدارة أمام المرضى أو الموظفين.
                 </span>
               </div>
 

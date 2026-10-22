@@ -55,28 +55,28 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       {/* Hero 2-Column Split: Visual Narrative & Player Welcome */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Left Column: Interactive Invitation & Branding */}
-        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between relative overflow-hidden shadow-2xl">
+        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden shadow-2xl">
           {/* Subtle background glow */}
           <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="space-y-4 relative z-10">
+          <div className="space-y-3 sm:space-y-4 relative z-10">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
               <Sparkles className="w-3.5 h-3.5" />
               <span>المنصة الترفيهية والتنافسية الأولى لرواد المعمل</span>
             </div>
 
-            <h1 className="text-2xl sm:text-4xl font-black text-white leading-tight">
+            <h1 className="text-xl sm:text-3xl lg:text-4xl font-black text-white leading-snug sm:leading-tight">
               العب وتسلَّ واكسب <span className="text-amber-400">تحاليل مجانية</span> وخصومات فورية مع {settings.labName}!
             </h1>
 
-            <p className="text-sm text-slate-300 leading-relaxed max-w-xl">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
               تحدَّ معلوماتك الطبية والثقافية، فك شفرات الألغاز والذكاء، ودَوّر عجلة الحظ يومياً لكسب
               كوبونات معتمدة لجميع فحوصاتك المخبرية وسحب العينات المنزلي.
             </p>
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="pt-6 mt-6 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-3 relative z-10">
+          <div className="pt-5 sm:pt-6 mt-5 sm:mt-6 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 relative z-10">
             <button
               onClick={() => onNavigate('quiz')}
               className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-950 transition-all hover:scale-[1.02]"
@@ -104,7 +104,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         </div>
 
         {/* Right Column: Hero Visual Showcase */}
-        <div className="lg:col-span-5 relative rounded-3xl overflow-hidden border border-slate-800 min-h-[320px] shadow-2xl flex flex-col justify-end p-6">
+        <div className="lg:col-span-5 relative rounded-3xl overflow-hidden border border-slate-800 min-h-[240px] sm:min-h-[280px] lg:min-h-[320px] shadow-2xl flex flex-col justify-end p-4 sm:p-6">
           <img
             src={heroBanner}
             alt="معامل RT للتحاليل الطبية"
