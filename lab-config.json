@@ -1,0 +1,79 @@
+{
+  "version": "3.2",
+  "updatedAt": "2026-10-20T10:30:00.000Z",
+  "labName": "معامل RT للتحاليل التشخيصية",
+  "tagline": "دقة التشخيص .. متعة المكافآت وسرعة التواصل المباشر مع مرضانا",
+  "whatsappNumber": "201100874444",
+  "hotlineNumber": "01100046841",
+  "secondaryPhone": "01124485444",
+  "emergencyPhone": "01100046841",
+  "address": "ميدان بهتيم برج صيدلية العزبي الدور الثالث فوق جيم موسي امام الاسانسير - شبرا الخيمة",
+  "workingHours": "يومياً من 10:00 صباحاً إلى 10:00 مساءً (طوارئ سحب منزلي 24 ساعة)",
+  "homeVisitAvailable": true,
+  "announcement": "🎉 مرحباً بكم في تحدي ومكافآت معامل RT! العب الآن، جاوب أسئلة الذكاء، دور عجلة الحظ، واكسب تحاليل مجانية وخصومات فورية!",
+  "quizPointsPerCorrect": 50,
+  "dailyStreakBonus": 25,
+  "adminPin": "7788",
+  "branches": [
+    {
+      "id": "br_main",
+      "name": "الفرع الرئيسي - شبرا الخيمة",
+      "city": "القاهرة / القليوبية",
+      "address": "ميدان بهتيم برج صيدلية العزبي الدور الثالث فوق جيم موسي امام الاسانسير",
+      "phone": "01100046841",
+      "whatsappNumber": "201100874444",
+      "googleMapsUrl": "",
+      "workingHours": "يومياً من 10:00 صباحاً إلى 10:00 مساءً (طوارئ سحب منزلي 24 ساعة)",
+      "managerName": "دكتوره / رحاب على عبدالحميد",
+      "isMainBranch": true,
+      "homeSamplingCoverage": "القاهرة الكبرى والجيزة والقليوبية",
+      "notes": "معمل مجهز بأحدث أجهزة التحاليل الآلية ووحدة طوارئ سريعة"
+    }
+  ],
+  "adminTeam": [
+    {
+      "id": "adm_1",
+      "name": "د. رامي مختار",
+      "role": "CEO - مؤسس ورئيس مجلس الادارة",
+      "phone": "01124485444",
+      "whatsappNumber": "201100874444",
+      "branchId": "br_main",
+      "isOnline": true,
+      "allowDirectWhatsApp": true,
+      "bio": "طبيب الباثولوجيا الاكلينيكية والكيميائية - طب قصر العيني"
+    },
+    {
+      "id": "adm_2",
+      "name": "د. رحاب علي عبدالحميد",
+      "role": "المدير التنفيذي للمعامل",
+      "phone": "01013242777",
+      "whatsappNumber": "201100046841",
+      "branchId": "br_main",
+      "isOnline": true,
+      "allowDirectWhatsApp": true,
+      "bio": "طبيب باثولوجى"
+    },
+    {
+      "id": "adm_3",
+      "name": "أ.آية احمد",
+      "role": "مسؤول خدمة العملاء وتنسيق السحب المنزلي السريع",
+      "phone": "01278967133",
+      "whatsappNumber": "201116979431",
+      "branchId": "br_main",
+      "isOnline": true,
+      "allowDirectWhatsApp": true,
+      "bio": "سحب عينات / استقبال"
+    },
+    {
+      "id": "adm_4",
+      "name": "ك. مني احمد",
+      "role": "اخصائى تحاليل طبية",
+      "phone": "01013242777",
+      "whatsappNumber": "201000756144",
+      "branchId": "br_main",
+      "isOnline": true,
+      "allowDirectWhatsApp": true,
+      "bio": "سحب عينات / شغل الوحدات بالمعمل"
+    }
+  ]
+}

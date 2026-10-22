@@ -1,25 +1,105 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#020617" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
+    <title>تحدي ومكافآت معامل RT | RT Lab Rewards & Fun</title>
+    <meta name="description" content="المنصة الترفيهية والتنافسية الأولى لرواد معامل RT: مسابقات ذكاء ومعلومات عامة، عجلة الحظ، كروت الخربشة والربح، كوبونات وخصومات فورية، وتحاليل مجانية مع مزامنة مباشرة للواتساب ولوحة تحكم متكاملة للإدارة." />
+    
+    <!-- PWA & Mobile Web App Meta Tags -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="معامل RT" />
-    <title>تحدي ومكافآت معامل RT | RT Lab Rewards & Cloud Sync</title>
-    <meta name="description" content="منصة معامل RT المتطورة للتحاليل الطبية والمسابقات التفاعلية والمكافآت، مع المزامنة السحابية الفورية متعددة الأجهزة وإدارة الفروع والعناوين والتواصل المباشر عبر الواتساب." />
-    <meta property="og:title" content="تحدي ومكافآت معامل RT | RT Lab Rewards & Cloud Sync" />
-    <meta property="og:description" content="منصة معامل RT المتطورة للتحاليل الطبية والمسابقات التفاعلية والمكافآت، مع المزامنة السحابية الفورية متعددة الأجهزة وإدارة الفروع والعناوين والتواصل المباشر عبر الواتساب." />
+    <meta name="application-name" content="معامل RT" />
+    <meta name="theme-color" content="#020617" />
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- OpenGraph & Twitter -->
+    <meta property="og:title" content="تحدي ومكافآت معامل RT | RT Lab Rewards & Fun" />
+    <meta property="og:description" content="المنصة الترفيهية والتنافسية الأولى لرواد معامل RT: مسابقات ذكاء ومعلومات عامة، عجلة الحظ، كروت الخربشة والربح، كوبونات وخصومات فورية، وتحاليل مجانية مع مزامنة مباشرة للواتساب ولوحة تحكم متكاملة للإدارة." />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="./pwa-512x512.png" />
     <meta name="twitter:card" content="summary_large_image" />
+    
+    <!-- Icons & Manifest -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./pwa-192x192.png" />
+
+    <!-- Cache-Control Meta Tags -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Smart Cache & URL Parameter Pre-Syncing -->
+    <script>
+      (function() {
+        try {
+          // 1. Immediately unregister any legacy service workers on client devices
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              for (var i = 0; i < registrations.length; i++) {
+                registrations[i].unregister();
+              }
+            });
+          }
+
+          // 2. Clear all stale Service Worker and HTTP caches
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              for (var i = 0; i < names.length; i++) {
+                caches.delete(names[i]);
+              }
+            });
+          }
+
+          // 3. Purge old stale storage keys to guarantee fresh official data load
+          var legacyKeys = [
+            'rt_lab_settings',
+            'rt_lab_settings_v1',
+            'rt_lab_settings_v2',
+            'rt_lab_questions',
+            'rt_lab_questions_v1',
+            'rt_lab_questions_v2',
+            'rt_lab_rewards',
+            'rt_lab_rewards_v1',
+            'rt_lab_rewards_v2',
+            'rt_lab_spin_slices_v1',
+            'rt_lab_spin_slices_v2',
+            'rt_lab_leaderboard_v1',
+            'rt_lab_leaderboard_v2'
+          ];
+          for (var j = 0; j < legacyKeys.length; j++) {
+            try { localStorage.removeItem(legacyKeys[j]); } catch(e) {}
+          }
+
+          // 4. If URL has smart parameters, persist them safely into current settings
+          var params = new URLSearchParams(window.location.search);
+          var wa = params.get('wa');
+          var hotline = params.get('hotline');
+          if (wa || hotline) {
+            var raw = localStorage.getItem('rt_lab_settings_v3_official');
+            var s = raw ? JSON.parse(raw) : {};
+            if (wa) s.whatsappNumber = wa;
+            if (hotline) s.hotlineNumber = hotline;
+            localStorage.setItem('rt_lab_settings_v3_official', JSON.stringify(s));
+          }
+        } catch (e) {
+          console.error('Pre-sync error:', e);
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="./assets/index-CTEmF1nH.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DZMaAVZ9.css">
   </head>
-  <body class="bg-slate-950 text-slate-100 font-['Cairo',sans-serif] antialiased selection:bg-amber-400 selection:text-slate-950">
+  <body class="bg-slate-950 text-slate-100 font-['Cairo',sans-serif] antialiased selection:bg-amber-400 selection:text-slate-950 overflow-x-hidden min-h-screen">
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
