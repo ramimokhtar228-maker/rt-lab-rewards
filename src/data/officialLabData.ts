@@ -122,6 +122,48 @@ export const OFFICIAL_LAB_SETTINGS: LabSettings = {
       "isActive": true
     }
   ],
+  "collectors": [
+    {
+      "id": "col_aya",
+      "name": "أ. آية أحمد",
+      "phone": "01278967133",
+      "whatsappNumber": "201116979431",
+      "area": "شبرا الخيمة، بهتيم، مسطرد، والمناطق المجاورة",
+      "roleTitle": "مسؤولة التنسيق وفنية سحب عينات",
+      "isAvailable": true,
+      "notes": "سحب منزلي سريع وعينات الأطفال وكبار السن"
+    },
+    {
+      "id": "col_mona",
+      "name": "ك. منى أحمد",
+      "phone": "01013242777",
+      "whatsappNumber": "201000756144",
+      "area": "بهتيم، شبرا الخيمة، والفرع الرئيسي",
+      "roleTitle": "أخصائية سحب وتحاليل طبية",
+      "isAvailable": true,
+      "notes": "سحب عينات دقيق وشغل الوحدات التخصصية"
+    },
+    {
+      "id": "col_emergency",
+      "name": "فريق التمريض السريع (سحب منزلي 24 ساعة)",
+      "phone": "01100046841",
+      "whatsappNumber": "201100874444",
+      "area": "كافة أنحاء القاهرة الكبرى والجيزة والقليوبية",
+      "roleTitle": "طوارئ سحب منزلي مجهز",
+      "isAvailable": true,
+      "notes": "متاح على مدار 24 ساعة مع شنطة سحب معقمة وحافظات حرارية"
+    },
+    {
+      "id": "col_dr_rami",
+      "name": "د. رامي مختار (إشراف وحالات حرجة)",
+      "phone": "01124485444",
+      "whatsappNumber": "201100874444",
+      "area": "الفرع الرئيسي ومتابعة الحالات الخاصة",
+      "roleTitle": "طبيب الباثولوجيا الإكلينيكية واستشاري المعمل",
+      "isAvailable": true,
+      "notes": "متابعة النتائج الحرجة وتوجيه فريق السحب"
+    }
+  ],
   "cloudSyncRoomId": "RT-LAB-MAIN-CLOUD",
   "githubRepo": "ramimokhtar228-maker/rt-lab-rewards",
   "githubBranch": "main"

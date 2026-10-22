@@ -42,7 +42,10 @@ import {
   LeaderboardUser,
   PatientRecord,
   PrizeClaimBooking,
+  SampleCollector,
 } from './types';
+import { realtimeSync } from './utils/realtimeSync';
+import { alertSoundManager } from './utils/audioAlert';
 import { TopNavbar } from './components/TopNavbar';
 import { HeroSection } from './components/HeroSection';
 import { QuizGame } from './components/QuizGame';
@@ -55,6 +58,7 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { PatientProfileModal } from './components/PatientProfileModal';
 import { InviteShareModal } from './components/InviteShareModal';
 import { PrizeClaimModal } from './components/PrizeClaimModal';
+import { IncomingClaimAlert } from './components/IncomingClaimAlert';
 import { LabConnectBar } from './components/LabConnectBar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 
@@ -71,6 +75,13 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>(() => getLeaderboard());
   const [patients, setPatients] = useState<PatientRecord[]>(() => getRegisteredPatients());
   const [claims, setClaims] = useState<PrizeClaimBooking[]>(() => getPrizeClaims());
+  const [collectors, setCollectors] = useState<SampleCollector[]>(
+    () => settings.collectors || []
+  );
+
+  // Real-Time Sync & Live Alert States
+  const [syncStatus, setSyncStatus] = useState<'connected' | 'connecting' | 'offline'>('connected');
+  const [activeIncomingAlert, setActiveIncomingAlert] = useState<PrizeClaimBooking | null>(null);
 
   // Modals
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -85,13 +96,81 @@ export default function App() {
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [claimTargetCoupon, setClaimTargetCoupon] = useState<UserCoupon | null>(null);
 
+  // Connect to Real-time Cross-Device Sync Server & Listeners
+  useEffect(() => {
+    // Request desktop notification permission on user entry
+    alertSoundManager.requestNotificationPermission().catch(() => {});
+
+    // 1. Listen for sync status changes
+    const unsubStatus = realtimeSync.onStatusChange((status) => {
+      setSyncStatus(status);
+    });
+
+    // 2. Listen for incoming real-time events across devices
+    const unsubEvents = realtimeSync.addEventListener((ev) => {
+      if (ev.type === 'claim:new') {
+        const newClaim = ev.data as PrizeClaimBooking;
+        // Trigger incoming alert popup and chime on this device ("لازم تسمع عندي")
+        setActiveIncomingAlert(newClaim);
+        setClaims((prev) => {
+          if (prev.some((c) => c.id === newClaim.id)) return prev;
+          return [newClaim, ...prev];
+        });
+      } else if (ev.type === 'claim:updated') {
+        const updated = ev.data;
+        setClaims((prev) =>
+          prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+        );
+      } else if (ev.type === 'claim:deleted') {
+        setClaims((prev) => prev.filter((c) => c.id !== ev.data.id));
+      } else if (ev.type === 'collector:updated') {
+        const updatedCol = ev.data;
+        setCollectors((prev) => {
+          const idx = prev.findIndex((c) => c.id === updatedCol.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = updatedCol;
+            return next;
+          }
+          return [...prev, updatedCol];
+        });
+      } else if (ev.type === 'sync:init') {
+        if (ev.data.claims && Array.isArray(ev.data.claims) && ev.data.claims.length > 0) {
+          setClaims(ev.data.claims);
+        }
+        if (ev.data.collectors && Array.isArray(ev.data.collectors) && ev.data.collectors.length > 0) {
+          setCollectors(ev.data.collectors);
+        }
+      }
+    });
+
+    // 3. Initial fetch from server
+    realtimeSync.fetchClaims().then((serverClaims) => {
+      if (serverClaims && serverClaims.length > 0) {
+        setClaims(serverClaims);
+      }
+    });
+    realtimeSync.fetchCollectors().then((serverCollectors) => {
+      if (serverCollectors && serverCollectors.length > 0) {
+        setCollectors(serverCollectors);
+      }
+    });
+
+    return () => {
+      unsubStatus();
+      unsubEvents();
+    };
+  }, []);
+
   // Auto-sync official laboratory settings and verified numbers on app launch
   useEffect(() => {
-    // 1. Initial sync from storage and URL query params
     const verified = getLabSettings();
     setSettings(verified);
+    if (verified.collectors && verified.collectors.length > 0 && collectors.length === 0) {
+      setCollectors(verified.collectors);
+    }
 
-    // 2. Live background sync from /lab-config.json with cache buster
+    // Live background sync from /lab-config.json
     fetch(`/lab-config.json?cache_bust=${Date.now()}`, { cache: 'no-store' })
       .then((res) => {
         if (res.ok) return res.json();
@@ -109,6 +188,9 @@ export default function App() {
             saveLabSettings(merged);
             return merged;
           });
+          if (remoteConfig.collectors && Array.isArray(remoteConfig.collectors)) {
+            setCollectors(remoteConfig.collectors);
+          }
         }
       })
       .catch(() => {
@@ -132,7 +214,7 @@ export default function App() {
     });
   };
 
-  // Award Bonus Points (e.g. from sharing or special actions)
+  // Award Bonus Points
   const handleAwardBonusPoints = (amount: number) => {
     handleUpdatePlayer({ points: player.points + amount });
   };
@@ -143,9 +225,16 @@ export default function App() {
     setIsClaimModalOpen(true);
   };
 
-  // Add new claim booking
-  const handleAddClaimBooking = (claimData: Omit<PrizeClaimBooking, 'id' | 'createdAt' | 'status'>) => {
-    addPrizeClaim(claimData);
+  // Add new claim booking (with multi-device real-time sync)
+  const handleAddClaimBooking = async (
+    claimData: Omit<PrizeClaimBooking, 'id' | 'createdAt' | 'status'>
+  ) => {
+    // 1. Save to local storage
+    const newClaim = addPrizeClaim(claimData);
+
+    // 2. Transmit to server & all connected devices
+    await realtimeSync.submitClaim(claimData);
+
     setClaims(getPrizeClaims());
     setLeaderboard(getLeaderboard());
     setPatients(getRegisteredPatients());
@@ -167,7 +256,6 @@ export default function App() {
   // Redeem from Store Handler
   const handleRedeemReward = (reward: RewardItem): UserCoupon => {
     handleUpdatePlayer({ points: player.points - reward.pointsCost });
-
     const newCoupon = issueUserCoupon(
       reward.title,
       reward.description,
@@ -216,6 +304,16 @@ export default function App() {
     saveLabSettings(updated);
   };
 
+  const handleSaveCollectors = async (updated: SampleCollector[]) => {
+    setCollectors(updated);
+    const updatedSettings = { ...settings, collectors: updated };
+    setSettings(updatedSettings);
+    saveLabSettings(updatedSettings);
+    for (const c of updated) {
+      await realtimeSync.saveCollector(c);
+    }
+  };
+
   const handleDeletePatient = (id: string) => {
     deletePatientRecord(id);
     setPatients(getRegisteredPatients());
@@ -237,11 +335,13 @@ export default function App() {
 
   const handleUpdateClaimStatus = (id: string, status: PrizeClaimBooking['status']) => {
     updateClaimStatus(id, status);
+    realtimeSync.updateClaimStatus(id, status);
     setClaims(getPrizeClaims());
   };
 
   const handleDeleteClaim = (id: string) => {
     deletePrizeClaim(id);
+    realtimeSync.deleteClaim(id);
     setClaims(getPrizeClaims());
   };
 
@@ -260,45 +360,65 @@ export default function App() {
     const jsonStr = exportDatabaseBackup();
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `rt_lab_backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rt_lab_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
-  const handleImportBackup = (jsonStr: string) => {
-    const ok = importDatabaseBackup(jsonStr);
-    if (ok) {
+  const handleImportBackup = (jsonStr: string): boolean => {
+    const success = importDatabaseBackup(jsonStr);
+    if (success) {
       setQuestions(getQuestions());
       setRewards(getRewards());
       setSlices(getSpinSlices());
       setSettings(getLabSettings());
       setPatients(getRegisteredPatients());
       setLeaderboard(getLeaderboard());
+      setClaims(getPrizeClaims());
     }
-    return ok;
+    return success;
+  };
+
+  const handleTriggerTestAlert = () => {
+    realtimeSync.triggerTestAlert();
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950">
-      {/* Top Navbar */}
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white pb-20 md:pb-12" dir="rtl">
+      {/* Real-Time Incoming Claim Alert Banner */}
+      <IncomingClaimAlert
+        claim={activeIncomingAlert}
+        settings={settings}
+        onDismiss={() => setActiveIncomingAlert(null)}
+        onViewInAdmin={() => {
+          setActiveIncomingAlert(null);
+          setIsAdminModalOpen(true);
+        }}
+      />
+
+      {/* Primary Top Navigation Bar */}
       <TopNavbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         points={player.points}
-        playerName={player.name}
         onOpenAdmin={() => setIsAdminModalOpen(true)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onOpenInvite={() => setIsInviteModalOpen(true)}
+        playerName={player.name}
+        pendingClaimsCount={claims.filter((c) => c.status === 'pending').length}
+        syncStatus={syncStatus}
+        onTriggerTestAlert={handleTriggerTestAlert}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 md:py-8 pb-28 lg:pb-8">
+      {/* Main Interactive Views */}
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
         {activeTab === 'home' && (
           <HeroSection
-            settings={settings}
             player={player}
+            settings={settings}
             onNavigate={(tab) => setActiveTab(tab)}
             onOpenSync={() => handleOpenGeneralSync()}
             onOpenInvite={() => setIsInviteModalOpen(true)}
@@ -376,6 +496,7 @@ export default function App() {
         coupon={claimTargetCoupon}
         player={player}
         settings={settings}
+        collectors={collectors}
         onSavePlayer={handleUpdatePlayer}
         onAddClaimBooking={handleAddClaimBooking}
       />
@@ -390,10 +511,12 @@ export default function App() {
         settings={settings}
         patients={patients}
         claims={claims}
+        collectors={collectors}
         onSaveQuestions={handleSaveQuestions}
         onSaveRewards={handleSaveRewards}
         onSaveSlices={handleSaveSlices}
         onSaveSettings={handleSaveSettings}
+        onSaveCollectors={handleSaveCollectors}
         onDeletePatient={handleDeletePatient}
         onResetPatients={handleResetPatients}
         onResetAppForNewPatients={handleResetAppForNewPatients}
@@ -402,6 +525,7 @@ export default function App() {
         onResetDefaults={handleResetDefaults}
         onExportBackup={handleExportBackup}
         onImportBackup={handleImportBackup}
+        onTriggerTestAlert={handleTriggerTestAlert}
       />
 
       {/* Patient Profile Modal */}

@@ -86,6 +86,18 @@ export interface WhatsAppTemplate {
   isActive: boolean;
 }
 
+export interface SampleCollector {
+  id: string;
+  name: string;
+  phone: string;
+  whatsappNumber: string;
+  area: string; // Covered area e.g. "شبرا الخيمة / بهتيم"
+  roleTitle?: string; // e.g. "فني سحب عينات منزلي", "أخصائية سحب وتحاليل"
+  isAvailable: boolean;
+  assignedBranchId?: string;
+  notes?: string;
+}
+
 export interface LabSettings {
   labName: string;
   tagline: string;
@@ -102,6 +114,7 @@ export interface LabSettings {
   adminPin: string; // رمز دخول الإدارة السري (7788)
   branches?: LabBranch[];
   adminTeam?: AdminTeamMember[];
+  collectors?: SampleCollector[];
   whatsappTemplates?: WhatsAppTemplate[];
   cloudSyncRoomId?: string;
   githubRepo?: string;
@@ -131,8 +144,17 @@ export interface PrizeClaimBooking {
   prizeTitle: string;
   prizeValue: string;
   points: number;
+  collectorId?: string;
+  collectorName?: string;
+  collectorPhone?: string;
+  collectorWhatsApp?: string;
   createdAt: string;
-  status: 'pending' | 'confirmed' | 'completed';
+  status: 'pending' | 'collector_notified' | 'confirmed' | 'completed' | 'cancelled';
+  whatsappSentToLab?: boolean;
+  whatsappSentToCollector?: boolean;
+  whatsappSentToPatient?: boolean;
+  syncedAt?: string;
+  notes?: string;
 }
 
 export interface PlayerProfile {

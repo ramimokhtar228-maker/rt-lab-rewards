@@ -31,6 +31,10 @@ import {
   MapPin,
   Eye,
   EyeOff,
+  UserCheck,
+  BellRing,
+  Volume2,
+  Send,
 } from 'lucide-react';
 import {
   Question,
@@ -41,8 +45,10 @@ import {
   QuestionCategory,
   PatientRecord,
   PrizeClaimBooking,
+  SampleCollector,
 } from '../types';
 import { soundManager } from '../utils/audio';
+import { alertSoundManager } from '../utils/audioAlert';
 import { formatWhatsAppNumber, forcePurgeAndReload, INITIAL_LAB_SETTINGS } from '../utils/storage';
 
 interface AdminPanelModalProps {
@@ -54,10 +60,12 @@ interface AdminPanelModalProps {
   settings: LabSettings;
   patients: PatientRecord[];
   claims: PrizeClaimBooking[];
+  collectors?: SampleCollector[];
   onSaveQuestions: (q: Question[]) => void;
   onSaveRewards: (r: RewardItem[]) => void;
   onSaveSlices: (s: SpinSlice[]) => void;
   onSaveSettings: (settings: LabSettings) => void;
+  onSaveCollectors?: (collectors: SampleCollector[]) => void;
   onDeletePatient: (id: string) => void;
   onResetPatients: () => void;
   onResetAppForNewPatients: () => void;
@@ -66,6 +74,7 @@ interface AdminPanelModalProps {
   onResetDefaults: () => void;
   onExportBackup: () => void;
   onImportBackup: (jsonStr: string) => boolean;
+  onTriggerTestAlert?: () => void;
 }
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
@@ -77,10 +86,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   settings,
   patients,
   claims,
+  collectors = [],
   onSaveQuestions,
   onSaveRewards,
   onSaveSlices,
   onSaveSettings,
+  onSaveCollectors,
   onDeletePatient,
   onResetPatients,
   onResetAppForNewPatients,
@@ -89,6 +100,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onResetDefaults,
   onExportBackup,
   onImportBackup,
+  onTriggerTestAlert,
 }) => {
   // Authentication PIN state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -99,7 +111,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    'claims' | 'patients' | 'questions' | 'rewards' | 'wheel' | 'contact' | 'backup'
+    'claims' | 'patients' | 'collectors' | 'questions' | 'rewards' | 'wheel' | 'contact' | 'backup'
   >('claims');
 
   // Question editing / adding state
@@ -137,6 +149,26 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [newBranchAddress, setNewBranchAddress] = useState('');
   const [newBranchPhone, setNewBranchPhone] = useState('');
   const [newBranchHours, setNewBranchHours] = useState('');
+
+  // Collectors management state
+  const [localCollectors, setLocalCollectors] = useState<SampleCollector[]>(
+    collectors && collectors.length > 0 ? collectors : settings.collectors || []
+  );
+  const [isAddingCollector, setIsAddingCollector] = useState(false);
+  const [newColName, setNewColName] = useState('');
+  const [newColPhone, setNewColPhone] = useState('');
+  const [newColWa, setNewColWa] = useState('');
+  const [newColArea, setNewColArea] = useState('');
+  const [newColRole, setNewColRole] = useState('فني سحب عينات منزلي');
+  const [newColNotes, setNewColNotes] = useState('');
+
+  useEffect(() => {
+    if (collectors && collectors.length > 0) {
+      setLocalCollectors(collectors);
+    } else if (settings.collectors && settings.collectors.length > 0) {
+      setLocalCollectors(settings.collectors);
+    }
+  }, [collectors, settings.collectors]);
 
   // Sync contactForm with latest settings when modal is opened
   useEffect(() => {
@@ -504,6 +536,7 @@ ${appUrl}
         <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2.5 bg-slate-900 border-b border-slate-800 overflow-x-auto no-scrollbar">
           {[
             { id: 'claims', label: `تفعيلات الجوائز (${claims.length})`, icon: CalendarCheck },
+            { id: 'collectors', label: `فنيو السحب والجامعين (${localCollectors.length})`, icon: UserCheck },
             { id: 'patients', label: `سجل المرضى (${patients.length})`, icon: Users },
             { id: 'questions', label: `إدارة الأسئلة (${questions.length})`, icon: HelpCircle },
             { id: 'rewards', label: `إدارة الجوائز (${rewards.length})`, icon: Gift },
@@ -536,121 +569,463 @@ ${appUrl}
           {/* TAB: CLAIMS & BOOKINGS LOG */}
           {activeTab === 'claims' && (
             <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-950 p-4 rounded-2xl border border-slate-800">
                 <div>
-                  <h4 className="text-base font-bold text-white">سجل تفعيلات الجوائز وحجوزات المرضى</h4>
-                  <p className="text-xs text-slate-400">
-                    متابعة المرضى الذين فازوا بالتحاليل المجانية وسجلوا بياناتهم لطلب السحب المنزلي أو زيارة الفرع
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-base font-bold text-white">سجل تفعيلات الجوائز وحجوزات المرضى</h4>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      تزامن حي ومباشر
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    متابعة المرضى، واختيار فني السحب (الجامع) وإرسال رسائل الواتساب الفورية وتأكيد المواعيد
                   </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (onTriggerTestAlert) {
+                        onTriggerTestAlert();
+                      } else {
+                        alertSoundManager.playIncomingAlert();
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all shadow-sm"
+                  >
+                    <Volume2 className="w-4 h-4 text-amber-400" />
+                    <span>🔊 تجربة جرس التنبيه الحي</span>
+                  </button>
                 </div>
               </div>
 
               {claims.length === 0 ? (
                 <div className="bg-slate-950 p-8 rounded-2xl border border-slate-800 text-center text-slate-500 text-xs">
-                  لا توجد طلبات حجز أو تفعيل جوائز مسجلة حتى الآن.
+                  لا توجد طلبات حجز أو تفعيل جوائز مسجلة حتى الآن. ستظهر أي طلبات جديدة وتسمع جرس التنبيه فوراً هنا.
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {claims.map((clm) => (
-                    <div
-                      key={clm.id}
-                      className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-emerald-500/40 transition-all"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-base text-white">{clm.patientName}</span>
-                          <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                            {clm.patientPhone}
-                          </span>
-                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
-                            {clm.prizeTitle} ({clm.prizeValue})
-                          </span>
-                          <span
-                            className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                              clm.status === 'confirmed'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                <div className="space-y-3.5">
+                  {claims.map((clm) => {
+                    const cleanLab = formatWhatsAppNumber(settings.whatsappNumber);
+                    const cleanColPhone = formatWhatsAppNumber(clm.collectorWhatsApp || clm.collectorPhone || settings.whatsappNumber);
+                    const cleanPatPhone = formatWhatsAppNumber(clm.patientPhone);
+
+                    // WhatsApp link for Collector
+                    const colMsg = `*🚨 تكليف حالة وسحب عينة - ${settings.labName}* 🩺\n---------------------------------------\n👨‍⚕️ *فني السحب المسؤول:* ${clm.collectorName || 'فريق التمريض'}\n👤 *اسم المريض:* ${clm.patientName}\n📱 *هاتف المريض:* ${clm.patientPhone}\n📍 *الخدمة:* ${clm.serviceType === 'home_visit' ? 'سحب منزلي 🏠' : 'حجز فرع 🏥'}\n📌 *العنوان:* ${clm.address}\n⏰ *الميعاد:* ${clm.preferredTime}\n🎁 *الجائزة:* ${clm.prizeTitle} (${clm.prizeValue})\n🔢 *كود:* [${clm.couponCode}]\n---------------------------------------\nيرجى التواصل مع المريض فوراً وتأكيد الموعد 💚`;
+                    const colUrl = `https://wa.me/${cleanColPhone}?text=${encodeURIComponent(colMsg)}`;
+
+                    // WhatsApp link for Patient
+                    const patMsg = `🎉 *أهلاً بك يا أستاذ/ة ${clm.patientName} في ${settings.labName}!*\n\n✅ تم تأكيد تفعيل جائزتك: *${clm.prizeTitle}* (${clm.prizeValue}).\n🔢 كود التحقق الرسمي: *[${clm.couponCode}]*\n👨‍⚕️ فني السحب المسؤول عن حالتك: *${clm.collectorName || 'فريق التمريض السريع'}* (${clm.collectorPhone || ''}).\n📍 الخدمة: ${clm.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}.\n⏰ الميعاد المفضل: ${clm.preferredTime}.\n\nنسعد دائماً بخدمتكم وصحتكم أولويتنا 💚`;
+                    const patUrl = `https://wa.me/${cleanPatPhone}?text=${encodeURIComponent(patMsg)}`;
+
+                    return (
+                      <div
+                        key={clm.id}
+                        className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 hover:border-emerald-500/40 transition-all shadow-sm"
+                      >
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-black text-base text-white">{clm.patientName}</span>
+                            <a
+                              href={`tel:${clm.patientPhone}`}
+                              className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md hover:bg-emerald-500/20 font-bold"
+                            >
+                              📞 {clm.patientPhone}
+                            </a>
+                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+                              {clm.prizeTitle} ({clm.prizeValue})
+                            </span>
+                            <span
+                              className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                                clm.status === 'confirmed'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : clm.status === 'completed'
+                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                  : clm.status === 'collector_notified'
+                                  ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              }`}
+                            >
+                              {clm.status === 'confirmed'
+                                ? 'تم التأكيد ✅'
                                 : clm.status === 'completed'
-                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            }`}
-                          >
-                            {clm.status === 'confirmed' ? 'تم التأكيد ✅' : clm.status === 'completed' ? 'تم إجراء التحليل 🩺' : 'قيد الانتظار ⏳'}
-                          </span>
+                                ? 'تم سحب العينة 🩺'
+                                : clm.status === 'collector_notified'
+                                ? 'تم إبلاغ الجامع 📨'
+                                : 'قيد الانتظار ⏳'}
+                            </span>
+                          </div>
+
+                          <div className="text-[11px] text-slate-500 font-mono">
+                            {clm.createdAt}
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-slate-400">
-                          <span className="flex items-center gap-1">
-                            {clm.serviceType === 'home_visit' ? <Home className="w-3.5 h-3.5 text-emerald-400" /> : <Building className="w-3.5 h-3.5 text-emerald-400" />}
-                            <strong>{clm.serviceType === 'home_visit' ? 'سحب عينة منزلي' : 'زيارة فرع'}</strong>
-                          </span>
-                          <span>كود الكوبون: <strong className="font-mono text-slate-300">{clm.couponCode}</strong></span>
-                          <span>الموعد: {clm.preferredTime}</span>
+                        {/* Assigned Collector Box */}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2.5 bg-gradient-to-r from-amber-950/20 via-slate-900 to-slate-950 rounded-xl border border-amber-500/25">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <UserCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span className="text-xs font-bold text-amber-300">
+                              فني السحب (الجامع):
+                            </span>
+                            <span className="text-xs font-black text-white">
+                              {clm.collectorName || 'فريق التمريض السريع'}
+                            </span>
+                            {clm.collectorPhone && (
+                              <span className="text-xs text-amber-200/80 font-mono">
+                                ({clm.collectorPhone})
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="flex items-center gap-1 text-slate-400">
+                              {clm.serviceType === 'home_visit' ? (
+                                <Home className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Building className="w-3.5 h-3.5 text-emerald-400" />
+                              )}
+                              <span>{clm.serviceType === 'home_visit' ? 'سحب منزلي 🏠' : 'زيارة فرع 🏥'}</span>
+                            </span>
+                            <span className="text-slate-500">·</span>
+                            <span className="text-slate-400 font-mono">كود: {clm.couponCode}</span>
+                          </div>
                         </div>
 
                         {clm.address && (
-                          <div className="text-xs text-slate-400 flex items-center gap-1">
+                          <div className="text-xs text-slate-400 flex items-center gap-1.5">
                             <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                            <span>العنوان: {clm.address}</span>
-                            <span>· بتاريخ: {clm.createdAt}</span>
+                            <span>العنوان: <strong className="text-slate-200">{clm.address}</strong></span>
+                            <span>· الميعاد المفضل: <strong className="text-emerald-300">{clm.preferredTime}</strong></span>
                           </div>
                         )}
-                      </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
-                        {/* Copy WhatsApp confirmation reply */}
-                        <button
-                          onClick={() => {
-                            const confirmationMsg = `🎉 *أهلاً بك يا أستاذ/ة ${clm.patientName} في ${settings.labName}!*
+                        {/* Direct Action Buttons */}
+                        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-800/80">
+                          {/* Send WhatsApp to Collector */}
+                          <a
+                            href={colUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all hover:scale-[1.02]"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>واتساب الجامع 🩺</span>
+                          </a>
 
-✅ *تم اعتماد وتأكيد طلب تفعيل جائزتك بنجاح:*
-🎁 *الجائزة:* ${clm.prizeTitle} (${clm.prizeValue})
-🔢 *كود التحقق المعتمد:* [${clm.couponCode}]
-📍 *الخدمة المطلوبة:* ${clm.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}
-⏰ *الميعاد:* ${clm.preferredTime}
-⭐ *رصيد نقاطك الحالي:* ${clm.points} نقطة
-🏆 *تم تسجيلك رسمياً في دوري أبطال RT!*
+                          {/* Send WhatsApp to Patient */}
+                          <a
+                            href={patUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600/30 hover:bg-teal-600/50 border border-teal-500/40 text-teal-300 text-xs font-bold transition-colors"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>واتساب المريض 💬</span>
+                          </a>
 
-فريق التمريض وخدمة العملاء سيتواصل معك للتنسيق النهائي. نسعد بخدمتك دائماً 💚`;
-                            navigator.clipboard.writeText(confirmationMsg);
-                            soundManager.playSuccess();
-                            alert(`تم نسخ رسالة تأكيد الحجز للمريض "${clm.patientName}" لإرسالها بالواتساب!`);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition-colors"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>نسخ رد تأكيد الحجز</span>
-                        </button>
+                          {/* Copy ticket message */}
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(colMsg);
+                              soundManager.playSuccess();
+                              alert(`تم نسخ تذكرة الحالة للمريض "${clm.patientName}" وفني السحب بنجاح!`);
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>نسخ التذكرة</span>
+                          </button>
 
-                        {/* Status Toggle */}
-                        <button
-                          onClick={() =>
-                            onUpdateClaimStatus(
-                              clm.id,
-                              clm.status === 'pending' ? 'confirmed' : clm.status === 'confirmed' ? 'completed' : 'pending'
-                            )
-                          }
-                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
-                        >
-                          تغيير الحالة
-                        </button>
-
-                        {/* Delete Claim */}
-                        <button
-                          onClick={() => {
-                            if (confirm(`هل أنت متأكد من حذف حجز المريض "${clm.patientName}"؟`)) {
-                              onDeleteClaim(clm.id);
+                          {/* Status Dropdown/Button */}
+                          <select
+                            value={clm.status}
+                            onChange={(e) =>
+                              onUpdateClaimStatus(clm.id, e.target.value as PrizeClaimBooking['status'])
                             }
-                          }}
-                          className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                            className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                          >
+                            <option value="pending">قيد الانتظار ⏳</option>
+                            <option value="collector_notified">تم إبلاغ الجامع 📨</option>
+                            <option value="confirmed">تم تأكيد الموعد ✅</option>
+                            <option value="completed">تم سحب العينة بنجاح 🩺</option>
+                            <option value="cancelled">ملغي ❌</option>
+                          </select>
+
+                          {/* Delete Claim */}
+                          <button
+                            onClick={() => {
+                              if (confirm(`هل أنت متأكد من حذف حجز المريض "${clm.patientName}"؟`)) {
+                                onDeleteClaim(clm.id);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition-colors mr-auto"
+                            title="حذف الحجز"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: COLLECTORS MANAGEMENT */}
+          {activeTab === 'collectors' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <div>
+                  <h4 className="text-base font-bold text-white flex items-center gap-2">
+                    <UserCheck className="w-5 h-5 text-emerald-400" />
+                    <span>إدارة فنيي سحب العينات (الجامعين)</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-1">
+                    تحديد فريق فنيي السحب المتنقلين ومسؤولي التنسيق مع مناطق التغطية وأرقام هواتفهم للتكليف الفوري
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setIsAddingCollector(true)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-950"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>إضافة جامع عينات جديد</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (onTriggerTestAlert) {
+                        onTriggerTestAlert();
+                      } else {
+                        alertSoundManager.playIncomingAlert();
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition-colors"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    <span>تجربة رنين التنبيه</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Add New Collector Modal/Form */}
+              {isAddingCollector && (
+                <div className="p-4 bg-slate-950 border border-emerald-500/40 rounded-2xl space-y-3.5 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <h5 className="text-sm font-bold text-emerald-300">إضافة فني سحب (جامع) جديد:</h5>
+                    <button
+                      onClick={() => setIsAddingCollector(false)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                        اسم فني السحب (الجامع): *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="مثال: أ. محمود خالد..."
+                        value={newColName}
+                        onChange={(e) => setNewColName(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                        رقم هاتف الاتصال: *
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="010XXXXXXXX"
+                        value={newColPhone}
+                        onChange={(e) => setNewColPhone(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono text-left"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                        رقم الواتساب (لإرسال تكليف الحالة فورياً):
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="201XXXXXXXXX"
+                        value={newColWa}
+                        onChange={(e) => setNewColWa(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono text-left"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                        المسمى الوظيفي:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="فني سحب منزلي، أخصائي تحاليل..."
+                        value={newColRole}
+                        onChange={(e) => setNewColRole(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-[11px] text-slate-300 font-semibold block mb-1">
+                        مناطق التغطية ونطاق السحب:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="مثال: شبرا الخيمة، بهتيم، مسطرد، القاهرة والجيزة..."
+                        value={newColArea}
+                        onChange={(e) => setNewColArea(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        if (!newColName.trim() || !newColPhone.trim()) {
+                          alert('برجاء كتابة الاسم ورقم الهاتف.');
+                          return;
+                        }
+                        const newCol: SampleCollector = {
+                          id: 'col_' + Date.now(),
+                          name: newColName.trim(),
+                          phone: newColPhone.trim(),
+                          whatsappNumber: newColWa.trim() || newColPhone.trim(),
+                          area: newColArea.trim() || 'جميع المناطق',
+                          roleTitle: newColRole.trim() || 'فني سحب منزلي',
+                          isAvailable: true,
+                        };
+                        const updated = [...localCollectors, newCol];
+                        setLocalCollectors(updated);
+                        if (onSaveCollectors) onSaveCollectors(updated);
+                        setNewColName('');
+                        setNewColPhone('');
+                        setNewColWa('');
+                        setNewColArea('');
+                        setIsAddingCollector(false);
+                        soundManager.playSuccess();
+                      }}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md"
+                    >
+                      حفظ الجامع
+                    </button>
+                    <button
+                      onClick={() => setIsAddingCollector(false)}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Collectors Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {localCollectors.map((col) => {
+                  const cleanPhone = formatWhatsAppNumber(col.whatsappNumber || col.phone);
+                  const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                    `السلام عليكم يا ${col.name} 🩺\nمعكم إدارة ${settings.labName}. نود التنسيق بخصوص جدول زيارات السحب المنزلي وحالات الجوائز المحجوزة اليوم.`
+                  )}`;
+
+                  return (
+                    <div
+                      key={col.id}
+                      className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 hover:border-emerald-500/40 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h5 className="font-bold text-white text-sm">{col.name}</h5>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                col.isAvailable
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {col.isAvailable ? 'متاح للسحب ✓' : 'غير متاح'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-emerald-400 mt-0.5">{col.roleTitle || 'فني سحب معتمد'}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              const updated = localCollectors.map((c) =>
+                                c.id === col.id ? { ...c, isAvailable: !c.isAvailable } : c
+                              );
+                              setLocalCollectors(updated);
+                              if (onSaveCollectors) onSaveCollectors(updated);
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-xs"
+                            title="تبديل الإتاحة"
+                          >
+                            {col.isAvailable ? 'تعطيل' : 'تفعيل'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`هل أنت متأكد من حذف الجامع "${col.name}"؟`)) {
+                                const updated = localCollectors.filter((c) => c.id !== col.id);
+                                setLocalCollectors(updated);
+                                if (onSaveCollectors) onSaveCollectors(updated);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 text-xs text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                          <Phone className="w-3.5 h-3.5 text-slate-500" />
+                          <span>الهاتف: <strong className="font-mono text-slate-300">{col.phone}</strong></span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                          <span>مناطق التغطية: <strong className="text-slate-300">{col.area}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Quick Actions */}
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-900">
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>واتساب</span>
+                        </a>
+
+                        <a
+                          href={`tel:${col.phone}`}
+                          className="flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold transition-colors"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>اتصال</span>
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

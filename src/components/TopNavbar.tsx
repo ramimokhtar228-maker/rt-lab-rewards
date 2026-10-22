@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, ShieldCheck, Award, Sparkles } from 'lucide-react';
+import { Volume2, VolumeX, ShieldCheck, Award, Sparkles, BellRing, Wifi } from 'lucide-react';
 import { soundManager } from '../utils/audio';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -11,6 +11,9 @@ interface TopNavbarProps {
   onOpenProfile: () => void;
   onOpenInvite: () => void;
   playerName: string;
+  pendingClaimsCount?: number;
+  syncStatus?: 'connected' | 'connecting' | 'offline';
+  onTriggerTestAlert?: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
@@ -21,6 +24,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onOpenProfile,
   onOpenInvite,
   playerName,
+  pendingClaimsCount = 0,
+  syncStatus = 'connected',
+  onTriggerTestAlert,
 }) => {
   const [muted, setMuted] = React.useState(soundManager.getMuted());
 
@@ -40,25 +46,50 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 sm:gap-6">
         
-        {/* Zone 1: Brand Wordmark */}
-        <button
-          onClick={() => setActiveTab('home')}
-          className="flex items-center gap-2.5 text-right whitespace-nowrap shrink-0 group focus:outline-none"
-        >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-            <Sparkles className="w-5 h-5 text-amber-200" />
+        {/* Zone 1: Brand Wordmark & Live Sync Status */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setActiveTab('home')}
+            className="flex items-center gap-2.5 text-right whitespace-nowrap shrink-0 group focus:outline-none"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+              <Sparkles className="w-5 h-5 text-amber-200" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-base sm:text-lg font-black tracking-tight text-white group-hover:text-emerald-400 transition-colors">
+                معامل RT
+              </span>
+              <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium -mt-1">
+                مكافآت وتحدي المرضى
+              </span>
+            </div>
+          </button>
+
+          {/* Real-time Sync Indicator */}
+          <div
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors ${
+              syncStatus === 'connected'
+                ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                : syncStatus === 'connecting'
+                ? 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+                : 'bg-slate-900 border-slate-700 text-slate-400'
+            }`}
+            title={syncStatus === 'connected' ? 'التزامن اللحظي بين كافة الأجهزة نشط ومباشر' : 'جارٍ الاتصال...'}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                syncStatus === 'connected'
+                  ? 'bg-emerald-400 animate-pulse'
+                  : syncStatus === 'connecting'
+                  ? 'bg-amber-400 animate-ping'
+                  : 'bg-slate-500'
+              }`}
+            />
+            <span>{syncStatus === 'connected' ? 'تزامن الأجهزة نشط ⚡' : 'اتصال التزامن...'}</span>
           </div>
-          <div className="flex flex-col">
-            <span className="text-lg font-black tracking-tight text-white group-hover:text-emerald-400 transition-colors">
-              معامل RT
-            </span>
-            <span className="text-[11px] text-slate-400 font-medium -mt-1">
-              مكافآت وتحدي المرضى
-            </span>
-          </div>
-        </button>
+        </div>
 
         {/* Zone 2: Navigation Links (single-line, clean) */}
         <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-300">
@@ -91,6 +122,20 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           >
             {muted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
           </button>
+
+          {/* Pending Claim Notification Bell */}
+          {pendingClaimsCount > 0 && (
+            <button
+              onClick={onOpenAdmin}
+              className="relative p-1.5 sm:p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 transition-colors animate-bounce"
+              title={`${pendingClaimsCount} حجز جائزة جديد بانتظار التكليف والمتابعة!`}
+            >
+              <BellRing className="w-4 h-4" />
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white">
+                {pendingClaimsCount}
+              </span>
+            </button>
+          )}
 
           {/* Invite Friend Button */}
           <button

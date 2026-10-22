@@ -1,6 +1,8 @@
 {
-  "name": "تحدي ومكافآت معامل RT | RT Lab Rewards & Fun",
-  "description": "المنصة الترفيهية والتنافسية الأولى لرواد معامل RT: مسابقات ذكاء ومعلومات عامة، عجلة الحظ، كروت الخربشة والربح، كوبونات وخصومات فورية، وتحاليل مجانية مع مزامنة مباشرة للواتساب ولوحة تحكم متكاملة للإدارة.",
+  "name": "تحدي ومكافآت معامل RT",
+  "description": "نظام حجز الجوائز ومزامنة المرضى واختيار جامعي العينات في الوقت الفعلي مع إرسال الواتساب الفوري والتنبيه الصوتي المباشر بين الأجهزة.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
