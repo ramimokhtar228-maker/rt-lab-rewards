@@ -53,57 +53,58 @@ export interface SpinSlice {
 
 export interface LabBranch {
   id: string;
-  name: string; // اسم الفرع e.g. "فرع مدينة نصر - الرئيسي"
-  city: string; // المدينة / المنطقة e.g. "القاهرة"
-  address: string; // العنوان بالتفصيل e.g. "شارع الطيران أمام مستشفى التأمين، برج الأطباء - الدور 3"
-  phone: string; // هاتف الفرع
-  whatsappNumber: string; // رقم الواتساب المباشر للفرع
-  googleMapsUrl: string; // رابط اللوكيشن على خرائط جوجل
-  workingHours: string; // مواعيد العمل e.g. "يومياً من 8 صباحاً حتى 11 مساءً"
-  managerName: string; // مدير أو مسؤول الفرع
-  isMainBranch: boolean; // هل هو الفرع الرئيسي
-  homeSamplingCoverage: string; // مناطق تغطية السحب المنزلي التابعة للفرع
-  notes?: string; // علامة مميزة
+  name: string;
+  city?: string;
+  address: string;
+  phone: string;
+  whatsappNumber?: string;
+  googleMapsUrl?: string;
+  workingHours?: string;
+  managerName?: string;
+  isMainBranch?: boolean;
+  homeSamplingCoverage?: string;
+  notes?: string;
 }
 
-export interface LabAdminMember {
+export interface AdminTeamMember {
   id: string;
-  name: string; // اسم المسؤول / دكتور المعمل
-  role: string; // المنصب e.g. "المدير العام للمعمل", "مدير فرع مدينة نصر", "مسؤول خدمة عملاء الواتساب", "استشاري التحاليل والنتائج"
-  phone: string; // رقم الهاتف
-  whatsappNumber: string; // رقم الواتساب المباشر
-  branchId?: string; // الفرع التابع له
-  isOnline: boolean; // متاح للتواصل الفوري
-  allowDirectWhatsApp: boolean; // إتاحة زر واتساب مباشر للمرضى
-  bio?: string; // نبذة مختصرة
+  name: string;
+  role: string;
+  phone: string;
+  whatsappNumber: string;
+  branchId?: string;
+  isOnline?: boolean;
+  allowDirectWhatsApp?: boolean;
+  bio?: string;
 }
 
 export interface WhatsAppTemplate {
   id: string;
-  title: string; // عنوان القالب e.g. "تأكيد حجز سحب عينات منزلي"
-  category: 'booking' | 'results' | 'rewards' | 'branches' | 'inquiry' | 'general';
-  templateText: string; // نص الرسالة المنسق مع الرموز والمتغيرات
+  title: string;
+  category: string;
+  templateText: string;
   isActive: boolean;
 }
 
 export interface LabSettings {
   labName: string;
   tagline: string;
-  whatsappNumber: string; // e.g. "201021487889"
-  hotlineNumber: string;
+  whatsappNumber: string; // Official lab whatsapp, e.g. "201100874444"
+  hotlineNumber: string; // Official lab hotline, e.g. "01100046841"
+  secondaryPhone?: string;
+  emergencyPhone?: string;
   address: string;
   workingHours: string;
   homeVisitAvailable: boolean;
   announcement: string;
   quizPointsPerCorrect: number;
   dailyStreakBonus: number;
-  adminPin: string; // رمز دخول الإدارة السري
-  branches: LabBranch[];
-  adminTeam: LabAdminMember[];
-  whatsappTemplates: WhatsAppTemplate[];
-  cloudSyncRoomId: string;
-  lastCloudSyncTimestamp?: string;
-  githubRepo?: string; // e.g. "ramimokhtar228-maker/rt-lab-rewards"
+  adminPin: string; // رمز دخول الإدارة السري (7788)
+  branches?: LabBranch[];
+  adminTeam?: AdminTeamMember[];
+  whatsappTemplates?: WhatsAppTemplate[];
+  cloudSyncRoomId?: string;
+  githubRepo?: string;
   githubBranch?: string;
 }
 
@@ -117,7 +118,6 @@ export interface PatientRecord {
   lastActive: string;
   couponsWon: number;
   gamesPlayed: number;
-  preferredBranchId?: string;
 }
 
 export interface PrizeClaimBooking {
@@ -127,7 +127,6 @@ export interface PrizeClaimBooking {
   address: string;
   serviceType: 'home_visit' | 'branch_visit';
   preferredTime: string;
-  branchId?: string;
   couponCode: string;
   prizeTitle: string;
   prizeValue: string;
@@ -147,7 +146,6 @@ export interface PlayerProfile {
   wheelSpinsCount: number;
   scratchCardsCount: number;
   levelTitle: string;
-  preferredBranchId?: string;
 }
 
 export interface LeaderboardUser {
@@ -158,16 +156,4 @@ export interface LeaderboardUser {
   rank: number;
   badge: string;
   couponsWon: number;
-}
-
-export interface CloudSyncState {
-  revision: number;
-  lastUpdated: string;
-  settings: LabSettings;
-  questions: Question[];
-  rewards: RewardItem[];
-  slices: SpinSlice[];
-  claims: PrizeClaimBooking[];
-  patients: PatientRecord[];
-  leaderboard: LeaderboardUser[];
 }

@@ -1,18 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   X,
   MessageCircle,
+  PhoneCall,
   Copy,
   Check,
-  Building,
-  Users,
+  Calendar,
+  MapPin,
+  Clock,
   Sparkles,
-  Send,
-  Home,
-  CheckCircle2,
 } from 'lucide-react';
-import { LabSettings, UserCoupon, PlayerProfile, LabBranch, LabAdminMember } from '../types';
-import { soundManager } from '../utils/audio';
+import { LabSettings, UserCoupon, PlayerProfile } from '../types';
+import { formatWhatsAppNumber } from '../utils/storage';
 
 interface WhatsAppSyncModalProps {
   isOpen: boolean;
@@ -31,227 +30,199 @@ export const WhatsAppSyncModal: React.FC<WhatsAppSyncModalProps> = ({
   player,
   customMessage,
 }) => {
-  const branches = settings.branches || [];
-  const adminTeam = settings.adminTeam || [];
-  const templates = settings.whatsappTemplates || [];
-
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(
-    player.preferredBranchId || branches[0]?.id || 'br_main'
-  );
-  const [targetRecipient, setTargetRecipient] = useState<'branch' | 'doctor'>('branch');
-  const [selectedAdminId, setSelectedAdminId] = useState<string>(adminTeam[0]?.id || 'adm_1');
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
-    templates[0]?.id || 'tpl_1'
-  );
-  const [requestHomeVisit, setRequestHomeVisit] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = React.useState(false);
+  const [requestHomeVisit, setRequestHomeVisit] = React.useState(true);
 
   if (!isOpen) return null;
 
-  const currentBranch = branches.find((b) => b.id === selectedBranchId) || branches[0];
-  const currentAdmin = adminTeam.find((a) => a.id === selectedAdminId) || adminTeam[0];
-  const currentTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0];
-
-  // Recipient phone selection
-  const targetPhone =
-    targetRecipient === 'doctor' && currentAdmin
-      ? currentAdmin.whatsappNumber
-      : currentBranch
-      ? currentBranch.whatsappNumber
-      : settings.whatsappNumber;
-
-  const cleanNumber = targetPhone.replace(/\D/g, '');
+  // Clean lab whatsapp number with country code
+  const cleanNumber = formatWhatsAppNumber(settings.whatsappNumber);
 
   const voucherTitle = coupon ? coupon.title : 'طلب استفسار ومكافأة من تطبيق معامل RT';
-  const voucherCode = coupon ? coupon.couponCode : `RT-${Math.floor(1000 + Math.random() * 9000)}`;
+  const voucherCode = coupon ? coupon.couponCode : `RT-SYNC-${Math.floor(1000 + Math.random() * 9000)}`;
   const voucherValue = coupon ? coupon.value : 'مكافأة عميل مميز';
 
-  // Construct message from template or custom
-  let messageBody = '';
-  if (customMessage) {
-    messageBody = customMessage;
-  } else if (currentTemplate) {
-    messageBody = currentTemplate.templateText
-      .replace(/{patient_name}/g, player.name || 'عميل معامل RT')
-      .replace(/{phone}/g, player.phone || 'مسجل بالتطبيق')
-      .replace(/{prize_title}/g, voucherTitle)
-      .replace(/{prize_value}/g, voucherValue)
-      .replace(/{coupon_code}/g, voucherCode)
-      .replace(/{points}/g, String(player.points || 0))
-      .replace(/{branch_name}/g, currentBranch ? currentBranch.name : settings.labName)
-      .replace(/{branch_address}/g, currentBranch ? currentBranch.address : settings.address)
-      .replace(/{branch_phone}/g, currentBranch ? currentBranch.phone : settings.hotlineNumber)
-      .replace(/{manager_name}/g, currentAdmin ? currentAdmin.name : 'دكتور المعمل')
-      .replace(/{lab_name}/g, settings.labName)
-      .replace(/{hotline}/g, settings.hotlineNumber)
-      .replace(/{preferred_time}/g, 'صباحاً (9:00 ص - 1:00 ظ)');
-  } else {
-    messageBody = `السلام عليكم ورحمة الله، أنا المريض/العميل: ${player.name || 'عميل معامل RT'}\nرقم الهاتف: ${
-      player.phone || 'مسجل بالتطبيق'
-    }\nالفرع المفضل: ${currentBranch?.name}\nالمكافأة: ${voucherTitle} (كود: ${voucherCode})\nالخدمة: ${
-      requestHomeVisit ? 'سحب منزلي 🏠' : 'زيارة الفرع 🏥'
-    }`;
-  }
+  // Construct official WhatsApp text
+  const messageBody = customMessage || `سلام عليكم ورحمة الله، أنا المريض/العميل: ${player.name || 'عميل معامل RT'}
+رقم الهاتف: ${player.phone || 'مسجل بالتطبيق'}
+
+لقد شاركت في برنامج ألعاب ومكافآت معامل RT وفزت بالمكافأة التالية:
+🎁 *${voucherTitle}*
+🏷️ *قيمة المكافأة / الخصم:* ${voucherValue}
+🔢 *كود التحقق الخاص بي:* [${voucherCode}]
+📅 *التاريخ:* ${new Date().toLocaleDateString('ar-EG')}
+📍 *نوع الخدمة المطلوبة:* ${requestHomeVisit ? 'سحب عينة منزلي في مكاني 🏠' : 'حجز في أقرب فرع لمعامل RT 🏥'}
+
+برجاء تفعيل الكوبون وتأكيد الموعد الطبي. شكراً لمعامل RT!`;
 
   const encodedUrl = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(messageBody)}`;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(messageBody);
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(voucherCode);
     setCopied(true);
-    soundManager.playSuccess();
-    setTimeout(() => setCopied(false), 2500);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl h-full sm:h-auto sm:max-h-[92vh] bg-slate-900 border-0 sm:border border-emerald-500/30 rounded-none sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 p-5 text-white flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-2xl overflow-hidden text-right">
+        {/* Header Ribbon */}
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 p-5 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white/10 rounded-2xl backdrop-blur-sm">
+            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-sm">
               <Sparkles className="w-5 h-5 text-amber-300" />
             </div>
             <div>
-              <h3 className="text-lg font-black">مراسلة واتساب معامل RT المنسقة</h3>
-              <p className="text-xs text-emerald-100">
-                اختر الفرع أو المسؤول، القالب المنسق، وتواصل فوراً مع طاقم المعمل
-              </p>
+              <h3 className="text-lg font-bold">مزامنة الكوبون مع واتساب المعمل</h3>
+              <p className="text-xs text-emerald-100">تأكيد فوري للجائزة وحجز الخدمة مباشرة</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-emerald-100 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-lg text-emerald-100 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-5 overflow-y-auto space-y-4 flex-1">
-          {/* Recipient Selector (Branch vs Doctor) */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-300 block">جهة التواصل المطلوبة:</label>
+        <div className="p-6 space-y-5">
+          {/* Official Voucher Preview Card */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="flex items-start justify-between gap-4 border-b border-slate-800 pb-3 mb-3">
+              <div>
+                <span className="text-[11px] font-semibold text-emerald-400">معامل RT للتحاليل الطبية</span>
+                <h4 className="text-base font-bold text-white mt-0.5">{voucherTitle}</h4>
+                <p className="text-xs text-slate-400 mt-1">{coupon?.description || 'كوبون صالح لدى جميع فروع المعمل'}</p>
+              </div>
+              <div className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-300 text-xs font-bold text-center shrink-0">
+                {voucherValue}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 bg-slate-900/90 rounded-lg px-3 py-2 border border-slate-800">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-500">كود التحقق الإلكتروني</span>
+                <span className="font-mono font-bold text-sm tracking-wider text-emerald-300">{voucherCode}</span>
+              </div>
+              <button
+                onClick={handleCopyCode}
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'تم النسخ' : 'نسخ الكود'}</span>
+              </button>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
+              <span>صالحة حتى: {coupon?.expiresAt || '30 يوماً من اليوم'}</span>
+              <span>المريض: {player.name}</span>
+            </div>
+          </div>
+
+          {/* Service Preference Toggle */}
+          <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-3">
+            <label className="text-xs font-semibold text-slate-300 mb-2 block">
+              طريقة الاستفادة من التحليل أو الكوبون:
+            </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setTargetRecipient('branch')}
-                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-bold transition-all border ${
-                  targetRecipient === 'branch'
-                    ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-md'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                onClick={() => setRequestHomeVisit(true)}
+                className={`py-2 px-3 rounded-lg text-xs font-bold text-center transition-all ${
+                  requestHomeVisit
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-slate-900 text-slate-400 hover:text-white'
                 }`}
               >
-                <Building className="w-4 h-4 text-emerald-400" />
-                <span>أحد فروع المعمل</span>
+                🏠 سحب عينة منزلي
               </button>
-
               <button
                 type="button"
-                onClick={() => setTargetRecipient('doctor')}
-                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-bold transition-all border ${
-                  targetRecipient === 'doctor'
-                    ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-md'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                onClick={() => setRequestHomeVisit(false)}
+                className={`py-2 px-3 rounded-lg text-xs font-bold text-center transition-all ${
+                  !requestHomeVisit
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-slate-900 text-slate-400 hover:text-white'
                 }`}
               >
-                <Users className="w-4 h-4 text-teal-400" />
-                <span>دكتور أو مسؤول بالإدارة</span>
+                🏥 الحضور لأقرب فرع
               </button>
             </div>
           </div>
 
-          {/* Branch or Doctor Dropdown */}
-          {targetRecipient === 'branch' ? (
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-300 block">اختر الفرع الأقرب إليك:</label>
-              <select
-                value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-              >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.city}) - {b.phone}
-                  </option>
-                ))}
-              </select>
-              {currentBranch && (
-                <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 mt-1">
-                  📍 <strong>العنوان:</strong> {currentBranch.address}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-300 block">اختر الدكتور أو المسؤول:</label>
-              <select
-                value={selectedAdminId}
-                onChange={(e) => setSelectedAdminId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-              >
-                {adminTeam.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} - {m.role}
-                  </option>
-                ))}
-              </select>
-              {currentAdmin && (
-                <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 mt-1">
-                  👨‍⚕️ <strong>{currentAdmin.name}:</strong> {currentAdmin.bio || currentAdmin.role}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Template Selector */}
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-300 block">قالب الرسالة المنسق:</label>
-            <select
-              value={selectedTemplateId}
-              onChange={(e) => setSelectedTemplateId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-            >
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Formatted Message Preview */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-300">معاينة الرسالة المنسقة للواتساب:</label>
-              <span className="text-[10px] text-emerald-400 font-mono">
-                إلى: {targetPhone}
+          {/* Lab Reply Preview & Direct Template */}
+          <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>رسالة التأكيد التي يستلمها المريض من المعمل:</span>
               </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const replyText = `🎉 *أهلاً بك يا ${player.name} في ${settings.labName}!*
+✅ تم اعتماد وتأكيد جائزتك: *${voucherTitle}*
+🔢 كود التحقق الرسمي: *[${voucherCode}]*
+⭐ رصيد نقاطك: *${player.points} نقطة* (${player.levelTitle})
+🩺 تم تسجيل طلبك (${requestHomeVisit ? 'سحب عينة منزلي' : 'حجز فرع'}). فريق خدمة العملاء سيتواصل معك لتأكيد الميعاد.
+🎁 استمر باللعب يومياً لتدوير عجلة الحظ وكسب المزيد من التحاليل المجانية!`;
+                  navigator.clipboard.writeText(replyText);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold"
+              >
+                {copied ? 'تم نسخ الرد!' : 'نسخ رد المعمل'}
+              </button>
             </div>
-            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto no-scrollbar font-sans border-r-4 border-r-emerald-500">
-              {messageBody}
+            <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+              «أهلاً بك يا {player.name} في {settings.labName}! تم اعتماد وتأكيد جائزتك: {voucherTitle} بكود {voucherCode} ورصيد نقاطك {player.points}. يمكنك الاستفادة منها فوراً في الفرع أو بالسحب المنزلي...»
+            </p>
+          </div>
+
+          {/* Quick Lab Contact Information */}
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
+            <div className="flex items-center gap-2 p-2 bg-slate-950/40 rounded-lg">
+              <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate">{settings.workingHours}</span>
+            </div>
+            <div className="flex items-center gap-2 p-2 bg-slate-950/40 rounded-lg">
+              <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate">خدمة سحب 24 ساعة</span>
             </div>
           </div>
-        </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-center gap-2.5 shrink-0">
-          <a
-            href={encodedUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="w-full sm:flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xl shadow-emerald-950 transition-all hover:scale-[1.01]"
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span>إرسال عبر الواتساب الآن 🚀</span>
-          </a>
+          {/* Action Buttons */}
+          <div className="space-y-2 pt-2">
+            <a
+              href={encodedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.01]"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>إرسال وتأكيد الحجز فوراً عبر واتساب المعمل</span>
+            </a>
 
-          <button
-            onClick={handleCopy}
-            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors"
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            <span>{copied ? 'تم النسخ!' : 'نسخ الرسالة'}</span>
-          </button>
+            <div className="flex items-center gap-2">
+              <a
+                href={`tel:${settings.hotlineNumber}`}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
+                <span>اتصال مباشر بالمعمل ({settings.hotlineNumber})</span>
+              </a>
+              <button
+                onClick={onClose}
+                className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-semibold transition-colors"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
