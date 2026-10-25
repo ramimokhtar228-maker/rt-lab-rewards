@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   UserX,
   CalendarCheck,
+  Calendar,
   Clock,
   Home,
   Building,
@@ -66,6 +67,15 @@ interface AdminPanelModalProps {
   onResetPatients: () => void;
   onResetAppForNewPatients: () => void;
   onUpdateClaimStatus: (id: string, status: PrizeClaimBooking['status']) => void;
+  onConfirmAppointment?: (
+    id: string,
+    confirmedData: {
+      date: string;
+      time: string;
+      confirmedBy?: string;
+      adminNotes?: string;
+    }
+  ) => void;
   onDeleteClaim: (id: string) => void;
   onResetDefaults: () => void;
   onExportBackup: () => void;
@@ -89,6 +99,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onResetPatients,
   onResetAppForNewPatients,
   onUpdateClaimStatus,
+  onConfirmAppointment,
   onDeleteClaim,
   onResetDefaults,
   onExportBackup,
@@ -100,6 +111,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [pinError, setPinError] = useState(false);
   const [showEnteredPin, setShowEnteredPin] = useState(false);
   const [showAdminPinInSettings, setShowAdminPinInSettings] = useState(false);
+
+  // Appointment Confirmation Modal / Drawer
+  const [confirmingClaim, setConfirmingClaim] = useState<PrizeClaimBooking | null>(null);
+  const [confirmDate, setConfirmDate] = useState('');
+  const [confirmTime, setConfirmTime] = useState('');
+  const [confirmSpecialist, setConfirmSpecialist] = useState('أخصائي السحب والزيارات المنزلية - معامل RT');
+  const [confirmAdminNotes, setConfirmAdminNotes] = useState('تم تأكيد الموعد رسمياً. يرجى الصيام 8 ساعات وشرب المياه فقط، وسيقوم الأخصائي بالتواصل هاتفياً قبل الحضور.');
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
@@ -467,6 +485,65 @@ ${appUrl}
     setTimeout(() => setCopiedTemplatePatient(null), 2500);
   };
 
+  // Appointment Confirmation Handlers
+  const handleOpenConfirmModal = (clm: PrizeClaimBooking) => {
+    setConfirmingClaim(clm);
+    setConfirmDate(clm.confirmedAppointment?.date || clm.appointmentDate || 'اليوم');
+    setConfirmTime(clm.confirmedAppointment?.time || clm.preferredTime || 'صباحاً (08:30 ص - 10:30 ص)');
+    setConfirmSpecialist(clm.confirmedAppointment?.confirmedBy || 'أخصائي السحب والزيارات المنزلية - معامل RT');
+    setConfirmAdminNotes(
+      clm.confirmedAppointment?.adminNotes ||
+        'تم تأكيد الموعد رسمياً. يرجى الصيام 8 ساعات عن الطعام (شرب المياه مسموح)، وسيتصل الأخصائي هاتفياً قبل الوصول بـ 15 دقيقة.'
+    );
+  };
+
+  const handleExecuteConfirmAppointment = () => {
+    if (!confirmingClaim) return;
+    if (onConfirmAppointment) {
+      onConfirmAppointment(confirmingClaim.id, {
+        date: confirmDate,
+        time: confirmTime,
+        confirmedBy: confirmSpecialist,
+        adminNotes: confirmAdminNotes,
+      });
+    } else {
+      onUpdateClaimStatus(confirmingClaim.id, 'confirmed');
+    }
+
+    soundManager.playSuccess();
+
+    // Official WhatsApp message to patient
+    const msg = `*تأكيد رسمي لموعد استلام الجائزة وإجراء التحليل - ${settings.labName}* 🩺🎉
+---------------------------------------
+أهلاً بك يا أستاذ/ة ${confirmingClaim.patientName}،
+
+يسعدنا إبلاغكم بأنه تم اعتماد وتأكيد موعدكم رسمياً:
+🎁 *الجائزة:* ${confirmingClaim.prizeTitle} (${confirmingClaim.prizeValue})
+🔢 *كود التحقق المعتمد:* [${confirmingClaim.couponCode}]
+
+📅 *تاريخ الموعد المؤكد:* ${confirmDate}
+⏰ *توقيت الحضور / السحب:* ${confirmTime}
+📍 *مكان وطريقة الخدمة:* ${confirmingClaim.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}
+${confirmingClaim.address ? `📌 *العنوان المسجل:* ${confirmingClaim.address}\n` : ''}${confirmingClaim.selectedBranch ? `🏥 *الفرع:* ${confirmingClaim.selectedBranch}\n` : ''}
+📝 *إرشادات وتعليمات المعمل:*
+${confirmAdminNotes}
+
+👨‍⚕️ *المسؤول المتابع:* ${confirmSpecialist}
+📞 *هواتف الطوارئ والتواصل المباشر:*
+واتساب: ${settings.whatsappNumber} | الخط الساخن: ${settings.hotlineNumber}
+---------------------------------------
+فريق معامل RT يسعد دائماً بخدمتكم والاطمئنان على صحتكم 💚`;
+
+    const cleanPhone = formatWhatsAppNumber(confirmingClaim.patientPhone);
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+
+    navigator.clipboard.writeText(msg);
+    alert(`✅ تم تأكيد موعد المريض "${confirmingClaim.patientName}" بنجاح!\nسيتم الآن فتح الواتساب لإرسال تذكرة التأكيد الرسمية للمريض.`);
+    window.open(waUrl, '_blank');
+
+    setConfirmingClaim(null);
+  };
+
   // Filtered patients
   const filteredPatients = patients.filter(
     (p) =>
@@ -475,9 +552,10 @@ ${appUrl}
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-5xl max-h-[92vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
-        {/* Header Ribbon */}
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="relative w-full max-w-5xl max-h-[92vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-right">
+          {/* Header Ribbon */}
         <div className="bg-slate-950 px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
@@ -581,9 +659,16 @@ ${appUrl}
                   {claims.map((clm) => (
                     <div
                       key={clm.id}
-                      className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-emerald-500/40 transition-all"
+                      className={`bg-slate-950 border rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 transition-all ${
+                        clm.status === 'confirmed'
+                          ? 'border-emerald-500/40 hover:border-emerald-500/60'
+                          : clm.status === 'completed'
+                          ? 'border-blue-500/40 hover:border-blue-500/60'
+                          : 'border-amber-500/40 hover:border-amber-500/60'
+                      }`}
                     >
-                      <div className="space-y-2">
+                      {/* Top Bar: Name, Phone, Prize, Status */}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-base text-white">{clm.patientName}</span>
                           <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
@@ -592,75 +677,123 @@ ${appUrl}
                           <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
                             {clm.prizeTitle} ({clm.prizeValue})
                           </span>
+                        </div>
+
+                        <div>
                           <span
-                            className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                            className={`text-xs px-3 py-1 rounded-full font-black flex items-center gap-1.5 ${
                               clm.status === 'confirmed'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                                 : clm.status === 'completed'
-                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
                             }`}
                           >
-                            {clm.status === 'confirmed' ? 'تم التأكيد ✅' : clm.status === 'completed' ? 'تم إجراء التحليل 🩺' : 'قيد الانتظار ⏳'}
+                            {clm.status === 'confirmed'
+                              ? 'تم تأكيد الموعد رسمياً ✅'
+                              : clm.status === 'completed'
+                              ? 'تم إجراء التحليل 🩺'
+                              : 'في انتظار تأكيد الموعد ⏳'}
                           </span>
                         </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-slate-400">
-                          <span className="flex items-center gap-1">
-                            {clm.serviceType === 'home_visit' ? <Home className="w-3.5 h-3.5 text-emerald-400" /> : <Building className="w-3.5 h-3.5 text-emerald-400" />}
-                            <strong>{clm.serviceType === 'home_visit' ? 'سحب عينة منزلي' : 'زيارة فرع'}</strong>
-                          </span>
-                          <span>كود الكوبون: <strong className="font-mono text-slate-300">{clm.couponCode}</strong></span>
-                          <span>الموعد: {clm.preferredTime}</span>
-                        </div>
-
-                        {clm.address && (
-                          <div className="text-xs text-slate-400 flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                            <span>العنوان: {clm.address}</span>
-                            <span>· بتاريخ: {clm.createdAt}</span>
-                          </div>
-                        )}
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
+                      {/* Appointment & Booking Details Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-xs text-slate-300">
+                        {/* Requested Date */}
+                        <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/90 flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">التاريخ المطلوب:</span>
+                            <span className="font-bold text-white">{clm.appointmentDate || 'في أقرب وقت'}</span>
+                          </div>
+                        </div>
+
+                        {/* Requested Time */}
+                        <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/90 flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-teal-400 shrink-0" />
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">التوقيت المفضل:</span>
+                            <span className="font-bold text-white">{clm.preferredTime}</span>
+                          </div>
+                        </div>
+
+                        {/* Service Type & Location */}
+                        <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/90 flex items-center gap-2">
+                          {clm.serviceType === 'home_visit' ? (
+                            <Home className="w-4 h-4 text-emerald-400 shrink-0" />
+                          ) : (
+                            <Building className="w-4 h-4 text-emerald-400 shrink-0" />
+                          )}
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">مكان الخدمة:</span>
+                            <span className="font-bold text-white">
+                              {clm.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detailed Address or Branch */}
+                      {clm.address && (
+                        <div className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-900/60 p-2 rounded-xl">
+                          <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span><strong>العنوان / الفرع:</strong> {clm.address}</span>
+                          <span className="text-slate-600">·</span>
+                          <span>كود الكوبون: <strong className="font-mono text-emerald-400">{clm.couponCode}</strong></span>
+                          <span className="text-slate-600">·</span>
+                          <span>بتاريخ: {clm.createdAt}</span>
+                        </div>
+                      )}
+
+                      {/* Patient Special Notes */}
+                      {clm.patientNotes && (
+                        <div className="text-xs bg-amber-950/20 border border-amber-500/20 p-2.5 rounded-xl text-amber-200">
+                          📝 <strong>ملاحظات المريض الطبية:</strong> {clm.patientNotes}
+                        </div>
+                      )}
+
+                      {/* Confirmed Appointment Banner from Admin */}
+                      {clm.confirmedAppointment && (
+                        <div className="p-3 bg-gradient-to-r from-emerald-950/60 to-slate-900 border border-emerald-500/40 rounded-xl space-y-1 text-xs">
+                          <div className="flex items-center gap-2 text-emerald-300 font-bold">
+                            <Check className="w-4 h-4 text-emerald-400" />
+                            <span>
+                              الموعد المعتمد من الإدارة: <strong className="text-white underline">{clm.confirmedAppointment.date}</strong> - التوقيت: <strong className="text-white underline">{clm.confirmedAppointment.time}</strong>
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            👨‍⚕️ المسؤول: <span className="text-slate-200">{clm.confirmedAppointment.confirmedBy}</span>
+                            {clm.confirmedAppointment.adminNotes && (
+                              <span> · 📋 التعليمات: <span className="text-slate-200">{clm.confirmedAppointment.adminNotes}</span></span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Buttons Toolbar */}
+                      <div className="flex items-center gap-2 pt-1 justify-end flex-wrap">
+                        {/* Primary: Confirm Appointment Modal Button */}
+                        <button
+                          onClick={() => handleOpenConfirmModal(clm)}
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black shadow-lg shadow-emerald-950/50 transition-all active:scale-95"
+                        >
+                          <CalendarCheck className="w-4 h-4" />
+                          <span>{clm.status === 'confirmed' ? 'تعديل موعد التأكيد 📅' : 'تأكيد الموعد والمريض 📅✅'}</span>
+                        </button>
+
                         {/* Direct WhatsApp Patient Contact */}
                         <a
                           href={`https://wa.me/${formatWhatsAppNumber(clm.patientPhone)}?text=${encodeURIComponent(
-                            `🎉 أهلاً بك يا أستاذ/ة ${clm.patientName} في ${settings.labName}!\n\n✅ تم استلام واعتماد طلب تفعيل جائزتك (${clm.prizeTitle}) بنجاح بكود [${clm.couponCode}].\n📍 الخدمة المطلوبة: ${clm.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}\n⏰ الميعاد المفضل: ${clm.preferredTime}\n\nفريق التمريض وخدمة العملاء سيتواصل معك للتنسيق النهائي. نسعد بخدمتك دائماً 💚`
+                            `🎉 أهلاً بك يا أستاذ/ة ${clm.patientName} في ${settings.labName}!\n\n✅ بخصوص طلب تفعيل جائزتك (${clm.prizeTitle}) لكود [${clm.couponCode}]:\n📅 الموعد: ${clm.appointmentDate || 'في أقرب وقت'}\n⏰ التوقيت: ${clm.preferredTime}\n📍 الخدمة: ${clm.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}\n\nفريق خدمة العملاء والتمريض في خدمتك دائماً 💚`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-sm"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-bold transition-colors"
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
-                          <span>فتح واتساب المريض</span>
+                          <span>واتساب المريض</span>
                         </a>
-
-                        {/* Copy WhatsApp confirmation reply */}
-                        <button
-                          onClick={() => {
-                            const confirmationMsg = `🎉 *أهلاً بك يا أستاذ/ة ${clm.patientName} في ${settings.labName}!*
-
-✅ *تم اعتماد وتأكيد طلب تفعيل جائزتك بنجاح:*
-🎁 *الجائزة:* ${clm.prizeTitle} (${clm.prizeValue})
-🔢 *كود التحقق المعتمد:* [${clm.couponCode}]
-📍 *الخدمة المطلوبة:* ${clm.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}
-⏰ *الميعاد:* ${clm.preferredTime}
-⭐ *رصيد نقاطك الحالي:* ${clm.points} نقطة
-🏆 *تم تسجيلك رسمياً في دوري أبطال RT!*
-
-فريق التمريض وخدمة العملاء سيتواصل معك للتنسيق النهائي. نسعد بخدمتك دائماً 💚`;
-                            navigator.clipboard.writeText(confirmationMsg);
-                            soundManager.playSuccess();
-                            alert(`تم نسخ رسالة تأكيد الحجز للمريض "${clm.patientName}" لإرسالها بالواتساب!`);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition-colors"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>نسخ رد تأكيد الحجز</span>
-                        </button>
 
                         {/* Status Toggle */}
                         <button
@@ -670,9 +803,9 @@ ${appUrl}
                               clm.status === 'pending' ? 'confirmed' : clm.status === 'confirmed' ? 'completed' : 'pending'
                             )
                           }
-                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                          className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
                         >
-                          تغيير الحالة
+                          {clm.status === 'pending' ? 'نقل للمؤكد' : clm.status === 'confirmed' ? 'تم إجراء التحليل 🩺' : 'إعادة قيد الانتظار'}
                         </button>
 
                         {/* Delete Claim */}
@@ -682,9 +815,10 @@ ${appUrl}
                               onDeleteClaim(clm.id);
                             }
                           }}
-                          className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition-colors"
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition-colors"
+                          title="حذف الحجز"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -1811,5 +1945,131 @@ ${window.location.origin}/?wa=${(contactForm.whatsappNumber || '201100874444').r
         </div>
       </div>
     </div>
-  );
+
+    {/* MODAL: ADMIN APPOINTMENT REVIEW & CONFIRMATION */}
+    {confirmingClaim && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="relative w-full max-w-xl bg-slate-900 border-2 border-emerald-500/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col text-right">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-700 px-5 py-4 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-white/10 rounded-xl">
+                <CalendarCheck className="w-5 h-5 text-amber-300" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold">مراجعة وتأكيد موعد استلام الجائزة</h4>
+                <p className="text-xs text-emerald-100">
+                  تأكيد الميعاد مع المريض: {confirmingClaim.patientName} ({confirmingClaim.patientPhone})
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfirmingClaim(null)}
+              className="p-1.5 rounded-xl text-emerald-100 hover:text-white hover:bg-white/10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            {/* Summary of Patient's request */}
+            <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-amber-300 font-bold">🎁 الجائزة: {confirmingClaim.prizeTitle}</span>
+                <span className="font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                  {confirmingClaim.couponCode}
+                </span>
+              </div>
+              <div className="text-slate-300">
+                📍 طريقة الخدمة: <strong className="text-white">{confirmingClaim.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}</strong>
+                {confirmingClaim.address && <span> - {confirmingClaim.address}</span>}
+              </div>
+              <div className="text-slate-400">
+                طلب المريض المبدئي: <span className="text-amber-200">{confirmingClaim.appointmentDate}</span> | التوقيت: <span className="text-teal-200">{confirmingClaim.preferredTime}</span>
+              </div>
+              {confirmingClaim.patientNotes && (
+                <div className="text-slate-300 bg-slate-900 p-2 rounded-xl border border-slate-800">
+                  ملاحظات المريض: {confirmingClaim.patientNotes}
+                </div>
+              )}
+            </div>
+
+            {/* Form fields for confirming appointment */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-300 font-semibold block">
+                    تاريخ الموعد المعتمد من المعمل: *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={confirmDate}
+                    onChange={(e) => setConfirmDate(e.target.value)}
+                    placeholder="مثال: غداً 26 أكتوبر، أو الإثنين القادم..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-300 font-semibold block">
+                    توقيت الحضور / السحب المؤكد: *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={confirmTime}
+                    onChange={(e) => setConfirmTime(e.target.value)}
+                    placeholder="مثال: الساعة 09:00 صباحاً..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-slate-300 font-semibold block">
+                  المسؤول المكلف / الأخصائي المتابع:
+                </label>
+                <input
+                  type="text"
+                  value={confirmSpecialist}
+                  onChange={(e) => setConfirmSpecialist(e.target.value)}
+                  placeholder="مثال: أخصائي السحب المنزلي - د. رامي مختار..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-slate-300 font-semibold block">
+                  تعليمات وإرشادات المعمل للمريض (صيام، تحضيرات):
+                </label>
+                <textarea
+                  rows={3}
+                  value={confirmAdminNotes}
+                  onChange={(e) => setConfirmAdminNotes(e.target.value)}
+                  placeholder="مثال: يرجى الصيام 8 ساعات وشرب المياه مسموح، وسيتواصل الأخصائي هاتفياً قبل الوصول..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 leading-relaxed"
+                />
+              </div>
+            </div>
+
+            {/* Submit action */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleExecuteConfirmAppointment}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm shadow-xl shadow-emerald-950 transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>اعتماد الموعد وإرسال تذكرة التأكيد لواتساب المريض 💬✅</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 };

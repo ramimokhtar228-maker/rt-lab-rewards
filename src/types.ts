@@ -124,15 +124,25 @@ export interface PrizeClaimBooking {
   id: string;
   patientName: string;
   patientPhone: string;
-  address: string;
+  address?: string;
   serviceType: 'home_visit' | 'branch_visit';
+  selectedBranch?: string;
+  appointmentDate: string;
   preferredTime: string;
+  patientNotes?: string;
   couponCode: string;
   prizeTitle: string;
   prizeValue: string;
   points: number;
   createdAt: string;
-  status: 'pending' | 'confirmed' | 'completed';
+  status: 'pending' | 'confirmed' | 'rescheduled' | 'completed';
+  confirmedAppointment?: {
+    date: string;
+    time: string;
+    confirmedBy?: string;
+    adminNotes?: string;
+    confirmedAt?: string;
+  };
 }
 
 export interface PlayerProfile {

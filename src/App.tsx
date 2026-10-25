@@ -30,6 +30,7 @@ import {
   getPrizeClaims,
   addPrizeClaim,
   updateClaimStatus,
+  confirmClaimAppointment,
   deletePrizeClaim,
 } from './utils/storage';
 import {
@@ -45,7 +46,7 @@ import {
 } from './types';
 import { Bell, MessageCircle, X } from 'lucide-react';
 import { soundManager } from './utils/audio';
-import { subscribeToCloudClaims, fetchRecentClaimsFromCloud } from './utils/cloudSync';
+import { subscribeToCloudClaims, fetchRecentClaimsFromCloud, broadcastClaimToCloud } from './utils/cloudSync';
 import { formatWhatsAppNumber } from './utils/storage';
 import { TopNavbar } from './components/TopNavbar';
 import { HeroSection } from './components/HeroSection';
@@ -283,6 +284,23 @@ export default function App() {
     setClaims(getPrizeClaims());
   };
 
+  const handleConfirmClaimAppointment = (
+    id: string,
+    confirmedData: {
+      date: string;
+      time: string;
+      confirmedBy?: string;
+      adminNotes?: string;
+    }
+  ) => {
+    const updated = confirmClaimAppointment(id, confirmedData);
+    if (updated) {
+      setClaims(getPrizeClaims());
+      // Broadcast over cloud so patient and other devices see confirmed status
+      broadcastClaimToCloud(updated).catch(() => {});
+    }
+  };
+
   const handleDeleteClaim = (id: string) => {
     deletePrizeClaim(id);
     setClaims(getPrizeClaims());
@@ -497,6 +515,7 @@ export default function App() {
         onResetPatients={handleResetPatients}
         onResetAppForNewPatients={handleResetAppForNewPatients}
         onUpdateClaimStatus={handleUpdateClaimStatus}
+        onConfirmAppointment={handleConfirmClaimAppointment}
         onDeleteClaim={handleDeleteClaim}
         onResetDefaults={handleResetDefaults}
         onExportBackup={handleExportBackup}

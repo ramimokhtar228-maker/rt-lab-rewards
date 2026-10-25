@@ -578,27 +578,39 @@ export const INITIAL_CLAIMS_LOG: PrizeClaimBooking[] = [
     patientPhone: '01023456542',
     address: 'مدينة نصر - الحي السابع، شارع الطيران',
     serviceType: 'home_visit',
-    preferredTime: 'صباحاً (9 - 12)',
+    appointmentDate: '2026-10-26 (غداً)',
+    preferredTime: 'صباحاً (08:30 ص - 10:30 ص)',
+    patientNotes: 'تحليل صيام 8 ساعات - يرجى اتصال الممرض قبل الحضور بـ 15 دقيقة',
     couponCode: 'RT-CBC-FREE',
     prizeTitle: 'تحليل صورة دم كاملة (CBC) مجاناً 100%',
     prizeValue: 'مجاني 100%',
     points: 1850,
-    createdAt: '2026-10-18',
+    createdAt: '2026-10-24',
     status: 'confirmed',
+    confirmedAppointment: {
+      date: '2026-10-26',
+      time: '09:00 ص',
+      confirmedBy: 'أخصائي السحب المنزلي - معامل RT',
+      adminNotes: 'تم تأكيد وصول الأخصائي 9:00 ص، الصيام عن الطعام فقط وشرب المياه مسموح',
+      confirmedAt: '2026-10-24',
+    },
   },
   {
     id: 'clm_2',
     patientName: 'د. سارة عبد الرحمن',
     patientPhone: '01239876918',
-    address: 'مصر الجديدة - بالقرب من ميدان الحجاز',
+    address: 'ميدان بهتيم - برج صيدلية العزبي الدور الثالث',
     serviceType: 'branch_visit',
-    preferredTime: 'مساءً (5 - 8)',
+    selectedBranch: 'فرع شبرا الخيمة - بهتيم',
+    appointmentDate: '2026-10-27',
+    preferredTime: 'مساءً (06:00 م - 08:30 م)',
+    patientNotes: 'استلام الكوبون وإجراء فحص السكر التراكمي',
     couponCode: 'RT-DISC-25',
     prizeTitle: 'خصم 25% على إجمالي فاتورة التحاليل',
     prizeValue: 'خصم 25%',
     points: 1620,
-    createdAt: '2026-10-17',
-    status: 'completed',
+    createdAt: '2026-10-25',
+    status: 'pending',
   },
 ];
 
@@ -610,16 +622,78 @@ export function savePrizeClaims(claims: PrizeClaimBooking[]): void {
   safeSet(STORAGE_KEYS.CLAIMS_LOG, claims);
 }
 
-export function addPrizeClaim(claimData: Omit<PrizeClaimBooking, 'id' | 'createdAt' | 'status'>): PrizeClaimBooking {
+export function addPrizeClaim(
+  claimData: Partial<PrizeClaimBooking> & {
+    patientName: string;
+    patientPhone: string;
+    serviceType: 'home_visit' | 'branch_visit';
+    couponCode: string;
+    prizeTitle: string;
+    prizeValue: string;
+  }
+): PrizeClaimBooking {
   const all = getPrizeClaims();
-  const newClaim: PrizeClaimBooking = {
-    ...claimData,
-    id: 'clm_' + Date.now(),
-    createdAt: new Date().toLocaleDateString('ar-EG'),
-    status: 'pending',
+  const existingIdx = all.findIndex((c) => c.id === claimData.id || c.couponCode === claimData.couponCode);
+
+  const fullClaim: PrizeClaimBooking = {
+    id: claimData.id || 'clm_' + Date.now(),
+    patientName: claimData.patientName,
+    patientPhone: claimData.patientPhone,
+    address: claimData.address || '',
+    serviceType: claimData.serviceType,
+    selectedBranch: claimData.selectedBranch || (claimData.serviceType === 'branch_visit' ? 'فرع بهتيم الرئيسي' : undefined),
+    appointmentDate: claimData.appointmentDate || 'في أقرب وقت متاح',
+    preferredTime: claimData.preferredTime || 'صباحاً (09:00 ص - 12:00 ظ)',
+    patientNotes: claimData.patientNotes || '',
+    couponCode: claimData.couponCode,
+    prizeTitle: claimData.prizeTitle,
+    prizeValue: claimData.prizeValue,
+    points: claimData.points || 0,
+    createdAt: claimData.createdAt || new Date().toLocaleDateString('ar-EG'),
+    status: claimData.status || 'pending',
+    confirmedAppointment: claimData.confirmedAppointment,
   };
-  savePrizeClaims([newClaim, ...all]);
-  return newClaim;
+
+  if (existingIdx >= 0) {
+    all[existingIdx] = { ...all[existingIdx], ...fullClaim };
+    savePrizeClaims([...all]);
+    return all[existingIdx];
+  } else {
+    savePrizeClaims([fullClaim, ...all]);
+    return fullClaim;
+  }
+}
+
+export function confirmClaimAppointment(
+  id: string,
+  confirmedData: {
+    date: string;
+    time: string;
+    confirmedBy?: string;
+    adminNotes?: string;
+  }
+): PrizeClaimBooking | null {
+  const all = getPrizeClaims();
+  let updatedClaim: PrizeClaimBooking | null = null;
+  const updated = all.map((c) => {
+    if (c.id === id) {
+      updatedClaim = {
+        ...c,
+        status: 'confirmed' as const,
+        confirmedAppointment: {
+          date: confirmedData.date,
+          time: confirmedData.time,
+          confirmedBy: confirmedData.confirmedBy || 'إدارة معامل RT',
+          adminNotes: confirmedData.adminNotes || 'تم تأكيد الموعد رسمياً ونرحب بحضرتكم في معامل RT',
+          confirmedAt: new Date().toLocaleDateString('ar-EG'),
+        },
+      };
+      return updatedClaim;
+    }
+    return c;
+  });
+  savePrizeClaims(updated);
+  return updatedClaim;
 }
 
 export function updateClaimStatus(id: string, status: PrizeClaimBooking['status']): void {

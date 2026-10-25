@@ -47,7 +47,14 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
   const [patientPhone, setPatientPhone] = useState(player.phone || '');
   const [address, setAddress] = useState('');
   const [serviceType, setServiceType] = useState<'home_visit' | 'branch_visit'>('home_visit');
-  const [preferredTime, setPreferredTime] = useState('صباحاً (9:00 ص - 1:00 ظ)');
+  const [selectedBranch, setSelectedBranch] = useState('فرع شبرا الخيمة - بهتيم (برج صيدلية العزبي)');
+  
+  // Date & Time Scheduling
+  const [appointmentDateType, setAppointmentDateType] = useState<'today' | 'tomorrow' | 'after_tomorrow' | 'custom'>('tomorrow');
+  const [customDate, setCustomDate] = useState('');
+  const [timeSlot, setTimeSlot] = useState('morning');
+  const [customTime, setCustomTime] = useState('');
+  const [patientNotes, setPatientNotes] = useState('');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -55,12 +62,45 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
       setStep('form');
       if (player.name && player.name !== 'عميل معامل RT') setPatientName(player.name);
       if (player.phone) setPatientPhone(player.phone);
+      
+      // Default custom date to tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setCustomDate(tomorrow.toISOString().split('T')[0]);
     }
   }, [isOpen, player]);
 
   if (!isOpen || !coupon) return null;
 
   const cleanLabPhone = formatWhatsAppNumber(settings.whatsappNumber);
+
+  // Computed Date Label
+  const getSelectedDateLabel = () => {
+    const today = new Date();
+    if (appointmentDateType === 'today') {
+      return `اليوم (${today.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'numeric' })})`;
+    }
+    if (appointmentDateType === 'tomorrow') {
+      const tom = new Date(today);
+      tom.setDate(tom.getDate() + 1);
+      return `غداً (${tom.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'numeric' })})`;
+    }
+    if (appointmentDateType === 'after_tomorrow') {
+      const afterTom = new Date(today);
+      afterTom.setDate(afterTom.getDate() + 2);
+      return `بعد غد (${afterTom.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'numeric' })})`;
+    }
+    return customDate || 'تاريخ مخصص يحدده المعمل';
+  };
+
+  // Computed Time Label
+  const getSelectedTimeLabel = () => {
+    if (timeSlot === 'morning') return 'الفترة الصباحية المبكرة (08:00 ص - 10:30 ص) ⭐ [مثالية لتحاليل الصيام]';
+    if (timeSlot === 'noon') return 'فترة الظهيرة (11:00 ص - 02:00 م)';
+    if (timeSlot === 'afternoon') return 'فترة العصر (02:00 م - 05:30 م)';
+    if (timeSlot === 'evening') return 'الفترة المسائية (06:00 م - 10:00 م)';
+    return customTime ? `توقيت مخصص: ${customTime}` : 'في أي وقت متاح';
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,20 +115,26 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
       phone: patientPhone.trim(),
     });
 
+    const finalDate = getSelectedDateLabel();
+    const finalTime = getSelectedTimeLabel();
+
     // Prepare claim data
     const claimData: PrizeClaimBooking = {
       id: `claim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       patientName: patientName.trim(),
       patientPhone: patientPhone.trim(),
-      address: address.trim() || 'فرع المعمل',
+      address: serviceType === 'home_visit' ? address.trim() || 'العنوان يحدد مع الأخصائي' : selectedBranch,
       serviceType,
-      preferredTime,
+      selectedBranch: serviceType === 'branch_visit' ? selectedBranch : undefined,
+      appointmentDate: finalDate,
+      preferredTime: finalTime,
+      patientNotes: patientNotes.trim() || undefined,
       couponCode: coupon.couponCode,
       prizeTitle: coupon.title,
       prizeValue: coupon.value,
       points: player.points,
       status: 'pending',
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toLocaleDateString('ar-EG'),
     };
 
     // Broadcast in real-time across devices so it chimes and logs on Dr. Rami's device immediately
@@ -102,20 +148,25 @@ export const PrizeClaimModal: React.FC<PrizeClaimModalProps> = ({
     setStep('success');
   };
 
+  const finalDate = getSelectedDateLabel();
+  const finalTime = getSelectedTimeLabel();
+
   // WhatsApp Message
-  const whatsappMessage = `*تذكرة تفعيل جائزة وحجز في ${settings.labName}* 🩺🎉
+  const whatsappMessage = `*طلب حجز وتحديد موعد استلام جائزة في ${settings.labName}* 🩺🎉
 ---------------------------------------
 👤 *اسم المريض:* ${patientName}
 📱 *رقم الهاتف:* ${patientPhone}
 🎁 *الجائزة المستحقة:* ${coupon.title}
 🏷️ *القيمة / الخصم:* ${coupon.value}
 🔢 *كود التحقق الإلكتروني:* [${coupon.couponCode}]
-⭐ *رصيد النقاط:* ${player.points} نقطة
-🏆 *التسجيل في دوري الأبطال:* تم التسجيل رسمياً ✅
-📍 *طريقة الخدمة المطلوبة:* ${serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'حجز فرع المعمل 🏥'}
-${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *الوقت المفضل:* ${preferredTime}
----------------------------------------
-برجاء اعتماد الكوبون والتواصل لتأكيد الموعد الطبي. شكراً لمعامل RT!`;
+⭐ *رصيد النقاط الحالي:* ${player.points} نقطة
+🏆 *التسجيل في دوري الأبطال:* تم التسجيل بنجاح ✅
+
+📅 *تاريخ الموعد المطلوب:* ${finalDate}
+⏰ *التوقيت المحدد للاستلام:* ${finalTime}
+📍 *نوع الخدمة:* ${serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'حجز فرع المعمل 🏥'}
+${serviceType === 'home_visit' && address ? `📌 *عنوان السحب المنزلي:* ${address}\n` : ''}${serviceType === 'branch_visit' ? `🏥 *الفرع المختار:* ${selectedBranch}\n` : ''}${patientNotes ? `📝 *ملاحظات خاصة من المريض:* ${patientNotes}\n` : ''}---------------------------------------
+برجاء اعتماد الموعد وتأكيده مع المريض رسمياً. شكراً لمعامل RT!`;
 
   const whatsappUrl = `https://wa.me/${cleanLabPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 
@@ -174,45 +225,48 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
             </div>
 
             {/* Inputs */}
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300 font-semibold block">
-                  اسم المريض الثلاثي (للتسجيل الطبي ودوري الأبطال): *
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 absolute right-3.5 top-3 text-slate-500 pointer-events-none" />
-                  <input
-                    type="text"
-                    required
-                    value={patientName}
-                    onChange={(e) => setPatientName(e.target.value)}
-                    placeholder="مثال: محمد أحمد علي..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                  />
+            <div className="space-y-4">
+              {/* Patient Name & Phone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-300 font-semibold block">
+                    اسم المريض الثلاثي: *
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 absolute right-3.5 top-3 text-slate-500 pointer-events-none" />
+                    <input
+                      type="text"
+                      required
+                      value={patientName}
+                      onChange={(e) => setPatientName(e.target.value)}
+                      placeholder="مثال: محمد أحمد علي..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300 font-semibold block">
-                  رقم الهاتف والمحادثة على الواتساب: *
-                </label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 absolute right-3.5 top-3 text-slate-500 pointer-events-none" />
-                  <input
-                    type="tel"
-                    required
-                    value={patientPhone}
-                    onChange={(e) => setPatientPhone(e.target.value)}
-                    placeholder="010XXXXXXXX"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono text-left"
-                  />
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-300 font-semibold block">
+                    رقم الهاتف والواتساب: *
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 absolute right-3.5 top-3 text-slate-500 pointer-events-none" />
+                    <input
+                      type="tel"
+                      required
+                      value={patientPhone}
+                      onChange={(e) => setPatientPhone(e.target.value)}
+                      placeholder="011XXXXXXXX"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono text-left"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Service Method Choice */}
               <div className="space-y-1.5">
                 <label className="text-xs text-slate-300 font-semibold block">
-                  كيف ترغب في الاستفادة من التحليل أو الكوبون؟
+                  مكان وطريقة استلام الجائزة أو إجراء التحليل:
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -225,8 +279,8 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
                     }`}
                   >
                     <Home className="w-4 h-4" />
-                    <span className="text-xs">سحب عينة منزلي 🏠</span>
-                    <span className="text-[10px] text-slate-500">أخصائي في منزلك</span>
+                    <span className="text-xs font-bold">سحب عينة منزلي 🏠</span>
+                    <span className="text-[10px] text-slate-400">أخصائي التحاليل في منزلك</span>
                   </button>
 
                   <button
@@ -239,44 +293,151 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
                     }`}
                   >
                     <Building className="w-4 h-4" />
-                    <span className="text-xs">زيارة الفرع 🏥</span>
-                    <span className="text-[10px] text-slate-500">أقرب فرع لمعامل RT</span>
+                    <span className="text-xs font-bold">زيارة الفرع 🏥</span>
+                    <span className="text-[10px] text-slate-400">فروع معامل RT الرسمية</span>
                   </button>
                 </div>
               </div>
 
-              {/* Address / Location */}
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300 font-semibold block">
-                  {serviceType === 'home_visit' ? 'العنوان التفصيلي ومكان السحب المنزلي:' : 'المنطقة أو الفرع الأقرب لك:'}
+              {/* Address (Home visit) or Branch Selection */}
+              {serviceType === 'home_visit' ? (
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-300 font-semibold block">
+                    العنوان التفصيلي ومكان سحب العينة المنزلية: *
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 absolute right-3.5 top-3 text-slate-500 pointer-events-none" />
+                    <input
+                      type="text"
+                      required
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="المنطقة، الشارع، رقم العقار، الدور، الشقة، علامة مميزة..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-300 font-semibold block">
+                    اختر الفرع الأقرب لحضرتك:
+                  </label>
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="فرع شبرا الخيمة - بهتيم (برج صيدلية العزبي الدور الثالث فوق جيم موسى)">
+                      فرع شبرا الخيمة: ميدان بهتيم برج صيدلية العزبي الدور 3 (الرئيسي)
+                    </option>
+                    {settings.branches && settings.branches.map((b) => (
+                      <option key={b.id} value={`${b.name} - ${b.address}`}>
+                        {b.name} ({b.address})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* DATE SELECTION (تحديد اليوم / التاريخ) */}
+              <div className="space-y-2 p-3 bg-slate-950/70 border border-slate-800 rounded-2xl">
+                <label className="text-xs text-amber-300 font-bold flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-amber-400" />
+                  <span>تحديد تاريخ الموعد واستلام الجائزة:</span>
                 </label>
-                <div className="relative">
-                  <MapPin className="w-4 h-4 absolute right-3.5 top-3 text-slate-500 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder={serviceType === 'home_visit' ? 'المنطقة، الشارع، رقم العمارة أو علامة مميزة...' : 'مثال: فرع وسط البلد، المعادي، مدينة نصر...'}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                  />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {[
+                    { id: 'today', label: 'اليوم' },
+                    { id: 'tomorrow', label: 'غداً' },
+                    { id: 'after_tomorrow', label: 'بعد غد' },
+                    { id: 'custom', label: 'يوم محدد 📅' },
+                  ].map((d) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setAppointmentDateType(d.id as typeof appointmentDateType)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all text-center ${
+                        appointmentDateType === d.id
+                          ? 'border-amber-400 bg-amber-500/20 text-amber-300 shadow-sm'
+                          : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+
+                {appointmentDateType === 'custom' && (
+                  <div className="pt-1">
+                    <input
+                      type="date"
+                      min={new Date().toISOString().split('T')[0]}
+                      value={customDate}
+                      onChange={(e) => setCustomDate(e.target.value)}
+                      className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                    />
+                  </div>
+                )}
+                <div className="text-[11px] text-emerald-400 font-medium">
+                  الموعد المختار: <strong>{getSelectedDateLabel()}</strong>
                 </div>
               </div>
 
-              {/* Preferred Time */}
+              {/* TIME SLOT SELECTION (تحديد التوقيت) */}
+              <div className="space-y-2 p-3 bg-slate-950/70 border border-slate-800 rounded-2xl">
+                <label className="text-xs text-amber-300 font-bold flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span>تحديد التوقيت المفضل للحضور أو السحب:</span>
+                </label>
+                <div className="space-y-1.5">
+                  {[
+                    { id: 'morning', label: '🌅 الفترة الصباحية المبكرة (08:00 ص - 10:30 ص) ⭐ [مثالية للصيام]' },
+                    { id: 'noon', label: '☀️ فترة الظهيرة (11:00 ص - 02:00 م)' },
+                    { id: 'afternoon', label: '🌇 بعد الظهر والعصر (02:00 م - 05:30 م)' },
+                    { id: 'evening', label: '🌙 الفترة المسائية (06:00 م - 10:00 م)' },
+                    { id: 'custom', label: '✍️ تحديد ساعة محددة يكتبها المريض' },
+                  ].map((slot) => (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      onClick={() => setTimeSlot(slot.id)}
+                      className={`w-full text-right p-2.5 rounded-xl border text-xs font-semibold transition-all flex items-center justify-between ${
+                        timeSlot === slot.id
+                          ? 'border-emerald-500 bg-emerald-950/40 text-emerald-300 shadow-sm'
+                          : 'border-slate-800/80 bg-slate-900 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>{slot.label}</span>
+                      {timeSlot === slot.id && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+
+                {timeSlot === 'custom' && (
+                  <div className="pt-1">
+                    <input
+                      type="text"
+                      placeholder="مثال: الساعة 09:30 صباحاً، أو بين 4 و 5 عصراً..."
+                      value={customTime}
+                      onChange={(e) => setCustomTime(e.target.value)}
+                      className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Patient Notes */}
               <div className="space-y-1">
                 <label className="text-xs text-slate-300 font-semibold block">
-                  الموعد المناسب لتواصل المعمل أو الزيارة:
+                  ملاحظات أو استفسارات طبية خاصة (اختياري):
                 </label>
-                <select
-                  value={preferredTime}
-                  onChange={(e) => setPreferredTime(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="صباحاً (9:00 ص - 1:00 ظ)">الفترة الصباحية (9:00 ص - 1:00 ظ)</option>
-                  <option value="عصراً (1:00 ظ - 5:00 م)">فترة الظهيرة والعصر (1:00 ظ - 5:00 م)</option>
-                  <option value="مساءً (5:00 م - 10:00 م)">الفترة المسائية (5:00 م - 10:00 م)</option>
-                  <option value="عاجل اليوم في أقرب وقت">طوارئ / في أقرب وقت اليوم 🚨</option>
-                </select>
+                <textarea
+                  rows={2}
+                  value={patientNotes}
+                  onChange={(e) => setPatientNotes(e.target.value)}
+                  placeholder="مثال: تحليل صائم، مريض سكر أو سيولة، أو رقم هاتف إضافي..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
               </div>
             </div>
 
@@ -284,7 +445,7 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
             <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2.5 text-xs text-amber-300">
               <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
               <span>
-                عند تأكيد بياناتك سيتم إدراجك فوراً في <strong>«دوري أبطال معامل RT»</strong> والتنافس على باقة الفحص الشامل الكبرى!
+                عند تأكيد الموعد سيتم حفظ طلبك وإرسال رنة تنبيه فورية للإدارة لتأكيد الموعد واعتماد الجائزة!
               </span>
             </div>
 
@@ -292,10 +453,10 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-950 transition-all hover:scale-[1.01] flex items-center justify-center gap-2"
+                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-950 transition-all hover:scale-[1.01] flex items-center justify-center gap-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>تأكيد البيانات والانضمام لدوري أبطال المعمل</span>
+                <span>حفظ الموعد وتأكيد طلب استلام الجائزة</span>
               </button>
             </div>
           </form>
@@ -336,9 +497,24 @@ ${address ? `📌 *العنوان / المنطقة:* ${address}\n` : ''}⏰ *ا�
                 </div>
               </div>
 
-              <div className="text-[11px] text-slate-400">
-                <span>الموعد المفضل: {preferredTime}</span>
-                {address && <span> · العنوان: {address}</span>}
+              <div className="space-y-1.5 p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-[11px] text-slate-300">
+                <div className="flex items-center gap-1.5 text-amber-300 font-bold">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>تاريخ الموعد: <strong className="text-white">{finalDate}</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5 text-teal-300 font-bold">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>توقيت الاستلام: <strong className="text-white">{finalTime}</strong></span>
+                </div>
+                <div>
+                  <span className="text-slate-400">مكان الخدمة: </span>
+                  <span className="text-white font-medium">{serviceType === 'home_visit' ? `سحب منزلي (${address || 'العنوان المسجل'})` : selectedBranch}</span>
+                </div>
+                {patientNotes && (
+                  <div className="text-[10px] text-slate-400 bg-slate-950 p-1.5 rounded-lg border border-slate-800">
+                    ملاحظاتك: {patientNotes}
+                  </div>
+                )}
               </div>
             </div>
 
