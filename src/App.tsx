@@ -45,7 +45,7 @@ import {
   PrizeClaimBooking,
 } from './types';
 import { Bell, MessageCircle, X } from 'lucide-react';
-import { soundManager } from './utils/audio';
+import { soundManager, triggerSystemNotification } from './utils/audio';
 import { subscribeToCloudClaims, fetchRecentClaimsFromCloud, broadcastClaimToCloud } from './utils/cloudSync';
 import { formatWhatsAppNumber } from './utils/storage';
 import { TopNavbar } from './components/TopNavbar';
@@ -60,6 +60,7 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { PatientProfileModal } from './components/PatientProfileModal';
 import { InviteShareModal } from './components/InviteShareModal';
 import { PrizeClaimModal } from './components/PrizeClaimModal';
+import { PatientReplyConfirmationModal } from './components/PatientReplyConfirmationModal';
 import { LabConnectBar } from './components/LabConnectBar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 
@@ -92,6 +93,7 @@ export default function App() {
 
   // Real-Time Cross-Device Sync State & Audible Chime Alert ("تسمع عندي")
   const [liveToastClaim, setLiveToastClaim] = useState<PrizeClaimBooking | null>(null);
+  const [replyModalClaim, setReplyModalClaim] = useState<PrizeClaimBooking | null>(null);
 
   useEffect(() => {
     // 1. Initial fetch of any claims registered while offline
@@ -104,11 +106,18 @@ export default function App() {
       }
     });
 
-    // 2. Real-time subscription across devices (serverless SSE)
+    // 2. Real-time subscription across devices (Cloud + Server + Cross-Tab)
     const unsubscribe = subscribeToCloudClaims(
       (newClaim) => {
-        // Audible chime alert: "تسمع عندي"
-        soundManager.playBellNotification();
+        // Audible loud chime alert (hospital bell repeated twice)
+        soundManager.unlockAudio();
+        soundManager.playBellNotification(2);
+
+        // System notification for background tab
+        triggerSystemNotification(
+          `🚨 حجز جائزة جديد: ${newClaim.patientName}`,
+          `${newClaim.prizeTitle} (${newClaim.prizeValue}) · الموعد: ${newClaim.appointmentDate} ${newClaim.preferredTime}`
+        );
 
         // Save to local database
         addPrizeClaim(newClaim);
@@ -116,11 +125,11 @@ export default function App() {
         setLeaderboard(getLeaderboard());
         setPatients(getRegisteredPatients());
 
-        // Display floating live toast alert for 9 seconds
+        // Display floating live toast alert for 20 seconds
         setLiveToastClaim(newClaim);
         setTimeout(() => {
           setLiveToastClaim((curr) => (curr?.id === newClaim.id ? null : curr));
-        }, 9000);
+        }, 20000);
       }
     );
 
@@ -291,6 +300,12 @@ export default function App() {
       time: string;
       confirmedBy?: string;
       adminNotes?: string;
+      serviceType?: 'home_visit' | 'branch_visit';
+      address?: string;
+      selectedBranch?: string;
+      patientName?: string;
+      patientPhone?: string;
+      replyMessageSent?: string;
     }
   ) => {
     const updated = confirmClaimAppointment(id, confirmedData);
@@ -349,6 +364,8 @@ export default function App() {
         setActiveTab={setActiveTab}
         points={player.points}
         playerName={player.name}
+        claimsCount={claims.filter((c) => c.status === 'pending').length}
+        onOpenClaims={() => setIsAdminModalOpen(true)}
         onOpenAdmin={() => setIsAdminModalOpen(true)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onOpenInvite={() => setIsInviteModalOpen(true)}
@@ -383,26 +400,26 @@ export default function App() {
             <div>🎁 الجائزة: <strong className="text-amber-400">{liveToastClaim.prizeTitle}</strong></div>
             <div>📱 هاتف المريض: <span className="font-mono text-emerald-300">{liveToastClaim.patientPhone}</span></div>
             <div>📍 نوع الخدمة: <strong className="text-white">{liveToastClaim.serviceType === 'home_visit' ? 'سحب منزلي 🏠' : 'زيارة فرع 🏥'}</strong></div>
+            <div>📅 الموعد المقترح: <span className="text-amber-200">{liveToastClaim.appointmentDate}</span> (<span>{liveToastClaim.preferredTime}</span>)</div>
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
-            <a
-              href={`https://wa.me/${formatWhatsAppNumber(liveToastClaim.patientPhone)}?text=${encodeURIComponent(
-                `أهلاً بك يا أستاذ/ة ${liveToastClaim.patientName} في معامل RT. استلمنا طلب تفعيل جائزتك (${liveToastClaim.prizeTitle}) وسنتواصل معك فوراً لتأكيد الموعد 🩺`
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl transition-colors shadow-md"
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => {
+                setReplyModalClaim(liveToastClaim);
+                setLiveToastClaim(null);
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md active:scale-95"
             >
               <MessageCircle className="w-3.5 h-3.5" />
-              <span>مراسلة المريض فوراً</span>
-            </a>
+              <span>💬 الرد على المريض وتأكيد الموعد (تعديل)</span>
+            </button>
             <button
               onClick={() => {
                 setLiveToastClaim(null);
                 setIsAdminModalOpen(true);
               }}
-              className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors"
+              className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors"
             >
               عرض السجل
             </button>
@@ -520,6 +537,30 @@ export default function App() {
         onResetDefaults={handleResetDefaults}
         onExportBackup={handleExportBackup}
         onImportBackup={handleImportBackup}
+      />
+
+      {/* Patient Reply & Booking Confirmation Modal (With Editing Date/Time/Notes) */}
+      <PatientReplyConfirmationModal
+        isOpen={Boolean(replyModalClaim)}
+        onClose={() => setReplyModalClaim(null)}
+        claim={replyModalClaim}
+        settings={settings}
+        onConfirmAndSave={(updatedClaim) => {
+          handleConfirmClaimAppointment(updatedClaim.id, {
+            date: updatedClaim.appointmentDate,
+            time: updatedClaim.preferredTime,
+            confirmedBy: updatedClaim.confirmedAppointment?.confirmedBy,
+            adminNotes: updatedClaim.confirmedAppointment?.adminNotes,
+            serviceType: updatedClaim.serviceType,
+            address: updatedClaim.address,
+            selectedBranch: updatedClaim.selectedBranch,
+            patientName: updatedClaim.patientName,
+            patientPhone: updatedClaim.patientPhone,
+            replyMessageSent: updatedClaim.confirmedAppointment?.replyMessageSent,
+          });
+          setReplyModalClaim(null);
+          setLiveToastClaim(null);
+        }}
       />
 
       {/* Patient Profile Modal */}

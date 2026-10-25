@@ -49,6 +49,7 @@ import { soundManager } from '../utils/audio';
 import { formatWhatsAppNumber, forcePurgeAndReload, INITIAL_LAB_SETTINGS } from '../utils/storage';
 import { resetAllCooldowns } from '../utils/cooldown';
 import { fetchRecentClaimsFromCloud } from '../utils/cloudSync';
+import { PatientReplyConfirmationModal } from './PatientReplyConfirmationModal';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -74,6 +75,12 @@ interface AdminPanelModalProps {
       time: string;
       confirmedBy?: string;
       adminNotes?: string;
+      serviceType?: 'home_visit' | 'branch_visit';
+      address?: string;
+      selectedBranch?: string;
+      patientName?: string;
+      patientPhone?: string;
+      replyMessageSent?: string;
     }
   ) => void;
   onDeleteClaim: (id: string) => void;
@@ -1946,129 +1953,33 @@ ${window.location.origin}/?wa=${(contactForm.whatsappNumber || '201100874444').r
       </div>
     </div>
 
-    {/* MODAL: ADMIN APPOINTMENT REVIEW & CONFIRMATION */}
+    {/* MODAL: PATIENT APPOINTMENT REVIEW, CONFIRMATION & FULL EDITABLE WHATSAPP/SMS REPLY */}
     {confirmingClaim && (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-200">
-        <div className="relative w-full max-w-xl bg-slate-900 border-2 border-emerald-500/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col text-right">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-700 px-5 py-4 text-white flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-white/10 rounded-xl">
-                <CalendarCheck className="w-5 h-5 text-amber-300" />
-              </div>
-              <div>
-                <h4 className="text-base font-bold">مراجعة وتأكيد موعد استلام الجائزة</h4>
-                <p className="text-xs text-emerald-100">
-                  تأكيد الميعاد مع المريض: {confirmingClaim.patientName} ({confirmingClaim.patientPhone})
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setConfirmingClaim(null)}
-              className="p-1.5 rounded-xl text-emerald-100 hover:text-white hover:bg-white/10"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-            {/* Summary of Patient's request */}
-            <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-amber-300 font-bold">🎁 الجائزة: {confirmingClaim.prizeTitle}</span>
-                <span className="font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                  {confirmingClaim.couponCode}
-                </span>
-              </div>
-              <div className="text-slate-300">
-                📍 طريقة الخدمة: <strong className="text-white">{confirmingClaim.serviceType === 'home_visit' ? 'سحب عينة منزلي 🏠' : 'زيارة الفرع 🏥'}</strong>
-                {confirmingClaim.address && <span> - {confirmingClaim.address}</span>}
-              </div>
-              <div className="text-slate-400">
-                طلب المريض المبدئي: <span className="text-amber-200">{confirmingClaim.appointmentDate}</span> | التوقيت: <span className="text-teal-200">{confirmingClaim.preferredTime}</span>
-              </div>
-              {confirmingClaim.patientNotes && (
-                <div className="text-slate-300 bg-slate-900 p-2 rounded-xl border border-slate-800">
-                  ملاحظات المريض: {confirmingClaim.patientNotes}
-                </div>
-              )}
-            </div>
-
-            {/* Form fields for confirming appointment */}
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-300 font-semibold block">
-                    تاريخ الموعد المعتمد من المعمل: *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={confirmDate}
-                    onChange={(e) => setConfirmDate(e.target.value)}
-                    placeholder="مثال: غداً 26 أكتوبر، أو الإثنين القادم..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-300 font-semibold block">
-                    توقيت الحضور / السحب المؤكد: *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={confirmTime}
-                    onChange={(e) => setConfirmTime(e.target.value)}
-                    placeholder="مثال: الساعة 09:00 صباحاً..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300 font-semibold block">
-                  المسؤول المكلف / الأخصائي المتابع:
-                </label>
-                <input
-                  type="text"
-                  value={confirmSpecialist}
-                  onChange={(e) => setConfirmSpecialist(e.target.value)}
-                  placeholder="مثال: أخصائي السحب المنزلي - د. رامي مختار..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs text-slate-300 font-semibold block">
-                  تعليمات وإرشادات المعمل للمريض (صيام، تحضيرات):
-                </label>
-                <textarea
-                  rows={3}
-                  value={confirmAdminNotes}
-                  onChange={(e) => setConfirmAdminNotes(e.target.value)}
-                  placeholder="مثال: يرجى الصيام 8 ساعات وشرب المياه مسموح، وسيتواصل الأخصائي هاتفياً قبل الوصول..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 leading-relaxed"
-                />
-              </div>
-            </div>
-
-            {/* Submit action */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleExecuteConfirmAppointment}
-                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm shadow-xl shadow-emerald-950 transition-all active:scale-95 flex items-center justify-center gap-2"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span>اعتماد الموعد وإرسال تذكرة التأكيد لواتساب المريض 💬✅</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PatientReplyConfirmationModal
+        isOpen={Boolean(confirmingClaim)}
+        onClose={() => setConfirmingClaim(null)}
+        claim={confirmingClaim}
+        settings={settings}
+        onConfirmAndSave={(updatedClaim) => {
+          if (onConfirmAppointment) {
+            onConfirmAppointment(updatedClaim.id, {
+              date: updatedClaim.appointmentDate,
+              time: updatedClaim.preferredTime,
+              confirmedBy: updatedClaim.confirmedAppointment?.confirmedBy,
+              adminNotes: updatedClaim.confirmedAppointment?.adminNotes,
+              serviceType: updatedClaim.serviceType,
+              address: updatedClaim.address,
+              selectedBranch: updatedClaim.selectedBranch,
+              patientName: updatedClaim.patientName,
+              patientPhone: updatedClaim.patientPhone,
+              replyMessageSent: updatedClaim.confirmedAppointment?.replyMessageSent,
+            });
+          } else {
+            onUpdateClaimStatus(updatedClaim.id, 'confirmed');
+          }
+          setConfirmingClaim(null);
+        }}
+      />
     )}
   </>
 );

@@ -671,6 +671,12 @@ export function confirmClaimAppointment(
     time: string;
     confirmedBy?: string;
     adminNotes?: string;
+    serviceType?: 'home_visit' | 'branch_visit';
+    address?: string;
+    selectedBranch?: string;
+    patientName?: string;
+    patientPhone?: string;
+    replyMessageSent?: string;
   }
 ): PrizeClaimBooking | null {
   const all = getPrizeClaims();
@@ -679,6 +685,13 @@ export function confirmClaimAppointment(
     if (c.id === id) {
       updatedClaim = {
         ...c,
+        ...(confirmedData.patientName ? { patientName: confirmedData.patientName } : {}),
+        ...(confirmedData.patientPhone ? { patientPhone: confirmedData.patientPhone } : {}),
+        appointmentDate: confirmedData.date || c.appointmentDate,
+        preferredTime: confirmedData.time || c.preferredTime,
+        ...(confirmedData.serviceType ? { serviceType: confirmedData.serviceType } : {}),
+        ...(confirmedData.address !== undefined ? { address: confirmedData.address } : {}),
+        ...(confirmedData.selectedBranch !== undefined ? { selectedBranch: confirmedData.selectedBranch } : {}),
         status: 'confirmed' as const,
         confirmedAppointment: {
           date: confirmedData.date,
@@ -686,6 +699,7 @@ export function confirmClaimAppointment(
           confirmedBy: confirmedData.confirmedBy || 'إدارة معامل RT',
           adminNotes: confirmedData.adminNotes || 'تم تأكيد الموعد رسمياً ونرحب بحضرتكم في معامل RT',
           confirmedAt: new Date().toLocaleDateString('ar-EG'),
+          replyMessageSent: confirmedData.replyMessageSent,
         },
       };
       return updatedClaim;

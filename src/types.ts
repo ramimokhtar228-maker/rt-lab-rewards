@@ -142,6 +142,7 @@ export interface PrizeClaimBooking {
     confirmedBy?: string;
     adminNotes?: string;
     confirmedAt?: string;
+    replyMessageSent?: string;
   };
 }
 

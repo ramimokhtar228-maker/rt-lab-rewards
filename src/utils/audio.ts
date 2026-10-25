@@ -65,31 +65,58 @@ class SoundController {
     } catch {}
   }
 
-  // Clear ringing bell for incoming patient claim / booking notifications
-  public playBellNotification() {
+  public unlockAudio() {
+    this.initContext();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+  }
+
+  // Clear ringing hospital bell for incoming patient claim / booking notifications
+  public playBellNotification(repeatTimes = 2) {
     if (this.isMuted) return;
     this.initContext();
     if (!this.ctx) return;
 
-    try {
-      const now = this.ctx.currentTime;
-      [880, 1320, 1760].forEach((freq, idx) => {
-        if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+    const playSequence = (delayMs = 0) => {
+      setTimeout(() => {
+        if (!this.ctx || this.isMuted) return;
+        try {
+          const now = this.ctx.currentTime;
+          // Clear 3-tone ascending alert chime (587Hz D5 -> 880Hz A5 -> 1174Hz D6)
+          const notes = [
+            { freq: 587.33, offset: 0, dur: 0.7 },
+            { freq: 880.0, offset: 0.12, dur: 0.8 },
+            { freq: 1174.66, offset: 0.24, dur: 1.2 },
+          ];
 
-        gain.gain.setValueAtTime(0, now + idx * 0.06);
-        gain.gain.linearRampToValueAtTime(0.2 / (idx + 1), now + idx * 0.06 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.8);
+          notes.forEach(({ freq, offset, dur }, idx) => {
+            if (!this.ctx) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
 
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start(now + idx * 0.06);
-        osc.stop(now + idx * 0.06 + 0.85);
-      });
-    } catch {}
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + offset);
+
+            gain.gain.setValueAtTime(0, now + offset);
+            gain.gain.linearRampToValueAtTime(0.28 / (idx === 2 ? 1 : 1.3), now + offset + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0005, now + offset + dur);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + offset);
+            osc.stop(now + offset + dur + 0.05);
+          });
+        } catch {}
+      }, delayMs);
+    };
+
+    // Play once immediately
+    playSequence(0);
+    // Play repeat if requested
+    if (repeatTimes > 1) {
+      playSequence(550);
+    }
   }
 
   // Pleasant chime for correct answer / point gain
@@ -202,3 +229,62 @@ class SoundController {
 }
 
 export const soundManager = new SoundController();
+
+// Auto-unlock audio context on first user interaction anywhere
+if (typeof window !== 'undefined') {
+  const unlockEvents = ['click', 'touchstart', 'keydown'];
+  const handleUserGesture = () => {
+    soundManager.unlockAudio();
+    unlockEvents.forEach((ev) => window.removeEventListener(ev, handleUserGesture));
+  };
+  unlockEvents.forEach((ev) => window.addEventListener(ev, handleUserGesture, { passive: true }));
+}
+
+/**
+ * Request Browser Web Notification Permission
+ */
+export async function requestNotificationPermission(): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return false;
+  }
+  if (Notification.permission === 'granted') {
+    return true;
+  }
+  if (Notification.permission !== 'denied') {
+    try {
+      const res = await Notification.requestPermission();
+      return res === 'granted';
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Trigger System Desktop/Mobile Web Notification
+ */
+export function triggerSystemNotification(title: string, body: string, icon = '/icon.svg'): boolean {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return false;
+  }
+  if (Notification.permission === 'granted') {
+    try {
+      const notif = new Notification(title, {
+        body,
+        icon,
+        badge: icon,
+        vibrate: [200, 100, 200],
+        tag: 'rt-lab-claim-alert',
+      } as NotificationOptions);
+      notif.onclick = () => {
+        window.focus();
+        notif.close();
+      };
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}

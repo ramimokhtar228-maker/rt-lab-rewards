@@ -1,6 +1,6 @@
 import React from 'react';
-import { Volume2, VolumeX, ShieldCheck, Award, Sparkles } from 'lucide-react';
-import { soundManager } from '../utils/audio';
+import { Volume2, VolumeX, ShieldCheck, Award, Sparkles, Bell } from 'lucide-react';
+import { soundManager, requestNotificationPermission } from '../utils/audio';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface TopNavbarProps {
@@ -11,6 +11,8 @@ interface TopNavbarProps {
   onOpenProfile: () => void;
   onOpenInvite: () => void;
   playerName: string;
+  claimsCount?: number;
+  onOpenClaims?: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
@@ -21,12 +23,27 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onOpenProfile,
   onOpenInvite,
   playerName,
+  claimsCount = 0,
+  onOpenClaims,
 }) => {
   const [muted, setMuted] = React.useState(soundManager.getMuted());
+  const [hasNotifPermission, setHasNotifPermission] = React.useState(
+    typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+  );
 
   const handleToggleSound = () => {
     const isMuted = soundManager.toggleMute();
     setMuted(isMuted);
+    if (!isMuted) {
+      soundManager.playBellNotification(1);
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    const granted = await requestNotificationPermission();
+    setHasNotifPermission(granted);
+    soundManager.unlockAudio();
+    soundManager.playBellNotification(1);
   };
 
   const navItems = [
@@ -82,15 +99,41 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
         {/* Zone 3: Primary Action & Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          {/* Sound Toggle */}
+          {/* Sound & Alert Chime Toggle */}
           <button
             onClick={handleToggleSound}
             aria-label={muted ? 'تشغيل الصوت' : 'كتم الصوت'}
             className="p-1.5 sm:p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-            title={muted ? 'تشغيل المؤثرات الصوتية' : 'كتم الصوت'}
+            title={muted ? 'تشغيل رنة التنبيه والمؤثرات' : 'كتم رنة التنبيه والمؤثرات'}
           >
             {muted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
           </button>
+
+          {/* Browser Notification Bell / Permissions */}
+          {!hasNotifPermission && typeof window !== 'undefined' && 'Notification' in window && (
+            <button
+              onClick={handleEnableNotifications}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all animate-pulse"
+              title="تفعيل إشعارات المتصفح الفورية لحجوزات المرضى"
+            >
+              <Bell className="w-3.5 h-3.5 text-amber-400" />
+              <span>تفعيل الإشعارات 🔔</span>
+            </button>
+          )}
+
+          {/* Incoming Claims Badge Trigger */}
+          {claimsCount > 0 && (
+            <button
+              onClick={onOpenClaims || onOpenAdmin}
+              className="relative p-1.5 sm:p-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 transition-colors"
+              title={`${claimsCount} طلبات حجز جوائز جديدة`}
+            >
+              <Bell className="w-4 h-4 text-emerald-400 animate-bounce" />
+              <span className="absolute -top-1 -right-1 px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px] font-black border-2 border-slate-900 shadow-md">
+                {claimsCount}
+              </span>
+            </button>
+          )}
 
           {/* Invite Friend Button */}
           <button

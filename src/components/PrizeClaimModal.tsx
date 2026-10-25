@@ -535,7 +535,15 @@ ${serviceType === 'home_visit' && address ? `📌 *عنوان السحب الم�
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                <span>{copied ? 'تم نسخ نص التذكرة بنجاح!' : 'نسخ نص التذكرة للواتساب يدائياً'}</span>
+                <span>{copied ? 'تم نسخ نص التذكرة بنجاح!' : 'نسخ نص التذكرة للواتساب يدوياً'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStep('form')}
+                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-400 hover:text-white text-[11px] font-semibold transition-colors"
+              >
+                <span>✏️ تعديل تاريخ الموعد أو التوقيت أو البيانات</span>
               </button>
             </div>
 
