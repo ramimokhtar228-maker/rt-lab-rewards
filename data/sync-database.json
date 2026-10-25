@@ -17,7 +17,7 @@
       "notes": "حجز مباشر عبر واتساب المعمل | الخدمة: سحب منزلي",
       "id": "clm_1792926057575",
       "createdAt": "٢٥‏/١٠‏/٢٠٢٦",
-      "status": "pending",
+      "status": "confirmed",
       "syncedAt": "2026-10-25T11:00:57.575Z"
     },
     {
@@ -145,5 +145,5 @@
     "homeVisitEnabled": true,
     "whatsappDirectSync": true
   },
-  "lastUpdated": "2026-10-25T12:08:04.727Z"
+  "lastUpdated": "2026-10-25T12:10:18.034Z"
 }
