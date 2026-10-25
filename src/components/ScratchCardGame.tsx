@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Sparkles, Gift, RotateCcw, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Gift, RotateCcw, MessageCircle, CheckCircle2, Clock, Lock } from 'lucide-react';
 import { PlayerProfile, UserCoupon } from '../types';
 import { soundManager } from '../utils/audio';
 import { triggerConfetti } from '../utils/confetti';
+import { checkGameCooldown, recordGamePlayed } from '../utils/cooldown';
 
 interface ScratchCardGameProps {
   player: PlayerProfile;
@@ -32,7 +33,24 @@ export const ScratchCardGame: React.FC<ScratchCardGameProps> = ({
   const [currentPrize, setCurrentPrize] = useState(POSSIBLE_SCRATCH_PRIZES[0]);
   const [scratchPercent, setScratchPercent] = useState(0);
   const [awardedCoupon, setAwardedCoupon] = useState<UserCoupon | null>(null);
-  const [cardsScratchedToday, setCardsScratchedToday] = useState(0);
+  const [cooldown, setCooldown] = useState(() => checkGameCooldown('scratch'));
+
+  // 1-second live countdown ticker
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCooldown(checkGameCooldown('scratch'));
+    }, 1000);
+
+    const handleCustomCooldown = () => {
+      setCooldown(checkGameCooldown('scratch'));
+    };
+    window.addEventListener('rt_lab_cooldown_updated', handleCustomCooldown);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('rt_lab_cooldown_updated', handleCustomCooldown);
+    };
+  }, []);
 
   const initCanvas = (prize = currentPrize) => {
     const canvas = canvasRef.current;
@@ -88,13 +106,17 @@ export const ScratchCardGame: React.FC<ScratchCardGameProps> = ({
   }, []);
 
   const handleNewCard = () => {
+    if (!cooldown.allowed) {
+      alert(`⏳ يرجى الانتظار حتى انتهاء فترة التهدئة: متبقي ${cooldown.formatted.arabicLabel} (${cooldown.formatted.digital}). اللعب متاح مرة كل 12 ساعة لكل عميل.`);
+      return;
+    }
     const p = POSSIBLE_SCRATCH_PRIZES[Math.floor(Math.random() * POSSIBLE_SCRATCH_PRIZES.length)];
     setCurrentPrize(p);
     initCanvas(p);
   };
 
   const handleScratch = (clientX: number, clientY: number) => {
-    if (isRevealed) return;
+    if (isRevealed || !cooldown.allowed) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -168,7 +190,10 @@ export const ScratchCardGame: React.FC<ScratchCardGameProps> = ({
       'كارت الخربشة الفوري'
     );
     setAwardedCoupon(coupon);
-    setCardsScratchedToday((prev) => prev + 1);
+
+    // Record game played for 12-hour cooldown
+    recordGamePlayed('scratch');
+    setCooldown(checkGameCooldown('scratch'));
   };
 
   return (
@@ -212,6 +237,26 @@ export const ScratchCardGame: React.FC<ScratchCardGameProps> = ({
             <p className="text-xs text-slate-300">{currentPrize.desc}</p>
             <span className="text-[10px] text-slate-500 mt-2">معامل RT · كود معتمد رسمي</span>
           </div>
+
+          {/* 12-Hour Cooldown Overlay */}
+          {!cooldown.allowed && !isRevealed && (
+            <div className="absolute inset-0 z-20 bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center p-5 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-2 shadow-lg shadow-amber-950/30">
+                <Lock className="w-6 h-6" />
+              </div>
+              <h4 className="text-white font-extrabold text-sm sm:text-base">تم استخدام كارت الخربشة لهذه الجولة</h4>
+              <p className="text-[11px] text-slate-300 mt-1 max-w-xs leading-relaxed">
+                لكل عميل الحق في كارت خربشة وجائزة واحدة كل <strong className="text-amber-400">12 ساعة فقط</strong> لضمان تكافؤ الفرص لجميع المرضى.
+              </p>
+              <div className="mt-3 px-4 py-2 bg-slate-900 border border-amber-500/40 rounded-xl flex items-center gap-2 shadow-inner">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <span className="text-xs text-slate-300">متبقي للجولة القادمة:</span>
+                <span className="font-mono text-base font-black text-amber-400" dir="ltr">
+                  {cooldown.formatted.digital}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Top Layer: Interactive Canvas Scratch */}
           <canvas
@@ -266,21 +311,21 @@ export const ScratchCardGame: React.FC<ScratchCardGameProps> = ({
               </span>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-2">
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => onOpenSyncWithCoupon(awardedCoupon)}
-                className="w-full flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-black transition-all shadow-lg shadow-emerald-950"
+                onClick={() => onClaimPrize(awardedCoupon)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md shadow-amber-950"
               >
-                <MessageCircle className="w-4 h-4" />
-                <span>تأكيد الحجز بالسيستم وإرساله لواتساب المعمل 🚀</span>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>تفعيل الجائزة ودوري الأبطال</span>
               </button>
 
               <button
-                onClick={() => onClaimPrize(awardedCoupon)}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition-colors border border-slate-700"
+                onClick={() => onOpenSyncWithCoupon(awardedCoupon)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>تذكرة تفصيلية ودوري الأبطال</span>
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>واتساب</span>
               </button>
             </div>
           </div>

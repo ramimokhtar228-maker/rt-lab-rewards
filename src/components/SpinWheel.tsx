@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Sparkles, Trophy, RotateCw, Gift, MessageCircle, AlertCircle } from 'lucide-react';
+import { Sparkles, Trophy, RotateCw, Gift, MessageCircle, AlertCircle, Clock, Lock } from 'lucide-react';
 import { SpinSlice, PlayerProfile, UserCoupon } from '../types';
 import { soundManager } from '../utils/audio';
 import { triggerConfetti } from '../utils/confetti';
+import { checkGameCooldown, recordGamePlayed } from '../utils/cooldown';
 
 interface SpinWheelProps {
   slices: SpinSlice[];
@@ -26,7 +27,24 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({
   const [currentAngle, setCurrentAngle] = useState(0);
   const [wonSlice, setWonSlice] = useState<SpinSlice | null>(null);
   const [createdCoupon, setCreatedCoupon] = useState<UserCoupon | null>(null);
-  const [freeSpinsLeft, setFreeSpinsLeft] = useState(3);
+  const [cooldown, setCooldown] = useState(() => checkGameCooldown('wheel'));
+
+  // 1-second live countdown ticker
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCooldown(checkGameCooldown('wheel'));
+    }, 1000);
+
+    const handleCustomCooldown = () => {
+      setCooldown(checkGameCooldown('wheel'));
+    };
+    window.addEventListener('rt_lab_cooldown_updated', handleCustomCooldown);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('rt_lab_cooldown_updated', handleCustomCooldown);
+    };
+  }, []);
 
   const numSlices = slices.length || 8;
   const sliceAngle = (2 * Math.PI) / numSlices;
@@ -118,16 +136,9 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({
   // Spin physics animation
   const handleSpin = () => {
     if (isSpinning) return;
-    if (freeSpinsLeft <= 0 && player.points < 50) {
-      alert('تحتاج إلى 50 نقطة للتدوير الإضافي، أجب على أسئلة المسابقة لجمع النقاط!');
+    if (!cooldown.allowed) {
+      soundManager.playWrong();
       return;
-    }
-
-    // Deduct spin or points
-    if (freeSpinsLeft > 0) {
-      setFreeSpinsLeft((prev) => prev - 1);
-    } else {
-      onUpdatePlayer({ points: player.points - 50 });
     }
 
     setIsSpinning(true);
@@ -177,8 +188,10 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({
         soundManager.playFanfare();
         triggerConfetti();
 
-        // Handle slice reward
+        // Handle slice reward & record 12-hour cooldown
         handlePrizeAward(targetSlice);
+        recordGamePlayed('wheel');
+        setCooldown(checkGameCooldown('wheel'));
       }
     };
 
@@ -223,9 +236,9 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({
 
         <div className="flex items-center gap-3">
           <div className="text-center px-4 py-2 bg-slate-950/80 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400 block">المحاولات المتبقية</span>
-            <span className="text-sm font-bold text-amber-400 tabular-nums">
-              {freeSpinsLeft > 0 ? `${freeSpinsLeft} محاولات مجانية` : '50 نقطة / لفة'}
+            <span className="text-[11px] text-slate-400 block">نظام اللعب (مرة كل 12 ساعة)</span>
+            <span className={`text-sm font-bold tabular-nums ${cooldown.allowed ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {cooldown.allowed ? 'لَفّة حظ متاحة الآن ✨' : `انتظار: ${cooldown.formatted.digital}`}
             </span>
           </div>
         </div>
@@ -250,22 +263,31 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({
         </div>
 
         {/* Action Button */}
-        <div className="mt-6 flex flex-col items-center gap-2">
-          <button
-            onClick={handleSpin}
-            disabled={isSpinning}
-            className={`flex items-center gap-2.5 px-8 py-3.5 rounded-2xl font-black text-base shadow-xl transition-all ${
-              isSpinning
-                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20 active:scale-95'
-            }`}
-          >
-            <RotateCw className={`w-5 h-5 ${isSpinning ? 'animate-spin' : ''}`} />
-            <span>{isSpinning ? 'جاري تدوير العجلة...' : 'دَوّر العجلة واكسب الآن!'}</span>
-          </button>
-          <span className="text-[11px] text-slate-400">
-            {freeSpinsLeft > 0 ? '✨ تدوير مجاني متاح للمرضى' : '⚡ يمكنك استبدال 50 نقطة للف إضافي'}
-          </span>
+        <div className="mt-6 flex flex-col items-center gap-2 w-full max-w-md">
+          {cooldown.allowed ? (
+            <button
+              onClick={handleSpin}
+              disabled={isSpinning}
+              className={`w-full sm:w-auto flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl font-black text-base shadow-xl transition-all ${
+                isSpinning
+                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20 active:scale-95'
+              }`}
+            >
+              <RotateCw className={`w-5 h-5 ${isSpinning ? 'animate-spin' : ''}`} />
+              <span>{isSpinning ? 'جاري تدوير العجلة...' : 'دَوّر العجلة واكسب الآن!'}</span>
+            </button>
+          ) : (
+            <div className="w-full bg-slate-950/90 border border-amber-500/30 rounded-2xl p-4 text-center space-y-2">
+              <div className="flex items-center justify-center gap-2 text-amber-400 font-bold text-sm">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <span>المحاولة القادمة بعد: <span className="font-mono text-base tracking-widest text-white">{cooldown.formatted.digital}</span></span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                قانون اللعب العادل: يحق لكل عميل لفة حظ واحدة كل 12 ساعة لضمان تكافؤ الفرص وتوزيع الجوائز بعدالة.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -294,21 +316,21 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({
                 </span>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-2">
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => onOpenSyncWithCoupon(createdCoupon)}
-                  className="w-full flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-black transition-all shadow-lg shadow-emerald-950"
+                  onClick={() => onClaimPrize(createdCoupon)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md shadow-amber-950"
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>تأكيد الحجز بالسيستم وإرساله لواتساب المعمل 🚀</span>
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span>تفعيل الجائزة ودوري الأبطال</span>
                 </button>
 
                 <button
-                  onClick={() => onClaimPrize(createdCoupon)}
-                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition-colors border border-slate-700"
+                  onClick={() => onOpenSyncWithCoupon(createdCoupon)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
                 >
-                  <Trophy className="w-3.5 h-3.5" />
-                  <span>تذكرة تفصيلية ودوري الأبطال</span>
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>واتساب المعمل</span>
                 </button>
               </div>
             </div>

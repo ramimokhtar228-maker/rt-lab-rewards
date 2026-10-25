@@ -65,6 +65,33 @@ class SoundController {
     } catch {}
   }
 
+  // Clear ringing bell for incoming patient claim / booking notifications
+  public playBellNotification() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      [880, 1320, 1760].forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+
+        gain.gain.setValueAtTime(0, now + idx * 0.06);
+        gain.gain.linearRampToValueAtTime(0.2 / (idx + 1), now + idx * 0.06 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.8);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.06);
+        osc.stop(now + idx * 0.06 + 0.85);
+      });
+    } catch {}
+  }
+
   // Pleasant chime for correct answer / point gain
   public playSuccess() {
     if (this.isMuted) return;

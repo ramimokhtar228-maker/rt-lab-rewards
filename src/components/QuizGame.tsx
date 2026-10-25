@@ -17,6 +17,7 @@ import {
 import { Question, QuestionCategory, PlayerProfile } from '../types';
 import { soundManager } from '../utils/audio';
 import { triggerConfetti } from '../utils/confetti';
+import { checkGameCooldown, recordGamePlayed } from '../utils/cooldown';
 
 interface QuizGameProps {
   questions: Question[];
@@ -41,6 +42,24 @@ export const QuizGame: React.FC<QuizGameProps> = ({
   const [score, setScore] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [isQuizCompleted, setIsQuizCompleted] = useState(false);
+  const [cooldown, setCooldown] = useState(() => checkGameCooldown('quiz'));
+
+  // 1-second live countdown ticker for 12-hour fair play
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCooldown(checkGameCooldown('quiz'));
+    }, 1000);
+
+    const handleCustomCooldown = () => {
+      setCooldown(checkGameCooldown('quiz'));
+    };
+    window.addEventListener('rt_lab_cooldown_updated', handleCustomCooldown);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('rt_lab_cooldown_updated', handleCustomCooldown);
+    };
+  }, []);
 
   // Lifelines
   const [usedFiftyFifty, setUsedFiftyFifty] = useState(false);
@@ -157,9 +176,17 @@ export const QuizGame: React.FC<QuizGameProps> = ({
         'إتمام مسابقة التحدي'
       );
     }
+
+    // Record game played for 12-hour fair play
+    recordGamePlayed('quiz');
+    setCooldown(checkGameCooldown('quiz'));
   };
 
   const handleRestartQuiz = () => {
+    if (!cooldown.allowed) {
+      alert(`⏳ مسابقة الذكاء متاحة مرة كل 12 ساعة لكل عميل لضمان تكافؤ الفرص في دوري الأبطال. متبقي للجولة القادمة: ${cooldown.formatted.arabicLabel} (${cooldown.formatted.digital})`);
+      return;
+    }
     setCurrentIndex(0);
     setScore(0);
     setCurrentStreak(0);
@@ -254,7 +281,37 @@ ${window.location.origin}`;
         ))}
       </div>
 
-      {isQuizCompleted ? (
+      {!cooldown.allowed && !isQuizCompleted ? (
+        /* 12-Hour Cooldown Wait Card */
+        <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-8 text-center space-y-6 relative overflow-hidden">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-950/40">
+            <Clock className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold text-white">تمت المشاركة في مسابقة الذكاء لهذه الجولة!</h3>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+              لضمان تكافؤ الفرص في دوري أبطال معامل RT، يحق لكل عميل لعب جولة أسئلة واحدة كل <strong className="text-amber-400">12 ساعة فقط</strong>.
+            </p>
+          </div>
+
+          <div className="max-w-xs mx-auto p-4 bg-slate-950 rounded-2xl border border-amber-500/40 shadow-inner">
+            <span className="text-xs text-slate-400 block mb-1">متبقي لفتح الجولة الجديدة:</span>
+            <span className="font-mono text-2xl font-black text-amber-400 tracking-wider" dir="ltr">
+              {cooldown.formatted.digital}
+            </span>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={handleShareQuestion}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors"
+            >
+              <Share2 className="w-4 h-4 text-emerald-400" />
+              <span>مشاركة المسابقة مع أصدقائك (+15 نقطة)</span>
+            </button>
+          </div>
+        </div>
+      ) : isQuizCompleted ? (
         /* Quiz Finished Card */
         <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-8 text-center space-y-6 relative overflow-hidden">
           <div className="w-20 h-20 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -284,13 +341,20 @@ ${window.location.origin}`;
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
-            <button
-              onClick={handleRestartQuiz}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-900/30 transition-colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>لعب جولة أسئلة جديدة</span>
-            </button>
+            {!cooldown.allowed ? (
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 border border-amber-500/30 text-amber-300 font-bold text-xs shadow-inner">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <span>الجولة القادمة بعد: <strong className="font-mono text-white text-sm" dir="ltr">{cooldown.formatted.digital}</strong></span>
+              </div>
+            ) : (
+              <button
+                onClick={handleRestartQuiz}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-900/30 transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>لعب جولة أسئلة جديدة</span>
+              </button>
+            )}
             <button
               onClick={handleShareQuestion}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm transition-colors"
