@@ -21,26 +21,6 @@
       "syncedAt": "2026-10-25T11:00:57.575Z"
     },
     {
-      "patientName": "محمد محمود",
-      "patientPhone": "01124485444",
-      "address": "اكتوبر",
-      "serviceType": "branch_visit",
-      "preferredTime": "عصراً (1:00 ظ - 5:00 م)",
-      "couponCode": "RT-YGGG-704",
-      "prizeTitle": "جائزة عجلة الحظ: تحليل CBC مجاني",
-      "prizeValue": "تحليل CBC مجاني",
-      "points": 170,
-      "collectorId": "col_aya",
-      "collectorName": "أ. آية أحمد",
-      "collectorPhone": "01278967133",
-      "collectorWhatsApp": "201116979431",
-      "notes": "حجز مباشر عبر واتساب المعمل | الخدمة: فرع المعمل",
-      "id": "clm_1792913861865",
-      "createdAt": "٢٥‏/١٠‏/٢٠٢٦",
-      "status": "confirmed",
-      "syncedAt": "2026-10-25T07:37:41.865Z"
-    },
-    {
       "patientName": "رحاب علي",
       "patientPhone": "01100046841",
       "address": "شبرا الخيمه",
@@ -125,5 +105,5 @@
     "homeVisitEnabled": true,
     "whatsappDirectSync": true
   },
-  "lastUpdated": "2026-10-25T12:20:30.559Z"
+  "lastUpdated": "2026-10-25T12:20:40.298Z"
 }
